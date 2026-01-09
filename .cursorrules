@@ -1,0 +1,94 @@
+# Styling & Component Richtlijnen
+
+## Component Gebruik
+- **ALTIJD gebruik shadcn/ui componenten** voor nieuwe features (Button, Input, Card, Form, etc.)
+- Voeg nieuwe shadcn componenten toe via: `npx shadcn@latest add [component-name]`
+- Importeer componenten van `@/components/ui/[component]` niet van externe libraries
+- Gebruik GEEN custom styled components tenzij echt nodig - pas liever shadcn componenten aan
+
+## Typografie
+- Gebruik altijd de gedefinieerde typography classes uit globals.css:
+  - `h2`, `h3`, `h4`, `h5`, `h6` voor headings (responsive sizes, Sofia Pro Bold)
+  - `p-large`, `p-regular`, `p-small` voor paragraphs (Sofia Pro Regular)
+- Font familie: Sofia Pro (weights: 400 Regular, 500 Medium, 700 Bold)
+- Contempora alleen gebruiken indien specifiek aangegeven in designs
+
+## Kleuren & Design Tokens
+- **Achtergrondkleur**: `#E8EEF2` (altijd, overal)
+- **Standaard tekstkleur**: `#1F2D58` (tenzij anders aangegeven, zoals warnings)
+- **Primary button**: 
+  - BG: `#F86600`, hover BG: `#1F2D58`
+  - White text met text-shadow (20% zwart opacity)
+- **Secondary button**: 
+  - BG: `#193DAB` 12% opacity, hover: `#193DAB` 40% opacity
+  - Text kleur: `#1F2D58`
+- Gebruik deze design tokens, niet custom kleuren
+
+## Buttons
+- Altijd Primary of Secondary variant gebruiken (niet custom styles)
+- Altijd arrow icon toevoegen vooraan in button (SVG icon zoals gedefinieerd)
+- Altijd focus states behouden voor toegankelijkheid (2px border `#1F2D58` bij focus)
+- Rounded (full border-radius)
+
+## Cards & Containers
+- Altijd custom border-radius gebruiken: `rounded-t-[0.75rem] rounded-b-[2rem]`
+- **Altijd witte achtergrond** (`#ffffff` of `bg-white`), geen border
+- Pas toe op alle containers/boxes
+- Achtergrond van de pagina/app is altijd `#E8EEF2`
+
+## Responsive Design
+- Breakpoint: mobile < 640px, desktop >= 640px (standaard Tailwind breakpoints)
+- Test altijd beide breakpoints
+
+## Best Practices
+- Behoud altijd focus states en accessibility features
+- Gebruik Tailwind utility classes voor spacing/layout
+- Gebruik design tokens voor kleuren/typography (niet hardcoded waarden)
+- Check `globals.css` voor gedefinieerde classes als je twijfelt over styling
+- pt naar rem conversie: 16pt = 1rem
+
+## Airtable Datumvelden
+- Gebruik ALTIJD volledige ISO 8601 timestamps met datum én tijd: `new Date().toISOString()`
+- Dit geeft het formaat: `2026-01-09T13:20:02.135Z`
+- In Airtable moeten Date velden de optie "Include a time field" AAN hebben staan
+- Dit geldt voor alle datumvelden: `created-at`, `processed-at`, `updated-at`, etc.
+
+## Event Logging
+- Bij ELKE actie die data wijzigt (create/update/delete), voeg een `logEvent()` call toe
+- Import van: `import { logEvent, getClientIP } from "@/lib/events";`
+- Event types:
+  - User: `user_created`, `user_updated`, `user_login`, `user_logout`, `user_invited`, `user_removed`
+  - Employer: `employer_created`, `employer_updated`
+  - Vacancy: `vacancy_created`, `vacancy_updated`, `vacancy_publish`, `vacancy_depublish`, `vacancy_boost`, `vacancy_duplicate`
+  - Media: `media_uploaded`, `media_deleted`
+  - Onboarding: `onboarding_started`, `onboarding_completed`
+- Vereiste parameters:
+  - `event_type`: het type event (zie hierboven)
+  - `actor_user_id`: de user die de actie uitvoert (uit session)
+  - `source`: `"web"` voor frontend acties, `"api"` voor API calls, `"admin"` voor admin acties
+- Optionele parameters (indien relevant):
+  - `employer_id`: bij employer-gerelateerde events
+  - `target_user_id`: bij multi-user acties (invite, remove)
+  - `vacancy_id`: bij vacancy-gerelateerde events
+  - `payload`: extra JSON data (bijv. welke velden zijn gewijzigd)
+  - `ip_address`: verkrijg via `getClientIP(request)`
+
+## Success Toasts / Notificaties
+- Gebruik ALTIJD `sonner` voor feedback notificaties bij gebruikersacties
+- Import: `import { toast } from "sonner";`
+- De `<Toaster />` component staat al in `layout.tsx` (position: bottom-center, richColors: true)
+- Toon een toast bij:
+  - Succesvolle form submissions (onboarding, profiel opslaan, vacature aanmaken, etc.)
+  - Succesvolle CRUD operaties (aanmaken, bewerken, verwijderen)
+  - Succesvolle uploads (logo, header, documenten)
+  - Succesvolle login/logout
+  - Acties waar de gebruiker bevestiging nodig heeft dat iets gelukt is
+- Toast types en formaat:
+  - Success: `toast.success("Titel", { description: "Optionele beschrijving" })`
+  - Error: `toast.error("Fout", { description: "Wat ging er mis" })`
+  - Info: `toast.info("Info", { description: "Informatieve tekst" })`
+  - Warning: `toast.warning("Let op", { description: "Waarschuwing" })`
+- Gebruik Nederlandse teksten voor de meldingen
+- Houd titels kort en actiegericht (bijv. "Opgeslagen", "Vacature aangemaakt", "Welkom!")
+- Gebruik GEEN `alert()` - vervang door toast
+

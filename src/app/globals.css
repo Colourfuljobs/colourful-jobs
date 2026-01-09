@@ -1,26 +1,160 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #E8EEF2;
+  --foreground: #1F2D58;
+  
+  /* Design tokens */
+  --primary-orange: #F86600;
+  --primary-blue: #1F2D58;
+  --secondary-blue: #193DAB;
+  
+  /* shadcn/ui colors */
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 24 95% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --radius: 0.5rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: "sofia-pro", sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "sofia-pro", sans-serif;
+}
+
+/* Typography System */
+h2 {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem; /* 24pt mobile */
+  line-height: 110%;
+  color: #1F2D58;
+}
+
+@media (min-width: 640px) {
+  h2 {
+    font-size: 2rem; /* 32pt desktop */
+  }
+}
+
+h3 {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 700;
+  font-size: 1.25rem; /* 20pt mobile */
+  line-height: 120%;
+  color: #1F2D58;
+}
+
+@media (min-width: 640px) {
+  h3 {
+    font-size: 1.5rem; /* 24pt desktop */
+  }
+}
+
+h4 {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 700;
+  font-size: 1.125rem; /* 18pt mobile */
+  line-height: 120%;
+  color: #1F2D58;
+}
+
+@media (min-width: 640px) {
+  h4 {
+    font-size: 1.25rem; /* 20pt desktop */
+  }
+}
+
+h5 {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 700;
+  font-size: 1rem; /* 16pt mobile */
+  line-height: 120%;
+  color: #1F2D58;
+}
+
+@media (min-width: 640px) {
+  h5 {
+    font-size: 1.125rem; /* 18pt desktop */
+  }
+}
+
+h6 {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 700;
+  font-size: 0.875rem; /* 14pt mobile */
+  line-height: 120%;
+  color: #1F2D58;
+}
+
+@media (min-width: 640px) {
+  h6 {
+    font-size: 1rem; /* 16pt desktop */
+  }
+}
+
+.p-large {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 400;
+  font-size: 1rem; /* 16pt */
+  line-height: 150%;
+  color: #1F2D58;
+}
+
+.p-regular {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem; /* 14pt */
+  line-height: 150%;
+  color: #1F2D58;
+}
+
+.p-small {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 400;
+  font-size: 0.75rem; /* 12pt */
+  line-height: 120%;
+  color: #1F2D58;
+}
+
+/* Cursor pointer voor alle klikbare elementen */
+button,
+a,
+[role="button"],
+[type="button"],
+[type="submit"],
+[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+label[for],
+.cursor-pointer {
+  cursor: pointer;
+}
+
+/* Disabled elementen krijgen niet-toegestane cursor */
+button:disabled,
+[disabled],
+.disabled {
+  cursor: not-allowed;
 }

@@ -1,0 +1,27 @@
+// List of countries for dropdown
+export const countries = [
+  "Nederland",
+  "België",
+  "Duitsland",
+  "Frankrijk",
+  "Verenigd Koninkrijk",
+  "Spanje",
+  "Italië",
+  "Portugal",
+  "Oostenrijk",
+  "Zwitserland",
+  "Zweden",
+  "Noorwegen",
+  "Denemarken",
+  "Finland",
+  "Polen",
+  "Tsjechië",
+  "Hongarije",
+  "Roemenië",
+  "Bulgarije",
+  "Griekenland",
+  "Ierland",
+  "Luxemburg",
+  "Andere",
+];
+
