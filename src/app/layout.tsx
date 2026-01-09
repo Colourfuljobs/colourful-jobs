@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { Toaster } from "@/components/ui/sonner";
+import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Werkgeversportaal",
@@ -23,9 +24,13 @@ export default function RootLayout({
           <div className="min-h-screen">
             <header className="border-b bg-white/80 backdrop-blur">
               <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-                <div className="p-regular font-semibold">
-                  Colourful Jobs – Werkgeversportaal
-                </div>
+                <Image 
+                  src="/logo.svg" 
+                  alt="Colourful Jobs" 
+                  width={200} 
+                  height={40}
+                  priority
+                />
               </div>
             </header>
             <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>

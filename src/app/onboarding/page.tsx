@@ -28,6 +28,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState<Step>(1);
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   const [contact, setContact] = useState({
     firstName: "",
@@ -384,6 +385,32 @@ export default function OnboardingPage() {
     }
   }
 
+  // Function to resend email without creating a new account
+  async function handleResendEmail() {
+    if (!contact.email) return;
+    setIsResending(true);
+    try {
+      // Only send magic link, don't create account again
+      await signIn("email", {
+        email: contact.email,
+        redirect: false,
+        callbackUrl: "/onboarding",
+      });
+      // Update message to show it was resent
+      setEmailSent(true);
+      toast.success("E-mail opnieuw verstuurd", {
+        description: "Check je inbox opnieuw.",
+      });
+    } catch (error) {
+      console.error("Error resending email:", error);
+      toast.error("Fout bij versturen", {
+        description: "Er ging iets mis. Probeer het later opnieuw.",
+      });
+    } finally {
+      setIsResending(false);
+    }
+  }
+
   const steps = [
     "Persoonlijke gegevens",
     "KVK nummer",
@@ -398,7 +425,7 @@ export default function OnboardingPage() {
     return (
       <Card className="mx-auto max-w-3xl p-8">
         <CardHeader className="p-0 pb-6">
-          <CardTitle>Onboarding werkgever</CardTitle>
+          <CardTitle>Account aanmaken</CardTitle>
           <CardDescription className="p-regular mt-1">
             Laden...
           </CardDescription>
@@ -416,7 +443,7 @@ export default function OnboardingPage() {
     <div className="mx-auto max-w-3xl">
       <Card className="p-8">
         <CardHeader className="p-0 pb-6">
-        <CardTitle>Onboarding werkgever</CardTitle>
+        <CardTitle>Account aanmaken</CardTitle>
         <CardDescription className="p-regular mt-1">
           Stap {activeTab} van {steps.length}: {steps[activeTab - 1]}
         </CardDescription>
@@ -431,12 +458,12 @@ export default function OnboardingPage() {
           return (
             <div
               key={label}
-              className={`flex-1 rounded-full border px-3 py-1 text-center p-small font-medium ${
+              className={`flex-1 rounded-full px-3 py-1 text-center p-small font-medium ${
                 isActive
-                  ? "border-[#1F2D58] bg-[#1F2D58]/10 text-[#1F2D58]"
+                  ? "bg-[#1F2D58]/20 text-[#1F2D58]"
                   : isDone
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                  : "border-slate-200 bg-slate-50 text-slate-500"
+                  ? "border border-emerald-500 bg-emerald-50 text-emerald-700"
+                  : "border border-slate-200 bg-slate-50 text-slate-500"
               }`}
             >
               {label}
@@ -505,40 +532,38 @@ export default function OnboardingPage() {
                 />
               </div>
               <p className="p-small text-slate-500">
-                We sturen je een magic link naar dit e-mailadres zodat je veilig
-                kunt inloggen en verder kunt gaan met de onboarding.
+                We sturen je een e-mail met een link om veilig in te loggen en verder te gaan.
               </p>
               <div className="mt-4 flex justify-end">
                 <Button
                   onClick={handleSubmitStep1}
                   disabled={!contact.firstName || !contact.lastName || !contact.email || loading}
                 >
-                  {loading ? "Versturen..." : "Doorgaan & magic link sturen"}
+                  {loading ? "Bezig..." : "Volgende stap"}
                 </Button>
               </div>
             </>
           ) : (
             <Alert className="border-emerald-200 bg-emerald-50">
               <AlertTitle className="text-lg font-semibold text-emerald-900">
-                Check je e-mail!
+                Check je e-mail
               </AlertTitle>
-              <AlertDescription className="text-emerald-700 p-regular mb-4">
-                We hebben een magic link gestuurd naar <strong>{contact.email}</strong>.
-                Klik op de link in je e-mail om in te loggen en verder te gaan met de onboarding.
+              <AlertDescription className="text-emerald-700">
+                <p className="p-regular mb-2">
+                  We hebben je een e-mail gestuurd met een link om je email te verifiëren.
+                </p>
+                <p className="p-small text-emerald-600">
+                  Geen mail gezien? Check je spam of{" "}
+                  <button
+                    onClick={handleResendEmail}
+                    disabled={isResending}
+                    className="underline disabled:opacity-50"
+                  >
+                    {isResending ? "Bezig..." : "verstuur \u0027m opnieuw"}
+                  </button>
+                  .
+                </p>
               </AlertDescription>
-              <p className="p-small text-emerald-600">
-                Geen e-mail ontvangen? Check je spam folder of{" "}
-                <button
-                  onClick={() => {
-                    setEmailSent(false);
-                    handleSubmitStep1();
-                  }}
-                  className="underline"
-                >
-                  verstuur opnieuw
-                </button>
-                .
-              </p>
             </Alert>
           )}
         </div>

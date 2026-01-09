@@ -58,8 +58,10 @@ export default function LoginPage() {
           </form>
           {sent && (
             <Alert className="mt-4 border-emerald-200 bg-emerald-50">
-              <AlertDescription className="text-emerald-700 text-xs">
-                We hebben je een link gestuurd. Check je inbox om verder te gaan.
+              <AlertDescription className="text-emerald-700 text-sm">
+                <strong className="block mb-1">Check je e-mail</strong>
+                <p className="mb-2">We hebben je een e-mail gestuurd met een link om veilig in te loggen.</p>
+                <p className="text-xs">Geen mail gezien? Check je spam of verstuur &apos;m opnieuw.</p>
               </AlertDescription>
             </Alert>
           )}

@@ -1,32 +1,27 @@
 @import "tailwindcss";
 
 :root {
+  /* Main colors - Design tokens */
   --background: #E8EEF2;
   --foreground: #1F2D58;
-  
-  /* Design tokens */
   --primary-orange: #F86600;
   --primary-blue: #1F2D58;
   --secondary-blue: #193DAB;
   
-  /* shadcn/ui colors */
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 24 95% 53%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
+  /* shadcn/ui essentials (HSL format vereist voor shadcn componenten) */
+  --card: 0 0% 100%; /* wit voor cards */
+  --card-foreground: 223 49% 24%; /* #1F2D58 */
+  --primary: 24 95% 53%; /* #F86600 oranje */
+  --primary-foreground: 0 0% 100%; /* wit */
+  --secondary: 223 49% 24%; /* #1F2D58 blauw */
+  --secondary-foreground: 0 0% 100%; /* wit */
+  --muted: 210 25% 92%; /* #E8EEF2 achtergrond */
+  --muted-foreground: 223 49% 24%; /* #1F2D58 */
+  --destructive: 0 84% 60%; /* rood voor errors */
+  --destructive-foreground: 0 0% 100%; /* wit */
+  --border: 214 32% 91%; /* lichte border */
+  --input: 223 49% 24% / 0.2; /* input border - #1F2D58 met 20% opacity */
+  --ring: 223 49% 24%; /* #1F2D58 focus ring */
   --radius: 0.5rem;
 }
 
@@ -43,6 +38,20 @@ body {
 }
 
 /* Typography System */
+h1 {
+  font-family: "sofia-pro", sans-serif;
+  font-weight: 700;
+  font-size: 2rem; /* 32pt mobile */
+  line-height: 110%;
+  color: #1F2D58;
+}
+
+@media (min-width: 640px) {
+  h1 {
+    font-size: 2.5rem; /* 40pt desktop */
+  }
+}
+
 h2 {
   font-family: "sofia-pro", sans-serif;
   font-weight: 700;
@@ -88,15 +97,9 @@ h4 {
 h5 {
   font-family: "sofia-pro", sans-serif;
   font-weight: 700;
-  font-size: 1rem; /* 16pt mobile */
+  font-size: 1.375rem; /* 22pt - fixed size for all breakpoints */
   line-height: 120%;
   color: #1F2D58;
-}
-
-@media (min-width: 640px) {
-  h5 {
-    font-size: 1.125rem; /* 18pt desktop */
-  }
 }
 
 h6 {
@@ -132,7 +135,7 @@ h6 {
 .p-small {
   font-family: "sofia-pro", sans-serif;
   font-weight: 400;
-  font-size: 0.75rem; /* 12pt */
+  font-size: 0.8125rem; /* 13pt */
   line-height: 120%;
   color: #1F2D58;
 }
@@ -157,4 +160,10 @@ button:disabled,
 [disabled],
 .disabled {
   cursor: not-allowed;
+}
+
+/* Next.js portal positioning override */
+nextjs-portal {
+  left: auto !important;
+  top: auto !important;
 }
