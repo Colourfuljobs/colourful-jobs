@@ -1,5 +1,5 @@
 import { authOptions } from "@/lib/auth";
-import { createEmployer, createUser, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK } from "@/lib/airtable";
+import { createEmployer, createUser, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -69,6 +69,15 @@ export async function POST(request: Request) {
       // Log onboarding_started event
       await logEvent({
         event_type: "onboarding_started",
+        actor_user_id: userId,
+        employer_id: employerId,
+        source: "web",
+        ip_address: clientIP,
+      });
+
+      // Log user_email_pending event (magic link will be sent)
+      await logEvent({
+        event_type: "user_email_pending",
         actor_user_id: userId,
         employer_id: employerId,
         source: "web",
@@ -220,6 +229,59 @@ export async function GET(request: Request) {
     console.error("Error checking KVK:", error);
     return NextResponse.json(
       { error: error.message || "Failed to check KVK" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const clientIP = getClientIP(request);
+
+  try {
+    // Get user from database
+    const user = await getUserByEmail(session.user.email);
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Log user removal event before deletion
+    await logEvent({
+      event_type: "user_removed",
+      actor_user_id: user.id,
+      employer_id: user.employer_id || undefined,
+      source: "web",
+      ip_address: clientIP,
+      payload: {
+        reason: "onboarding_restart",
+        email: user.email,
+      },
+    });
+
+    // Delete the employer first (if exists)
+    if (user.employer_id) {
+      try {
+        await deleteEmployer(user.employer_id);
+      } catch (error) {
+        console.error("Error deleting employer:", error);
+        // Continue with user deletion even if employer deletion fails
+      }
+    }
+
+    // Delete the user
+    await deleteUser(user.id);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting onboarding data:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to delete onboarding data" },
       { status: 500 }
     );
   }

@@ -15,6 +15,8 @@ export type EventType =
   | "user_logout"
   | "user_invited"
   | "user_removed"
+  | "user_email_pending"
+  | "user_email_verified"
   | "employer_created"
   | "employer_updated"
   | "vacancy_created"
@@ -72,10 +74,12 @@ export async function logEvent(params: LogEventParams): Promise<EventRecord | nu
     return null;
   }
 
+  const timestamp = new Date().toISOString();
   const airtableFields: Record<string, any> = {
     event_type: params.event_type,
     status: "new" as EventStatus,
-    "created-at": new Date().toISOString(),
+    "created-at": timestamp,
+    "processed-at": timestamp,
   };
 
   // Linked records need to be arrays

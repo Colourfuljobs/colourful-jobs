@@ -311,4 +311,30 @@ export async function getEmployerByKVK(kvkNumber: string): Promise<EmployerRecor
   }
 }
 
+export async function deleteUser(id: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    await base(USERS_TABLE).destroy(id);
+  } catch (error: any) {
+    console.error("Error deleting user from Airtable:", error);
+    throw new Error(`Failed to delete user: ${error.message || "Unknown error"}`);
+  }
+}
+
+export async function deleteEmployer(id: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    await base(EMPLOYERS_TABLE).destroy(id);
+  } catch (error: any) {
+    console.error("Error deleting employer from Airtable:", error);
+    throw new Error(`Failed to delete employer: ${error.message || "Unknown error"}`);
+  }
+}
+
 

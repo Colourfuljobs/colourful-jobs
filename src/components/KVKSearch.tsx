@@ -76,7 +76,7 @@ export function KVKSearch({ onSelect, onSkip }: KVKSearchProps) {
           <Input
             id="kvk-search"
             type="text"
-            placeholder={searchType === "number" ? "KVK-nummer (bijv. 12345678)" : "Bedrijfsnaam"}
+            placeholder="Bedrijfsnaam of KVK-nummer (bijv. 12345678)"
             value={query}
             onChange={handleInputChange}
             className="flex-1"

@@ -1,5 +1,8 @@
 # Styling & Component Richtlijnen
 
+## Text
+- Schrijf altijd 'Colourful jobs', dus met hoofdletter C en kleine letter j
+
 ## Component Gebruik
 - **ALTIJD gebruik shadcn/ui componenten** voor nieuwe features (Button, Input, Card, Form, etc.)
 - Voeg nieuwe shadcn componenten toe via: `npx shadcn@latest add [component-name]`
@@ -58,10 +61,12 @@
 - Import van: `import { logEvent, getClientIP } from "@/lib/events";`
 - Event types:
   - User: `user_created`, `user_updated`, `user_login`, `user_logout`, `user_invited`, `user_removed`
+  - Auth: `user_email_pending` (magic link verstuurd), `user_email_verified` (verificatie link geklikt tijdens onboarding)
   - Employer: `employer_created`, `employer_updated`
   - Vacancy: `vacancy_created`, `vacancy_updated`, `vacancy_publish`, `vacancy_depublish`, `vacancy_boost`, `vacancy_duplicate`
   - Media: `media_uploaded`, `media_deleted`
   - Onboarding: `onboarding_started`, `onboarding_completed`
+- Notitie: `user_email_verified` wordt gelogd tijdens onboarding, `user_login` alleen bij actieve gebruikers
 - Vereiste parameters:
   - `event_type`: het type event (zie hierboven)
   - `actor_user_id`: de user die de actie uitvoert (uit session)

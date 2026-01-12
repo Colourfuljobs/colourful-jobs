@@ -78,10 +78,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"];
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "Alleen JPEG, PNG, WebP of AVIF afbeeldingen zijn toegestaan" },
+        { error: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan" },
         { status: 400 }
       );
     }
@@ -107,30 +107,37 @@ export async function POST(request: NextRequest) {
     const altText = generateAltText(type, companyData);
 
     // Upload to Cloudinary with automatic optimization
+    // For SVG files, skip transformations to preserve vector quality
+    const isSvg = file.type === "image/svg+xml";
     const uploadResult = await cloudinary.uploader.upload(dataUri, {
       folder: `colourful-jobs/employers/${employerId}`,
       public_id: type, // 'logo' or 'header'
       overwrite: true,
       resource_type: "image",
-      // Transformation for optimization - Cloudinary will serve AVIF/WebP automatically with f_auto
-      transformation: [
-        {
-          quality: "auto:good", // Automatic quality optimization
-          fetch_format: "auto", // Serve AVIF/WebP based on browser support
-        },
-        // Resize based on type
-        type === "logo" 
-          ? { width: 400, height: 400, crop: "limit" } // Logo max 400x400
-          : { width: 1920, height: 600, crop: "limit" }, // Header max 1920x600
-      ],
+      // SVG files don't need transformations
+      ...(!isSvg && {
+        transformation: [
+          {
+            quality: "auto:good", // Automatic quality optimization
+            fetch_format: "auto", // Serve AVIF/WebP based on browser support
+          },
+          // Resize based on type
+          type === "logo" 
+            ? { width: 400, height: 400, crop: "limit" } // Logo max 400x400
+            : { width: 1920, height: 600, crop: "limit" }, // Header max 1920x600
+        ],
+      }),
     });
 
     // Get the optimized URL (with automatic format)
-    const optimizedUrl = cloudinary.url(uploadResult.public_id, {
-      fetch_format: "auto",
-      quality: "auto:good",
-      secure: true,
-    });
+    // For SVG, use the original URL without transformations
+    const optimizedUrl = isSvg 
+      ? uploadResult.secure_url
+      : cloudinary.url(uploadResult.public_id, {
+          fetch_format: "auto",
+          quality: "auto:good",
+          secure: true,
+        });
 
     // Store in Airtable - both the URL (as attachment) and alt text
     // Note: In Airtable, header field is called "header_image"

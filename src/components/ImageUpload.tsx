@@ -28,10 +28,10 @@ export function ImageUpload({
 
   const handleFile = (file: File) => {
     // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"];
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
     if (!allowedTypes.includes(file.type)) {
       toast.error("Ongeldig bestandstype", {
-        description: "Alleen JPEG, PNG, WebP of AVIF afbeeldingen zijn toegestaan",
+        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
       });
       return;
     }
@@ -104,7 +104,7 @@ export function ImageUpload({
           ref={fileInputRef}
           id={id}
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/avif"
+          accept="image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"
           onChange={handleFileInputChange}
           className="hidden"
           disabled={uploading}
@@ -142,7 +142,7 @@ export function ImageUpload({
               <span className="font-medium text-[#193DAB]">Klik om te uploaden</span> of sleep hierheen
             </p>
             <p className="mt-1 p-small text-slate-500">
-              PNG, JPG, WebP, AVIF tot 5MB
+              PNG, JPG, WebP, AVIF, SVG tot 5MB
             </p>
           </div>
         )}

@@ -22,8 +22,8 @@ export default function RootLayout({
       <body className="antialiased bg-[#E8EEF2]">
         <SessionProvider>
           <div className="min-h-screen">
-            <header className="border-b bg-white/80 backdrop-blur">
-              <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+            <header className="bg-white/80 backdrop-blur">
+              <div className="mx-auto flex max-w-5xl items-center justify-center px-6 py-4">
                 <Image 
                   src="/logo.svg" 
                   alt="Colourful Jobs" 

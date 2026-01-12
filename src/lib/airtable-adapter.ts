@@ -24,13 +24,20 @@ async function getUserById(id: string): Promise<AdapterUser | null> {
     const record = await base(USERS_TABLE).find(id);
     const email = record.fields.email as string;
     if (!email) return null;
+    
+    // Get employer_id (linked field returns array)
+    const employer_id = Array.isArray(record.fields.employer_id)
+      ? record.fields.employer_id[0] || null
+      : record.fields.employer_id || null;
+    
     return {
       id: record.id,
       email,
       emailVerified: null,
       name: null,
       image: null,
-    };
+      employerId: employer_id,
+    } as AdapterUser;
   } catch {
     return null;
   }
@@ -66,7 +73,8 @@ export function AirtableAdapter(): Adapter {
         emailVerified: null,
         name: null,
         image: null,
-      };
+        employerId: user.employer_id || null,
+      } as AdapterUser;
     },
     async getUserByAccount({ providerAccountId, provider }) {
       try {

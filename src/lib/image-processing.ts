@@ -109,12 +109,12 @@ export async function processImage(
  */
 export function validateImage(file: File): { valid: boolean; error?: string } {
   const maxSize = 5 * 1024 * 1024; // 5MB
-  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/svg+xml"];
 
   if (!allowedTypes.includes(file.type)) {
     return {
       valid: false,
-      error: "Alleen JPEG, PNG of WebP afbeeldingen zijn toegestaan",
+      error: "Alleen JPEG, PNG, WebP of SVG afbeeldingen zijn toegestaan",
     };
   }
 
