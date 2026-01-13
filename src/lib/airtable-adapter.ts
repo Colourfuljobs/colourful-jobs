@@ -244,6 +244,7 @@ export function AirtableAdapter(): Adapter {
       }
     },
     async createVerificationToken({ identifier, expires, token }) {
+      console.log("[Auth] Creating verification token for:", identifier);
       try {
         const expiresFormatted = expires.toISOString();
         
@@ -252,6 +253,8 @@ export function AirtableAdapter(): Adapter {
           token,
           expires: expiresFormatted,
         });
+        
+        console.log("[Auth] Verification token created successfully");
         
         const expiresValue = record.fields.expires;
         const expiresDate = expiresValue instanceof Date 
@@ -266,11 +269,12 @@ export function AirtableAdapter(): Adapter {
           expires: expiresDate,
         };
       } catch (error: any) {
-        console.error("Error creating verification token:", error.message);
+        console.error("[Auth] ERROR creating verification token:", error.message, error.statusCode);
         throw error;
       }
     },
     async useVerificationToken({ identifier, token }) {
+      console.log("[Auth] Looking up verification token for:", identifier);
       try {
         const records = await getBase()(VERIFICATION_TOKENS_TABLE)
           .select({
@@ -280,9 +284,11 @@ export function AirtableAdapter(): Adapter {
           .firstPage();
 
         if (!records[0]) {
+          console.log("[Auth] No verification token found");
           return null;
         }
 
+        console.log("[Auth] Verification token found, deleting...");
         const verificationToken = {
           identifier: records[0].fields.identifier as string,
           token: records[0].fields.token as string,
@@ -290,9 +296,10 @@ export function AirtableAdapter(): Adapter {
         };
 
         await getBase()(VERIFICATION_TOKENS_TABLE).destroy(records[0].id);
+        console.log("[Auth] Verification token deleted");
         return verificationToken;
       } catch (error: any) {
-        console.error("Error in useVerificationToken:", error.message);
+        console.error("[Auth] ERROR in useVerificationToken:", error.message);
         return null;
       }
     },
