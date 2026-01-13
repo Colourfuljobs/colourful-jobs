@@ -5,11 +5,6 @@ import { AirtableAdapter } from "./airtable-adapter";
 import { logEvent, getTargetEmployerFromPendingEvent } from "./events";
 import { getUserByEmail } from "./airtable";
 
-console.log("[DEBUG-D] auth.ts init", {
-  hasSecret: !!process.env.NEXTAUTH_SECRET,
-  hasUrl: !!process.env.NEXTAUTH_URL,
-});
-
 export type EmployerStatus = "pending_onboarding" | "active";
 
 declare module "next-auth" {
@@ -206,17 +201,6 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
   },
-  logger: {
-    error(code, metadata) {
-      console.error("[DEBUG-NA][error]", code, metadata);
-    },
-    warn(code) {
-      console.warn("[DEBUG-NA][warn]", code);
-    },
-    debug(code, metadata) {
-      console.log("[DEBUG-NA][debug]", code, metadata);
-    },
-  },
   session: {
     strategy: "jwt",
     maxAge: 14 * 24 * 60 * 60, // 14 dagen in seconden
@@ -349,11 +333,8 @@ export const authOptions: NextAuthOptions = {
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
-      console.log("[DEBUG-D] JWT callback:", { hasUser: !!user, trigger, sub: token?.sub, email: token?.email });
-      
       // Bij nieuwe login: zet user data in token
       if (user) {
-        console.log("[DEBUG-D] New user login, setting token data for:", user.email);
         (token as any).employerId = (user as any).employerId ?? null;
         (token as any).status =
           ((user as any).status as EmployerStatus) ?? "pending_onboarding";
@@ -366,7 +347,6 @@ export const authOptions: NextAuthOptions = {
       const isInactive = Date.now() - lastActivity > inactivityTimeout;
       
       if (isInactive) {
-        console.log("[DEBUG-D] JWT inactive -> null");
         return null as any;
       }
       
@@ -378,10 +358,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      console.log("[DEBUG-D] Session callback:", { hasToken: !!token, sub: token?.sub, email: token?.email });
-      
       if (!token || !token.sub) {
-        console.log("[DEBUG-D] No valid token in session callback!");
         return session;
       }
       session.user = {
@@ -391,7 +368,6 @@ export const authOptions: NextAuthOptions = {
         status:
           ((token as any).status as EmployerStatus) ?? "pending_onboarding",
       };
-      console.log("[DEBUG-D] Session created for:", session.user.email);
       return session;
     },
   },

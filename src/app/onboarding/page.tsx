@@ -37,12 +37,6 @@ export default function OnboardingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // #region agent log
-  useEffect(() => {
-    console.log('[DEBUG-A] useSession:', { status, hasSession: !!session, userEmail: session?.user?.email });
-  }, [status, session]);
-  // #endregion
-  
   // Step management
   const [step, setStep] = useState<Step>(1);
   const [step1Complete, setStep1Complete] = useState(false);
@@ -91,17 +85,10 @@ export default function OnboardingPage() {
 
   // Restore onboarding state from localStorage on mount
   useEffect(() => {
-    // #region agent log
-    console.log('[DEBUG-B] localStorage restore check:', { status, willRestore: status === "unauthenticated" });
-    // #endregion
-    
     // Only restore if not authenticated (if authenticated, email is already verified)
     if (status === "unauthenticated") {
       try {
         const saved = localStorage.getItem(ONBOARDING_STORAGE_KEY);
-        // #region agent log
-        console.log('[DEBUG-B] localStorage restore inner:', { hasSaved: !!saved, savedData: saved ? JSON.parse(saved) : null });
-        // #endregion
         if (saved) {
           const { contact: savedContact, emailSent: savedEmailSent, timestamp } = JSON.parse(saved);
           
@@ -840,16 +827,27 @@ export default function OnboardingPage() {
   async function saveStep2Data() {
     const formData = getValues();
     
+    // Basic KVK length check to avoid bad fetch/parsing
+    if (formData.kvk && formData.kvk.length !== 8) {
+      setFormErrors((prev) => ({ ...prev, kvk: "KVK-nummer moet 8 cijfers bevatten" }));
+      return false;
+    }
+
     // Fallback: check KVK again at submit (if not via KVK search)
     if (formData.kvk && !kvkSelected) {
       const checkResponse = await fetch(`/api/onboarding?kvk=${formData.kvk}`);
-      const checkData = await checkResponse.json();
-      
-      if (checkData.exists) {
-        setDuplicateEmployer(checkData.employer);
-        setKvkCheckResult(checkData); // Shows inline alert
-        setDuplicateDialogOpen(true); // Shows dialog popup
-        return false; // Block submit
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        
+        if (checkData.exists) {
+          setDuplicateEmployer(checkData.employer);
+          setKvkCheckResult(checkData); // Shows inline alert
+          setDuplicateDialogOpen(true); // Shows dialog popup
+          return false; // Block submit
+        }
+      } else {
+        setFormErrors((prev) => ({ ...prev, kvk: "Kon KVK niet controleren, probeer opnieuw." }));
+        return false;
       }
     }
     
