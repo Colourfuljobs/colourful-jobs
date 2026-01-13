@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 export async function POST(request: Request) {
+  console.log("[DEBUG-ONB-POST] start", { url: request.url });
   try {
     const body = await request.json();
     const { email, first_name, last_name, role, joinMode, target_employer_id } = body;
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
       employerId,
     });
   } catch (error: any) {
-    console.error("Onboarding POST error:", error);
+    console.error("[DEBUG-ONB-POST] error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to create onboarding record" },
       { status: 500 }
@@ -157,38 +158,104 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const session = await getServerSession(authOptions);
+  console.log("[DEBUG-ONB-PATCH] start", { url: request.url });
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-  const body = await request.json();
-  const clientIP = getClientIP(request);
+    const body = await request.json();
+    const clientIP = getClientIP(request);
 
-  // Get user from database by email (more reliable than session.user.id)
-  const user = await getUserByEmail(session.user.email);
-  
-  if (!user) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
-  }
+    // Get user from database by email (more reliable than session.user.id)
+    const user = await getUserByEmail(session.user.email);
+    
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
-  // Check if this is a user update (has first_name, last_name, or role - these are user-only fields)
-  // Note: status alone is not enough to determine user vs employer update
-  if (body.first_name !== undefined || body.last_name !== undefined || body.role !== undefined) {
-    // Update user
-    const updatedUser = await updateUser(user.id, {
-      first_name: body.first_name,
-      last_name: body.last_name,
-      role: body.role,
-      status: body.status,
-    });
+    // Check if this is a user update (has first_name, last_name, or role - these are user-only fields)
+    // Note: status alone is not enough to determine user vs employer update
+    if (body.first_name !== undefined || body.last_name !== undefined || body.role !== undefined) {
+      // Update user
+      const updatedUser = await updateUser(user.id, {
+        first_name: body.first_name,
+        last_name: body.last_name,
+        role: body.role,
+        status: body.status,
+      });
 
-    // Log user_updated event
+      // Log user_updated event
+      await logEvent({
+        event_type: "user_updated",
+        actor_user_id: user.id,
+        employer_id: user.employer_id,
+        source: "web",
+        ip_address: clientIP,
+        payload: {
+          updated_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+        },
+      });
+
+      return NextResponse.json(updatedUser);
+    }
+
+    // Update employer (everything else)
+    let employerId = user.employer_id;
+    
+    // If user doesn't have an employer yet, create one (this happens in step 2)
+    if (!employerId) {
+      const employer = await createEmployer(body);
+      employerId = employer.id;
+      
+      // Create wallet for the employer
+      let walletId: string | null = null;
+      try {
+        const wallet = await createWallet(employer.id);
+        walletId = wallet.id;
+      } catch (error) {
+        console.error("Failed to create wallet for employer:", employer.id, error);
+      }
+      
+      // Link user to the new employer
+      await updateUser(user.id, { employer_id: employerId });
+      
+      // Log employer_created event
+      await logEvent({
+        event_type: "employer_created",
+        actor_user_id: user.id,
+        employer_id: employerId,
+        source: "web",
+        ip_address: clientIP,
+        payload: {
+          created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+        },
+      });
+      
+      // Log wallet_created event
+      if (walletId) {
+        await logEvent({
+          event_type: "wallet_created",
+          actor_user_id: user.id,
+          employer_id: employerId,
+          source: "web",
+          ip_address: clientIP,
+          payload: { wallet_id: walletId },
+        });
+      }
+      
+      return NextResponse.json(employer);
+    }
+
+    const updated = await updateEmployer(employerId, body);
+
+    // Log employer_updated event
     await logEvent({
-      event_type: "user_updated",
+      event_type: "employer_updated",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: employerId,
       source: "web",
       ip_address: clientIP,
       payload: {
@@ -196,88 +263,37 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return NextResponse.json(updatedUser);
-  }
-
-  // Update employer (everything else)
-  let employerId = user.employer_id;
-  
-  // If user doesn't have an employer yet, create one (this happens in step 2)
-  if (!employerId) {
-    const employer = await createEmployer(body);
-    employerId = employer.id;
-    
-    // Create wallet for the employer
-    let walletId: string | null = null;
-    try {
-      const wallet = await createWallet(employer.id);
-      walletId = wallet.id;
-    } catch (error) {
-      console.error("Failed to create wallet for employer:", employer.id, error);
-    }
-    
-    // Link user to the new employer
-    await updateUser(user.id, { employer_id: employerId });
-    
-    // Log employer_created event
-    await logEvent({
-      event_type: "employer_created",
-      actor_user_id: user.id,
-      employer_id: employerId,
-      source: "web",
-      ip_address: clientIP,
-      payload: {
-        created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
-      },
-    });
-    
-    // Log wallet_created event
-    if (walletId) {
+    // Check if onboarding is completed (employer status changed to active)
+    if (body.status === "active") {
       await logEvent({
-        event_type: "wallet_created",
+        event_type: "onboarding_completed",
         actor_user_id: user.id,
         employer_id: employerId,
         source: "web",
         ip_address: clientIP,
-        payload: { wallet_id: walletId },
       });
     }
-    
-    return NextResponse.json(employer);
+
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    console.error("[DEBUG-ONB-PATCH] error:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to update onboarding data" },
+      { status: 500 }
+    );
   }
-
-  const updated = await updateEmployer(employerId, body);
-
-  // Log employer_updated event
-  await logEvent({
-    event_type: "employer_updated",
-    actor_user_id: user.id,
-    employer_id: employerId,
-    source: "web",
-    ip_address: clientIP,
-    payload: {
-      updated_fields: Object.keys(body).filter((key) => body[key] !== undefined),
-    },
-  });
-
-  // Check if onboarding is completed (employer status changed to active)
-  if (body.status === "active") {
-    await logEvent({
-      event_type: "onboarding_completed",
-      actor_user_id: user.id,
-      employer_id: employerId,
-      source: "web",
-      ip_address: clientIP,
-    });
-  }
-
-  return NextResponse.json(updated);
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const kvkNumber = searchParams.get("kvk");
   const getUserData = searchParams.get("user");
+
+  console.log("[DEBUG-ONB-GET] start", {
+    url: request.url,
+    kvkNumber,
+    getUserData,
+  });
 
   // If user parameter is set, return user data for the logged-in user
   if (getUserData === "true") {
@@ -311,6 +327,7 @@ export async function GET(request: Request) {
 
   // Check for KVK duplicate
   if (!kvkNumber) {
+    console.log("[DEBUG-ONB-GET] missing kvk");
     return NextResponse.json({ error: "KVK number is required" }, { status: 400 });
   }
 
@@ -327,7 +344,7 @@ export async function GET(request: Request) {
       } : null,
     });
   } catch (error: any) {
-    console.error("Error checking KVK:", error);
+    console.error("[DEBUG-ONB-GET] Error checking KVK:", error);
     return NextResponse.json(
       { error: error.message || "Failed to check KVK" },
       { status: 500 }
@@ -337,6 +354,8 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
+
+  console.log("[DEBUG-ONB-DELETE] start", { url: request.url });
 
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -380,7 +399,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error deleting onboarding data:", error);
+    console.error("[DEBUG-ONB-DELETE] Error deleting onboarding data:", error);
     return NextResponse.json(
       { error: error.message || "Failed to delete onboarding data" },
       { status: 500 }
