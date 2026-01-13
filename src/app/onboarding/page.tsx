@@ -37,6 +37,12 @@ export default function OnboardingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:useSession',message:'useSession status check',data:{status,hasSession:!!session,userEmail:session?.user?.email},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+  }, [status, session]);
+  // #endregion
+  
   // Step management
   const [step, setStep] = useState<Step>(1);
   const [step1Complete, setStep1Complete] = useState(false);
@@ -85,10 +91,17 @@ export default function OnboardingPage() {
 
   // Restore onboarding state from localStorage on mount
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:localStorage-restore',message:'localStorage restore check',data:{status,willRestore:status==="unauthenticated"},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
     // Only restore if not authenticated (if authenticated, email is already verified)
     if (status === "unauthenticated") {
       try {
         const saved = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:localStorage-restore-inner',message:'restoring from localStorage',data:{hasSaved:!!saved},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         if (saved) {
           const { contact: savedContact, emailSent: savedEmailSent, timestamp } = JSON.parse(saved);
           
@@ -196,7 +209,15 @@ export default function OnboardingPage() {
 
   // Check if user is logged in and set step accordingly
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:auth-check',message:'auth check useEffect',data:{status,hasSession:!!session,isAuthenticated:status==="authenticated"&&!!session},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
     if (status === "authenticated" && session) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'onboarding/page.tsx:auth-success',message:'User IS authenticated!',data:{userEmail:session.user?.email,userId:session.user?.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
       // User is logged in = email is verified
       setEmailVerified(true);
       setStep1Complete(true);
