@@ -6,14 +6,24 @@ import type {
 import Airtable from "airtable";
 import { getUserByEmail, createUser, escapeAirtableString } from "./airtable";
 
-const baseId = process.env.AIRTABLE_BASE_ID;
-const apiKey = process.env.AIRTABLE_API_KEY;
+// Lazy initialization to avoid build-time errors when env vars aren't available
+let _base: ReturnType<Airtable["base"]> | null = null;
 
-if (!baseId || !apiKey) {
-  throw new Error("Airtable not configured");
+function getBase() {
+  if (_base) return _base;
+  
+  const baseId = process.env.AIRTABLE_BASE_ID;
+  const apiKey = process.env.AIRTABLE_API_KEY;
+
+  if (!baseId || !apiKey) {
+    console.error("❌ Airtable not configured - missing AIRTABLE_BASE_ID or AIRTABLE_API_KEY");
+    throw new Error("Airtable not configured");
+  }
+
+  console.log("✅ Airtable adapter initialized with base:", baseId.substring(0, 8) + "...");
+  _base = new Airtable({ apiKey }).base(baseId);
+  return _base;
 }
-
-const base = new Airtable({ apiKey }).base(baseId);
 const VERIFICATION_TOKENS_TABLE = "VerificationTokens";
 const ACCOUNTS_TABLE = "Accounts";
 const SESSIONS_TABLE = "Sessions";
@@ -21,7 +31,7 @@ const USERS_TABLE = process.env.AIRTABLE_USERS_TABLE || "Users";
 
 async function getUserById(id: string): Promise<AdapterUser | null> {
   try {
-    const record = await base(USERS_TABLE).find(id);
+    const record = await getBase()(USERS_TABLE).find(id);
     const email = record.fields.email as string;
     if (!email) return null;
     
@@ -78,7 +88,7 @@ export function AirtableAdapter(): Adapter {
     },
     async getUserByAccount({ providerAccountId, provider }) {
       try {
-        const records = await base(ACCOUNTS_TABLE)
+        const records = await getBase()(ACCOUNTS_TABLE)
           .select({
             filterByFormula: `AND({provider} = '${escapeAirtableString(provider)}', {providerAccountId} = '${escapeAirtableString(providerAccountId)}')`,
             maxRecords: 1,
@@ -98,7 +108,7 @@ export function AirtableAdapter(): Adapter {
       if (user.email) fields.email = user.email;
       if (user.name) fields.name = user.name;
 
-      const record = await base(USERS_TABLE).update(user.id, fields);
+      const record = await getBase()(USERS_TABLE).update(user.id, fields);
       const email = record.fields.email as string;
       if (!email) {
         throw new Error("Email is required");
@@ -112,7 +122,7 @@ export function AirtableAdapter(): Adapter {
       };
     },
     async linkAccount(account: AdapterAccount) {
-      await base(ACCOUNTS_TABLE).create({
+      await getBase()(ACCOUNTS_TABLE).create({
         userId: account.userId,
         type: account.type,
         provider: account.provider,
@@ -130,7 +140,7 @@ export function AirtableAdapter(): Adapter {
       // Use full ISO string for DateTime fields in Airtable
       const expiresFormatted = expires.toISOString();
       
-      const record = await base(SESSIONS_TABLE).create({
+      const record = await getBase()(SESSIONS_TABLE).create({
         sessionToken,
         userId,
         expires: expiresFormatted,
@@ -152,7 +162,7 @@ export function AirtableAdapter(): Adapter {
     },
     async getSessionAndUser(sessionToken) {
       try {
-        const records = await base(SESSIONS_TABLE)
+        const records = await getBase()(SESSIONS_TABLE)
           .select({
             filterByFormula: `{sessionToken} = '${escapeAirtableString(sessionToken)}'`,
             maxRecords: 1,
@@ -164,7 +174,7 @@ export function AirtableAdapter(): Adapter {
         const session = records[0];
         const expires = new Date(session.fields.expires as string);
         if (expires < new Date()) {
-          await base(SESSIONS_TABLE).destroy(session.id);
+          await getBase()(SESSIONS_TABLE).destroy(session.id);
           return null;
         }
 
@@ -185,7 +195,7 @@ export function AirtableAdapter(): Adapter {
     },
     async updateSession({ sessionToken, expires }) {
       try {
-        const records = await base(SESSIONS_TABLE)
+        const records = await getBase()(SESSIONS_TABLE)
           .select({
             filterByFormula: `{sessionToken} = '${escapeAirtableString(sessionToken)}'`,
             maxRecords: 1,
@@ -200,7 +210,7 @@ export function AirtableAdapter(): Adapter {
           fields.expires = expires.toISOString();
         }
 
-        const record = await base(SESSIONS_TABLE).update(records[0].id, fields);
+        const record = await getBase()(SESSIONS_TABLE).update(records[0].id, fields);
         
         // Handle date parsing from Airtable
         const expiresValue = record.fields.expires;
@@ -221,7 +231,7 @@ export function AirtableAdapter(): Adapter {
     },
     async deleteSession(sessionToken) {
       try {
-        const records = await base(SESSIONS_TABLE)
+        const records = await getBase()(SESSIONS_TABLE)
           .select({
             filterByFormula: `{sessionToken} = '${escapeAirtableString(sessionToken)}'`,
             maxRecords: 1,
@@ -229,7 +239,7 @@ export function AirtableAdapter(): Adapter {
           .firstPage();
 
         if (records[0]) {
-          await base(SESSIONS_TABLE).destroy(records[0].id);
+          await getBase()(SESSIONS_TABLE).destroy(records[0].id);
         }
       } catch {
         // Ignore errors
@@ -241,7 +251,7 @@ export function AirtableAdapter(): Adapter {
         // Use full ISO string for DateTime fields in Airtable
         const expiresFormatted = expires.toISOString();
         
-        const record = await base(VERIFICATION_TOKENS_TABLE).create({
+        const record = await getBase()(VERIFICATION_TOKENS_TABLE).create({
           identifier,
           token,
           expires: expiresFormatted,
@@ -282,7 +292,7 @@ export function AirtableAdapter(): Adapter {
     async useVerificationToken({ identifier, token }) {
       console.log("🔍 useVerificationToken called:", { identifier, tokenLength: token?.length });
       try {
-        const records = await base(VERIFICATION_TOKENS_TABLE)
+        const records = await getBase()(VERIFICATION_TOKENS_TABLE)
           .select({
             filterByFormula: `AND({identifier} = '${escapeAirtableString(identifier)}', {token} = '${escapeAirtableString(token)}')`,
             maxRecords: 1,
@@ -307,7 +317,7 @@ export function AirtableAdapter(): Adapter {
 
         console.log("✅ Verification token found, expires:", verificationToken.expires);
 
-        await base(VERIFICATION_TOKENS_TABLE).destroy(records[0].id);
+        await getBase()(VERIFICATION_TOKENS_TABLE).destroy(records[0].id);
         console.log("🗑️ Verification token deleted after use");
         return verificationToken;
       } catch (error: any) {
