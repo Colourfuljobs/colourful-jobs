@@ -3,12 +3,14 @@
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 
 export default function DashboardPage() {
   const router = useRouter();
 
   async function handleSignOut() {
     await signOut({ redirect: false });
+    toast.success("Je bent succesvol uitgelogd");
     router.push("/login");
   }
 

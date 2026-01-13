@@ -201,6 +201,11 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
   },
+  session: {
+    strategy: "jwt",
+    maxAge: 14 * 24 * 60 * 60, // 14 dagen in seconden
+    updateAge: 60 * 60, // Ververs sessie elke 60 minuten bij activiteit
+  },
   providers: [
     EmailProvider({
       server: process.env.EMAIL_SERVER,
@@ -324,12 +329,30 @@ export const authOptions: NextAuthOptions = {
       // Default: redirect to dashboard
       return `${baseUrl}/dashboard`;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
+      // Bij nieuwe login: zet lastActivity timestamp
       if (user) {
         (token as any).employerId = (user as any).employerId ?? null;
         (token as any).status =
           ((user as any).status as EmployerStatus) ?? "pending_onboarding";
+        (token as any).lastActivity = Date.now();
       }
+      
+      // Check inactiviteit (60 minuten = 3600000 milliseconden)
+      const inactivityTimeout = 60 * 60 * 1000; // 60 minuten
+      const lastActivity = (token as any).lastActivity || Date.now();
+      const isInactive = Date.now() - lastActivity > inactivityTimeout;
+      
+      // Als inactief, forceer logout door null te returnen
+      if (isInactive) {
+        return null as any;
+      }
+      
+      // Update lastActivity bij elke request (tenzij het een scheduled update is)
+      if (trigger === "update" || !trigger) {
+        (token as any).lastActivity = Date.now();
+      }
+      
       return token;
     },
     async session({ session, token }) {
