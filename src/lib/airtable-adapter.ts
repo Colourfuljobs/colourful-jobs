@@ -244,7 +244,11 @@ export function AirtableAdapter(): Adapter {
       }
     },
     async createVerificationToken({ identifier, expires, token }) {
-      console.log("[Auth] Creating verification token for:", identifier);
+      console.log("[DEBUG-VT] Creating verification token", {
+        identifier,
+        tokenLength: token?.length,
+        tokenPreview: token ? `${token.slice(0, 6)}...${token.slice(-4)}` : null,
+      });
       try {
         const expiresFormatted = expires.toISOString();
         
@@ -254,7 +258,9 @@ export function AirtableAdapter(): Adapter {
           expires: expiresFormatted,
         });
         
-        console.log("[Auth] Verification token created successfully");
+        console.log("[DEBUG-VT] Verification token created successfully", {
+          tokenLength: token?.length,
+        });
         
         const expiresValue = record.fields.expires;
         const expiresDate = expiresValue instanceof Date 
@@ -274,7 +280,11 @@ export function AirtableAdapter(): Adapter {
       }
     },
     async useVerificationToken({ identifier, token }) {
-      console.log("[Auth] Looking up verification token for:", identifier);
+      console.log("[DEBUG-VT] Looking up verification token", {
+        identifier,
+        tokenLength: token?.length,
+        tokenPreview: token ? `${token.slice(0, 6)}...${token.slice(-4)}` : null,
+      });
       try {
         const records = await getBase()(VERIFICATION_TOKENS_TABLE)
           .select({

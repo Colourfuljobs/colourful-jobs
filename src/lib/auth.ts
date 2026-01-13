@@ -5,6 +5,11 @@ import { AirtableAdapter } from "./airtable-adapter";
 import { logEvent, getTargetEmployerFromPendingEvent } from "./events";
 import { getUserByEmail } from "./airtable";
 
+console.log("[DEBUG-D] auth.ts init", {
+  hasSecret: !!process.env.NEXTAUTH_SECRET,
+  hasUrl: !!process.env.NEXTAUTH_URL,
+});
+
 export type EmployerStatus = "pending_onboarding" | "active";
 
 declare module "next-auth" {
