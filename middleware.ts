@@ -9,6 +9,14 @@ export default async function middleware(req: NextRequest) {
   const token = await getToken({ req });
   const { pathname } = req.nextUrl;
 
+  // #region agent log
+  console.log("[DEBUG-MW] middleware", {
+    pathname,
+    hasToken: !!token,
+    tokenStatus: (token as any)?.status,
+  });
+  // #endregion
+
   const isPublic =
     pathname === "/" ||
     pathname.startsWith("/login") ||

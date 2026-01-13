@@ -333,11 +333,11 @@ export const authOptions: NextAuthOptions = {
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
-      console.log("[Auth] JWT callback:", { hasUser: !!user, trigger, sub: token?.sub });
+      console.log("[DEBUG-D] JWT callback:", { hasUser: !!user, trigger, sub: token?.sub, email: token?.email });
       
       // Bij nieuwe login: zet user data in token
       if (user) {
-        console.log("[Auth] New user login, setting token data for:", user.email);
+        console.log("[DEBUG-D] New user login, setting token data for:", user.email);
         (token as any).employerId = (user as any).employerId ?? null;
         (token as any).status =
           ((user as any).status as EmployerStatus) ?? "pending_onboarding";
@@ -350,6 +350,7 @@ export const authOptions: NextAuthOptions = {
       const isInactive = Date.now() - lastActivity > inactivityTimeout;
       
       if (isInactive) {
+        console.log("[DEBUG-D] JWT inactive -> null");
         return null as any;
       }
       
