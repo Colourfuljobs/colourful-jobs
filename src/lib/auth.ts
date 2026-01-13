@@ -195,15 +195,13 @@ function loginEmailHtml({ url }: { url: string }) {
 `;
 }
 
-// Determine if we're in production
-const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://");
-const cookieDomain = process.env.NEXTAUTH_URL 
-  ? new URL(process.env.NEXTAUTH_URL).hostname 
-  : undefined;
+// Determine if we're in production (Vercel sets this automatically)
+const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
 
 console.log("🔧 NextAuth config:", { 
-  useSecureCookies, 
-  cookieDomain,
+  isProduction,
+  NODE_ENV: process.env.NODE_ENV,
+  VERCEL: process.env.VERCEL,
   NEXTAUTH_URL: process.env.NEXTAUTH_URL 
 });
 
@@ -212,20 +210,10 @@ export const authOptions: NextAuthOptions = {
   adapter: AirtableAdapter(),
   pages: {
     signIn: "/login",
+    error: "/login", // Redirect auth errors to login page instead of default error page
   },
-  // Cookie configuration for Vercel deployment
-  cookies: {
-    sessionToken: {
-      name: useSecureCookies ? "__Secure-next-auth.session-token" : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: useSecureCookies,
-        domain: undefined, // Let the browser handle this
-      },
-    },
-  },
+  // Use secure cookies in production (Vercel)
+  useSecureCookies: isProduction,
   session: {
     strategy: "jwt",
     maxAge: 14 * 24 * 60 * 60, // 14 dagen in seconden
@@ -336,23 +324,35 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async redirect({ url, baseUrl }) {
+      console.log("🔀 redirect callback:", { url, baseUrl });
+      
       // After successful sign in, redirect to dashboard
       // If url is a relative path, make it absolute
       if (url.startsWith("/")) {
         // Don't redirect back to login after successful sign in
         if (url === "/login" || url.startsWith("/login")) {
+          console.log("🔀 redirecting to dashboard (was login)");
           return `${baseUrl}/dashboard`;
         }
-        return `${baseUrl}${url}`;
+        const redirectUrl = `${baseUrl}${url}`;
+        console.log("🔀 redirecting to:", redirectUrl);
+        return redirectUrl;
       }
       // If url is from same origin, use it (unless it's login)
-      if (new URL(url).origin === baseUrl) {
-        if (url.includes("/login")) {
-          return `${baseUrl}/dashboard`;
+      try {
+        if (new URL(url).origin === baseUrl) {
+          if (url.includes("/login")) {
+            console.log("🔀 redirecting to dashboard (was login full url)");
+            return `${baseUrl}/dashboard`;
+          }
+          console.log("🔀 redirecting to same origin url:", url);
+          return url;
         }
-        return url;
+      } catch (e) {
+        console.log("🔀 error parsing url:", e);
       }
       // Default: redirect to dashboard
+      console.log("🔀 default redirect to dashboard");
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
