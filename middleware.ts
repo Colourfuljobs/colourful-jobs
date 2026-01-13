@@ -12,6 +12,7 @@ export default async function middleware(req: NextRequest) {
   const isPublic =
     pathname === "/" ||
     pathname.startsWith("/login") ||
+    pathname.startsWith("/onboarding") ||
     pathname.startsWith("/api/auth");
 
   if (!token && !isPublic) {
