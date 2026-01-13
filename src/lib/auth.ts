@@ -206,6 +206,17 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
   },
+  logger: {
+    error(code, metadata) {
+      console.error("[DEBUG-NA][error]", code, metadata);
+    },
+    warn(code) {
+      console.warn("[DEBUG-NA][warn]", code);
+    },
+    debug(code, metadata) {
+      console.log("[DEBUG-NA][debug]", code, metadata);
+    },
+  },
   session: {
     strategy: "jwt",
     maxAge: 14 * 24 * 60 * 60, // 14 dagen in seconden
