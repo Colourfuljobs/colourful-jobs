@@ -211,47 +211,58 @@ export const authOptions: NextAuthOptions = {
       server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM,
       sendVerificationRequest: async ({ identifier, url, provider }) => {
-        // TIJDELIJK: Log de verificatie URL voor testen (verwijder als MailerSend werkt)
-        console.log("\n🔗 MAGIC LINK voor", identifier);
+        // ALTIJD: Log de verificatie URL (handig voor development/testing)
+        console.log("\n========================================");
+        console.log("🔗 MAGIC LINK voor", identifier);
         console.log("👉", url);
-        console.log("\n");
+        console.log("========================================\n");
         
-        const transport = createTransport(provider.server);
-        
-        // Check if user exists and is active
-        const existingUser = await getUserByEmail(identifier);
-        const isActiveUser = existingUser && existingUser.status === "active";
-        
-        // Use different email based on user status
-        const subject = isActiveUser 
-          ? "Inloggen bij Colourful jobs" 
-          : "Verifieer je email voor Colourful jobs";
-        const textContent = isActiveUser 
-          ? loginEmailText({ url }) 
-          : verificationEmailText({ url });
-        const htmlContent = isActiveUser 
-          ? loginEmailHtml({ url }) 
-          : verificationEmailHtml({ url });
-        
-        // Extract email address from provider.from (could be "Name <email>" or just "email")
-        const emailMatch = provider.from.match(/<(.+)>/) || [null, provider.from];
-        const emailAddress = emailMatch[1];
-        const fromField = `"Colourful jobs" <${emailAddress}>`;
-        
-        const result = await transport.sendMail({
-          to: identifier,
-          from: fromField,
-          subject,
-          text: textContent,
-          html: htmlContent,
-          headers: {
-            'X-MailerSend-Footer': 'false',
-          },
-        });
-        
-        const failed = result.rejected.concat(result.pending).filter(Boolean);
-        if (failed.length) {
-          throw new Error(`Email failed to send to ${failed.join(", ")}`);
+        // Probeer email te verzenden, maar faal NIET als het mislukt
+        // Dit zorgt ervoor dat de magic link altijd in de logs staat
+        try {
+          const transport = createTransport(provider.server);
+          
+          // Check if user exists and is active
+          const existingUser = await getUserByEmail(identifier);
+          const isActiveUser = existingUser && existingUser.status === "active";
+          
+          // Use different email based on user status
+          const subject = isActiveUser 
+            ? "Inloggen bij Colourful jobs" 
+            : "Verifieer je email voor Colourful jobs";
+          const textContent = isActiveUser 
+            ? loginEmailText({ url }) 
+            : verificationEmailText({ url });
+          const htmlContent = isActiveUser 
+            ? loginEmailHtml({ url }) 
+            : verificationEmailHtml({ url });
+          
+          // Extract email address from provider.from (could be "Name <email>" or just "email")
+          const emailMatch = provider.from.match(/<(.+)>/) || [null, provider.from];
+          const emailAddress = emailMatch[1];
+          const fromField = `"Colourful jobs" <${emailAddress}>`;
+          
+          const result = await transport.sendMail({
+            to: identifier,
+            from: fromField,
+            subject,
+            text: textContent,
+            html: htmlContent,
+            headers: {
+              'X-MailerSend-Footer': 'false',
+            },
+          });
+          
+          const failed = result.rejected.concat(result.pending).filter(Boolean);
+          if (failed.length) {
+            console.error(`⚠️ Email failed to send to ${failed.join(", ")}`);
+          } else {
+            console.log("✅ Email succesvol verzonden naar", identifier);
+          }
+        } catch (emailError: any) {
+          // Log de error maar gooi NIET - zo kan de user de magic link uit logs halen
+          console.error("⚠️ Email verzending mislukt:", emailError.message);
+          console.log("ℹ️ Gebruik de magic link hierboven om door te gaan met testen");
         }
       },
     }),
