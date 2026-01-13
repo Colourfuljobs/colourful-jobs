@@ -17,8 +17,10 @@ export type EventType =
   | "user_removed"
   | "user_email_pending"
   | "user_email_verified"
+  | "user_joined_employer"
   | "employer_created"
   | "employer_updated"
+  | "employer_deleted"
   | "wallet_created"
   | "vacancy_created"
   | "vacancy_updated"
@@ -62,6 +64,37 @@ export interface EventRecord {
   ip_address?: string;
   session_id?: string;
   "created-at": string;
+}
+
+/**
+ * Get the target employer ID from a user's most recent user_email_pending event
+ * This is used for join flow to link events to the correct employer
+ */
+export async function getTargetEmployerFromPendingEvent(userId: string): Promise<string | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const records = await base(EVENTS_TABLE)
+      .select({
+        filterByFormula: `AND({actor_user} = '${userId}', {event_type} = 'user_email_pending')`,
+        sort: [{ field: "created-at", direction: "desc" }],
+        maxRecords: 1,
+      })
+      .firstPage();
+
+    if (records.length > 0 && records[0].fields.payload_json) {
+      const payload = JSON.parse(records[0].fields.payload_json as string);
+      if (payload.target_employer_id) {
+        return payload.target_employer_id;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Error getting target employer from pending event:", error);
+    return null;
+  }
 }
 
 /**

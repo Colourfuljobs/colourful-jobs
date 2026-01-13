@@ -39,6 +39,34 @@
 - Pas toe op alle containers/boxes
 - Achtergrond van de pagina/app is altijd `#E8EEF2`
 
+## Inline Alerts / Meldingen
+- Gebruik de shadcn Alert component uit `@/components/ui/alert`
+- **Standaard styling** (info, success, waarschuwingen):
+  - Achtergrond: `bg-[#193DAB]/[0.12]` (blauw 12% opacity)
+  - Geen border: `border-none`
+  - Tekstkleur: `text-[#1F2D58]`
+  - Layout: flex met icoon (wit 40x40 cirkel) links en content rechts
+  - Tekst altijd links uitlijnen (`text-left`)
+- **Error styling** (alleen bij fouten):
+  - Rode achtergrond toegestaan (bijv. `bg-red-50 border-red-200`)
+  - Rode tekstkleur voor foutmeldingen
+- Voorbeeld standaard alert structuur:
+  ```jsx
+  <Alert className="bg-[#193DAB]/[0.12] border-none">
+    <AlertDescription className="text-[#1F2D58]">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+          {/* SVG icon */}
+        </div>
+        <div className="flex-1">
+          <strong className="block mb-1">Titel</strong>
+          <p className="mb-2 text-sm">Beschrijving</p>
+        </div>
+      </div>
+    </AlertDescription>
+  </Alert>
+  ```
+
 ## Responsive Design
 - Breakpoint: mobile < 640px, desktop >= 640px (standaard Tailwind breakpoints)
 - Test altijd beide breakpoints
@@ -62,7 +90,7 @@
 - Event types:
   - User: `user_created`, `user_updated`, `user_login`, `user_logout`, `user_invited`, `user_removed`
   - Auth: `user_email_pending` (magic link verstuurd), `user_email_verified` (verificatie link geklikt tijdens onboarding)
-  - Employer: `employer_created`, `employer_updated`
+  - Employer: `employer_created`, `employer_updated`, `employer_deleted`
   - Vacancy: `vacancy_created`, `vacancy_updated`, `vacancy_publish`, `vacancy_depublish`, `vacancy_boost`, `vacancy_duplicate`
   - Media: `media_uploaded`, `media_deleted`
   - Onboarding: `onboarding_started`, `onboarding_completed`
@@ -96,4 +124,3 @@
 - Gebruik Nederlandse teksten voor de meldingen
 - Houd titels kort en actiegericht (bijv. "Opgeslagen", "Vacature aangemaakt", "Welkom!")
 - Gebruik GEEN `alert()` - vervang door toast
-

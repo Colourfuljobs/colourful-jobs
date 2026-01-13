@@ -7,7 +7,7 @@ import { getServerSession } from "next-auth";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, first_name, last_name, role } = body;
+    const { email, first_name, last_name, role, joinMode, target_employer_id } = body;
     const clientIP = getClientIP(request);
 
     if (!email) {
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const existingUser = await getUserByEmail(email);
 
     let userId: string;
-    let employerId: string;
+    let employerId: string | null = null;
 
     if (existingUser) {
       // Check if user is still in pending_onboarding status
@@ -56,58 +56,66 @@ export async function POST(request: Request) {
         { error: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan." },
         { status: 409 }
       );
-    } else {
-      // Create new employer
-      const employer = await createEmployer({});
-      
-      // Create wallet for the employer (fire-and-forget - don't block onboarding if it fails)
-      let walletId: string | null = null;
-      try {
-        const wallet = await createWallet(employer.id);
-        walletId = wallet.id;
-      } catch (error) {
-        console.error("Failed to create wallet for employer:", employer.id, error);
-        // Continue with onboarding - wallet can be created manually later
-      }
-      
-      // Create new user with name and role
+    } else if (joinMode) {
+      // JOIN MODE: Create user WITHOUT creating a new employer
+      // User will be linked to existing employer after email verification
       const user = await createUser({
         email,
-        employer_id: employer.id,
         status: "pending_onboarding",
         first_name,
         last_name,
         role,
       });
       userId = user.id;
-      employerId = employer.id;
 
-      // Log employer_created event
-      await logEvent({
-        event_type: "employer_created",
-        actor_user_id: userId,
-        employer_id: employerId,
-        source: "web",
-        ip_address: clientIP,
-      });
-
-      // Log wallet_created event (if wallet was created successfully)
-      if (walletId) {
-        await logEvent({
-          event_type: "wallet_created",
-          actor_user_id: userId,
-          employer_id: employerId,
-          source: "web",
-          ip_address: clientIP,
-          payload: { wallet_id: walletId },
-        });
-      }
-
-      // Log user_created event
+      // Log user_created event - link to target employer for tracking
       await logEvent({
         event_type: "user_created",
         actor_user_id: userId,
-        employer_id: employerId,
+        employer_id: target_employer_id || undefined, // Link to employer they're joining
+        source: "web",
+        ip_address: clientIP,
+        payload: {
+          email,
+          first_name,
+          last_name,
+          role,
+          joinMode: true,
+          target_employer_id,
+        },
+      });
+
+      // Log email pending event - link to target employer for tracking
+      await logEvent({
+        event_type: "user_email_pending",
+        actor_user_id: userId,
+        employer_id: target_employer_id || undefined, // Link to employer they're joining
+        source: "web",
+        ip_address: clientIP,
+        payload: { joinMode: true, target_employer_id },
+      });
+
+      return NextResponse.json({
+        userId: user.id,
+        joinMode: true,
+      });
+    } else {
+      // NORMAL MODE: Create user WITHOUT employer
+      // Employer will be created in step 2 when user submits company details
+      // This allows users to switch to join flow without creating empty employers
+      const user = await createUser({
+        email,
+        status: "pending_onboarding",
+        first_name,
+        last_name,
+        role,
+      });
+      userId = user.id;
+
+      // Log user_created event (without employer - will be linked in step 2)
+      await logEvent({
+        event_type: "user_created",
+        actor_user_id: userId,
         source: "web",
         ip_address: clientIP,
         payload: {
@@ -122,7 +130,6 @@ export async function POST(request: Request) {
       await logEvent({
         event_type: "onboarding_started",
         actor_user_id: userId,
-        employer_id: employerId,
         source: "web",
         ip_address: clientIP,
       });
@@ -131,7 +138,6 @@ export async function POST(request: Request) {
       await logEvent({
         event_type: "user_email_pending",
         actor_user_id: userId,
-        employer_id: employerId,
         source: "web",
         ip_address: clientIP,
       });
@@ -194,17 +200,59 @@ export async function PATCH(request: Request) {
   }
 
   // Update employer (everything else)
-  if (!user.employer_id) {
-    return NextResponse.json({ error: "Employer ID not found" }, { status: 400 });
+  let employerId = user.employer_id;
+  
+  // If user doesn't have an employer yet, create one (this happens in step 2)
+  if (!employerId) {
+    const employer = await createEmployer(body);
+    employerId = employer.id;
+    
+    // Create wallet for the employer
+    let walletId: string | null = null;
+    try {
+      const wallet = await createWallet(employer.id);
+      walletId = wallet.id;
+    } catch (error) {
+      console.error("Failed to create wallet for employer:", employer.id, error);
+    }
+    
+    // Link user to the new employer
+    await updateUser(user.id, { employer_id: employerId });
+    
+    // Log employer_created event
+    await logEvent({
+      event_type: "employer_created",
+      actor_user_id: user.id,
+      employer_id: employerId,
+      source: "web",
+      ip_address: clientIP,
+      payload: {
+        created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+      },
+    });
+    
+    // Log wallet_created event
+    if (walletId) {
+      await logEvent({
+        event_type: "wallet_created",
+        actor_user_id: user.id,
+        employer_id: employerId,
+        source: "web",
+        ip_address: clientIP,
+        payload: { wallet_id: walletId },
+      });
+    }
+    
+    return NextResponse.json(employer);
   }
 
-  const updated = await updateEmployer(user.employer_id, body);
+  const updated = await updateEmployer(employerId, body);
 
   // Log employer_updated event
   await logEvent({
     event_type: "employer_updated",
     actor_user_id: user.id,
-    employer_id: user.employer_id,
+    employer_id: employerId,
     source: "web",
     ip_address: clientIP,
     payload: {
@@ -217,7 +265,7 @@ export async function PATCH(request: Request) {
     await logEvent({
       event_type: "onboarding_completed",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: employerId,
       source: "web",
       ip_address: clientIP,
     });
@@ -275,6 +323,7 @@ export async function GET(request: Request) {
         id: existingEmployer.id,
         company_name: existingEmployer.company_name,
         display_name: existingEmployer.display_name,
+        website_url: existingEmployer.website_url,
       } : null,
     });
   } catch (error: any) {

@@ -54,3 +54,54 @@ export type BillingData = z.infer<typeof billingDataSchema>;
 export type WebsiteData = z.infer<typeof websiteDataSchema>;
 export type OnboardingFormData = z.infer<typeof onboardingFormSchema>;
 
+// Domain validation utilities for join existing employer flow
+
+/**
+ * Extract domain from email address
+ * @example "user@company.nl" → "company.nl"
+ */
+export function extractDomainFromEmail(email: string): string | null {
+  if (!email || !email.includes("@")) {
+    return null;
+  }
+  const parts = email.split("@");
+  if (parts.length !== 2 || !parts[1]) {
+    return null;
+  }
+  return parts[1].toLowerCase().trim();
+}
+
+/**
+ * Extract domain from website URL
+ * @example "https://www.company.nl/page" → "company.nl"
+ */
+export function extractDomainFromUrl(websiteUrl: string): string | null {
+  if (!websiteUrl) {
+    return null;
+  }
+  
+  try {
+    const url = new URL(websiteUrl);
+    // Remove www. prefix and convert to lowercase
+    return url.hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    // Invalid URL
+    return null;
+  }
+}
+
+/**
+ * Check if email domain matches website domain
+ * Used for validating if a user can join an existing employer account
+ */
+export function doDomainsMatch(email: string, websiteUrl: string): boolean {
+  const emailDomain = extractDomainFromEmail(email);
+  const websiteDomain = extractDomainFromUrl(websiteUrl);
+  
+  if (!emailDomain || !websiteDomain) {
+    return false;
+  }
+  
+  return emailDomain === websiteDomain;
+}
+

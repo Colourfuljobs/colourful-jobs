@@ -2,7 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import EmailProvider from "next-auth/providers/email";
 import { createTransport } from "nodemailer";
 import { AirtableAdapter } from "./airtable-adapter";
-import { logEvent } from "./events";
+import { logEvent, getTargetEmployerFromPendingEvent } from "./events";
 import { getUserByEmail } from "./airtable";
 
 export type EmployerStatus = "pending_onboarding" | "active";
@@ -206,6 +206,11 @@ export const authOptions: NextAuthOptions = {
       server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM,
       sendVerificationRequest: async ({ identifier, url, provider }) => {
+        // TIJDELIJK: Log de verificatie URL voor testen (verwijder als MailerSend werkt)
+        console.log("\n🔗 MAGIC LINK voor", identifier);
+        console.log("👉", url);
+        console.log("\n");
+        
         const transport = createTransport(provider.server);
         
         // Check if user exists and is active
@@ -259,6 +264,14 @@ export const authOptions: NextAuthOptions = {
             employerId = dbUser.employer_id;
           }
           userStatus = dbUser.status || null;
+          
+          // For join flow users without employer_id, check for target employer from pending event
+          if (!employerId && userStatus === "pending_onboarding") {
+            const targetEmployerId = await getTargetEmployerFromPendingEvent(dbUser.id);
+            if (targetEmployerId) {
+              employerId = targetEmployerId;
+            }
+          }
         }
       }
       

@@ -11,13 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KVKSearch } from "@/components/KVKSearch";
 import { ImageUpload } from "@/components/ImageUpload";
 import { getKVKDetails, type KVKSearchResult } from "@/lib/kvk";
 import { 
-  personalDataSchema, 
   companyDataSchema, 
   billingDataSchema, 
   websiteDataSchema,
@@ -113,7 +112,20 @@ export default function OnboardingPage() {
   const [showKVKSearch, setShowKVKSearch] = useState(true);
   const [kvkSelected, setKvkSelected] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
-  const [duplicateEmployer, setDuplicateEmployer] = useState<{ id: string; company_name?: string; display_name?: string } | null>(null);
+  const [duplicateEmployer, setDuplicateEmployer] = useState<{ id: string; company_name?: string; display_name?: string; website_url?: string } | null>(null);
+  const [kvkCheckResult, setKvkCheckResult] = useState<{ exists: boolean; employer?: { id: string; company_name?: string; display_name?: string; website_url?: string } } | null>(null);
+  const [checkingKvk, setCheckingKvk] = useState(false);
+  
+  // Join existing employer flow state
+  const [joinMode, setJoinMode] = useState(false);
+  const [joinEmployer, setJoinEmployer] = useState<{ id: string; company_name?: string; display_name?: string; website_url?: string } | null>(null);
+  const [joinEmail, setJoinEmail] = useState("");
+  const [joinDomainError, setJoinDomainError] = useState<string | null>(null);
+  const [joinStep, setJoinStep] = useState<"email" | "details" | "verification">("email");
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [joinContact, setJoinContact] = useState({ firstName: "", lastName: "", role: "" });
+  const [joinResending, setJoinResending] = useState(false);
+  const [joinCompleting, setJoinCompleting] = useState(false); // True when returning from magic link
   
   // Step 3 state (image uploads)
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -192,6 +204,54 @@ export default function OnboardingPage() {
       // Clear localStorage since email is now verified
       clearOnboardingState();
 
+      // Check if this is a join flow completion (user clicked magic link)
+      const storedEmployerId = localStorage.getItem("colourful_join_employer_id");
+      const urlParams = new URLSearchParams(window.location.search);
+      // Only complete join if URL has join=true (meaning user came from magic link callback)
+      // This is the ONLY way the join should be completed - by clicking the magic link
+      const isJoinCallback = urlParams.get("join") === "true";
+      
+      if (isJoinCallback && storedEmployerId && session.user?.email) {
+        // Immediately set completing state to show loading UI
+        setJoinCompleting(true);
+        // Clear the pending verification flag since we're completing the join
+        localStorage.removeItem("colourful_join_pending_verification");
+        // Complete join flow inline - user just verified their email
+        const completeJoin = async () => {
+          try {
+            const response = await fetch("/api/onboarding/join", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                employer_id: storedEmployerId,
+              }),
+            });
+            
+            if (response.ok) {
+              localStorage.removeItem("colourful_join_employer_id");
+              toast.success("Welkom bij Colourful jobs!", {
+                description: "Je bent succesvol toegevoegd aan het werkgeversaccount.",
+              });
+              router.push("/dashboard");
+            } else {
+              const errorData = await response.json();
+              toast.error("Fout bij voltooien", {
+                description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
+              });
+            }
+          } catch (error) {
+            console.error("Error completing join flow:", error);
+            toast.error("Fout bij voltooien", {
+              description: "Er ging iets mis. Probeer het later opnieuw.",
+            });
+          } finally {
+            setJoinCompleting(false);
+          }
+        };
+        completeJoin();
+        return;
+      }
+
       // Only redirect to step 2 on initial load, not when navigating back
       if (step === 1 && !emailSent && !initialRedirectDone) {
         setStep(2);
@@ -232,7 +292,7 @@ export default function OnboardingPage() {
       // Email sent but not logged in yet, stay on step 1 with email sent message
       setStep(1);
     }
-  }, [status, session, emailSent, step, setValue, clearOnboardingState]);
+  }, [status, session, emailSent, step, setValue, clearOnboardingState, initialRedirectDone, contact.firstName, contact.lastName, router]);
 
   // Handle step click navigation
   const handleStepClick = useCallback((targetStep: Step) => {
@@ -275,7 +335,8 @@ export default function OnboardingPage() {
       const checkData = await checkResponse.json();
       if (checkData.exists) {
         setDuplicateEmployer(checkData.employer);
-        setDuplicateDialogOpen(true);
+        setKvkCheckResult(checkData); // For inline alert
+        setDuplicateDialogOpen(true); // For dialog popup
         return;
       }
     }
@@ -298,7 +359,192 @@ export default function OnboardingPage() {
       if (details.website) setValue("website_url", details.website, { shouldValidate: false });
     }
     setKvkSelected(true);
+    setKvkCheckResult(null); // Clear any previous check result
     setShowKVKSearch(false);
+  };
+
+  // Handle manual KVK input change - real-time check when 8 digits
+  const handleKvkManualChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ""); // Only digits
+    setValue("kvk", value, { shouldValidate: false });
+    
+    // Clear error when user types
+    if (formErrors.kvk) {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.kvk;
+        return newErrors;
+      });
+    }
+    
+    // Check when exactly 8 digits are entered
+    if (value.length === 8) {
+      setCheckingKvk(true);
+      try {
+        const response = await fetch(`/api/onboarding?kvk=${value}`);
+        const data = await response.json();
+        
+        if (data.exists) {
+          setDuplicateEmployer(data.employer);
+          setKvkCheckResult(data); // Shows inline alert
+          // Dialog is NOT automatically shown for real-time check
+        } else {
+          setKvkCheckResult(null);
+        }
+      } catch (error) {
+        console.error("Error checking KVK:", error);
+      } finally {
+        setCheckingKvk(false);
+      }
+    } else {
+      setKvkCheckResult(null);
+    }
+  };
+
+  // Start join existing employer flow
+  const startJoinFlow = (employer: { id: string; company_name?: string; display_name?: string; website_url?: string }) => {
+    setJoinMode(true);
+    setJoinEmployer(employer);
+    setJoinEmail("");
+    setJoinDomainError(null);
+    setJoinStep("email");
+    setJoinContact({ firstName: "", lastName: "", role: "" });
+    setDuplicateDialogOpen(false);
+  };
+
+  // Validate join email domain
+  const handleJoinEmailValidation = async () => {
+    if (!joinEmail || !joinEmployer) return;
+    
+    setJoinLoading(true);
+    setJoinDomainError(null);
+    
+    try {
+      const response = await fetch("/api/onboarding/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: joinEmail,
+          employer_id: joinEmployer.id,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.valid) {
+        // Domain matches - proceed to personal details
+        setJoinStep("details");
+      } else {
+        // Domain mismatch - show error
+        setJoinDomainError(data.error || "De domeinnaam van je e-mailadres komt niet overeen met dit werkgeversaccount.");
+      }
+    } catch (error) {
+      console.error("Error validating join email:", error);
+      toast.error("Fout bij validatie", {
+        description: "Er ging iets mis. Probeer het later opnieuw.",
+      });
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  // Submit join personal details and send magic link
+  const handleJoinSubmitDetails = async () => {
+    if (!joinContact.firstName || !joinContact.lastName || !joinEmail || !joinEmployer) return;
+    
+    setJoinLoading(true);
+    
+    try {
+      // Create the user in join mode (without creating a new employer)
+      const createResponse = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: joinEmail,
+          first_name: joinContact.firstName,
+          last_name: joinContact.lastName,
+          role: joinContact.role,
+          joinMode: true,
+          target_employer_id: joinEmployer.id, // For event logging
+        }),
+      });
+      
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json();
+        if (createResponse.status === 409) {
+          toast.error("E-mailadres al in gebruik", {
+            description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+          });
+        } else {
+          toast.error("Fout bij aanmelden", {
+            description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
+          });
+        }
+        return;
+      }
+      
+      // Store join employer ID in localStorage for after verification
+      localStorage.setItem("colourful_join_employer_id", joinEmployer.id);
+      // Also store a flag that we're waiting for verification (prevents auto-completion)
+      localStorage.setItem("colourful_join_pending_verification", "true");
+      
+      // Send magic link (same approach as normal onboarding flow)
+      try {
+        await signIn("email", {
+          email: joinEmail,
+          redirect: false,
+          callbackUrl: "/onboarding?join=true",
+        });
+      } catch (signInError) {
+        console.error("Error sending magic link:", signInError);
+      }
+      
+      // Proceed to verification step regardless (same as normal flow)
+      setJoinStep("verification");
+      
+    } catch (error) {
+      console.error("Error submitting join details:", error);
+      toast.error("Fout bij aanmelden", {
+        description: "Er ging iets mis. Probeer het later opnieuw.",
+      });
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  // Resend join verification email
+  const handleJoinResendEmail = async () => {
+    if (!joinEmail) return;
+    setJoinResending(true);
+    try {
+      await signIn("email", {
+        email: joinEmail,
+        redirect: false,
+        callbackUrl: "/onboarding?join=true",
+      });
+      toast.success("E-mail opnieuw verstuurd", {
+        description: "Check je inbox opnieuw.",
+      });
+    } catch (error) {
+      console.error("Error resending join email:", error);
+      toast.error("Fout bij versturen", {
+        description: "Er ging iets mis. Probeer het later opnieuw.",
+      });
+    } finally {
+      setJoinResending(false);
+    }
+  };
+
+  // Cancel join flow and return to normal onboarding
+  const cancelJoinFlow = () => {
+    setJoinMode(false);
+    setJoinEmployer(null);
+    setJoinEmail("");
+    setJoinDomainError(null);
+    setJoinStep("email");
+    setKvkCheckResult(null);
+    localStorage.removeItem("colourful_join_employer_id");
+    localStorage.removeItem("colourful_join_pending_verification");
   };
 
   // Handle skip KVK
@@ -573,6 +819,19 @@ export default function OnboardingPage() {
   async function saveStep2Data() {
     const formData = getValues();
     
+    // Fallback: check KVK again at submit (if not via KVK search)
+    if (formData.kvk && !kvkSelected) {
+      const checkResponse = await fetch(`/api/onboarding?kvk=${formData.kvk}`);
+      const checkData = await checkResponse.json();
+      
+      if (checkData.exists) {
+        setDuplicateEmployer(checkData.employer);
+        setKvkCheckResult(checkData); // Shows inline alert
+        setDuplicateDialogOpen(true); // Shows dialog popup
+        return false; // Block submit
+      }
+    }
+    
     // Validate step 2 data
     const companyResult = companyDataSchema.safeParse(formData);
     const billingResult = billingDataSchema.safeParse(formData);
@@ -781,45 +1040,64 @@ export default function OnboardingPage() {
     );
   }
 
+  // Show loading screen when completing join from magic link
+  if (joinCompleting) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Card className="p-8">
+          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F86600] mb-4"></div>
+            <p className="p-large text-[#1F2D58]">Account wordt gekoppeld...</p>
+            <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       <Card className="p-8">
         <CardHeader className="p-0 pb-6">
-          <CardTitle>Account aanmaken</CardTitle>
-          <CardDescription className="p-regular mt-1 text-slate-400">
-            Stap {step} van {stepLabels.length}: {stepLabels[step - 1]}
-          </CardDescription>
+          <CardTitle>{joinMode ? "Toevoegen aan werkgeversaccount" : "Account aanmaken"}</CardTitle>
+          {!joinMode && (
+            <CardDescription className="p-regular mt-1 text-slate-400">
+              Stap {step} van {stepLabels.length}: {stepLabels[step - 1]}
+            </CardDescription>
+          )}
         </CardHeader>
         <CardContent className="p-0">
-          {/* Clickable Step Indicator */}
-          <div className="mb-8 flex gap-2">
-            {stepLabels.map((label, index) => {
-              const stepNumber = (index + 1) as Step;
-              const isActive = stepNumber === step;
-              const isCompleted = stepNumber === 1 ? step1Complete : stepNumber === 2 ? step2Complete : false;
-              const isClickable = stepNumber === 1 || (stepNumber === 2 && step1Complete) || (stepNumber === 3 && step2Complete);
-              
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => isClickable && handleStepClick(stepNumber)}
-                  disabled={!isClickable}
-                  className={`flex-1 rounded-full px-3 text-center p-small font-medium transition-all duration-200 ${
-                    isActive
-                      ? "bg-[#39ADE5] !text-white pt-1.5 pb-[9px] [text-shadow:-0.7px_-0.7px_0_rgba(0,0,0,0.15),0.7px_-0.7px_0_rgba(0,0,0,0.15),-0.7px_0.7px_0_rgba(0,0,0,0.15),0.7px_0.7px_0_rgba(0,0,0,0.15),0_-0.7px_0_rgba(0,0,0,0.15),0_0.7px_0_rgba(0,0,0,0.15),-0.7px_0_0_rgba(0,0,0,0.15),0.7px_0_0_rgba(0,0,0,0.15)]"
-                      : isCompleted
-                      ? "border border-emerald-500 bg-emerald-50 !text-emerald-600 cursor-pointer hover:bg-emerald-100 hover:border-emerald-600 pt-1.5 pb-[9px]"
-                      : isClickable
-                      ? "border border-slate-200 bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 hover:border-slate-300 py-1.5"
-                      : "border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Clickable Step Indicator - hidden in join mode */}
+          {!joinMode && (
+            <div className="mb-8 flex gap-2">
+              {stepLabels.map((label, index) => {
+                const stepNumber = (index + 1) as Step;
+                const isActive = stepNumber === step;
+                const isCompleted = stepNumber === 1 ? step1Complete : stepNumber === 2 ? step2Complete : false;
+                const isClickable = stepNumber === 1 || (stepNumber === 2 && step1Complete) || (stepNumber === 3 && step2Complete);
+                
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => isClickable && handleStepClick(stepNumber)}
+                    disabled={!isClickable}
+                    className={`flex-1 rounded-full px-3 text-center p-small font-medium transition-all duration-200 ${
+                      isActive
+                        ? "bg-[#39ADE5] !text-white pt-1.5 pb-[9px] [text-shadow:-0.7px_-0.7px_0_rgba(0,0,0,0.15),0.7px_-0.7px_0_rgba(0,0,0,0.15),-0.7px_0.7px_0_rgba(0,0,0,0.15),0.7px_0.7px_0_rgba(0,0,0,0.15),0_-0.7px_0_rgba(0,0,0,0.15),0_0.7px_0_rgba(0,0,0,0.15),-0.7px_0_0_rgba(0,0,0,0.15),0.7px_0_0_rgba(0,0,0,0.15)]"
+                        : isCompleted
+                        ? "border border-emerald-500 bg-emerald-50 !text-emerald-600 cursor-pointer hover:bg-emerald-100 hover:border-emerald-600 pt-1.5 pb-[9px]"
+                        : isClickable
+                        ? "border border-slate-200 bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 hover:border-slate-300 py-1.5"
+                        : "border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Step 1: Personal Data */}
           {step === 1 && (
@@ -1013,7 +1291,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div className="space-y-8">
               {/* KVK Search Section */}
-              {showKVKSearch && (
+              {showKVKSearch && !joinMode && (
                 <div className="space-y-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -1023,12 +1301,195 @@ export default function OnboardingPage() {
                       </p>
                     </div>
                     <KVKSearch onSelect={handleKVKSelect} onSkip={handleSkipKVK} />
+                    
+                    {/* Inline alert for KVK duplicate */}
+                    {kvkCheckResult?.exists && (
+                      <Alert className="bg-[#193DAB]/[0.12] border-none">
+                        <AlertDescription className="text-[#1F2D58]">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                <path fill="#1F2D58" fillRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z" clipRule="evenodd"/>
+                              </svg>
+                            </div>
+                            <div className="flex-1">
+                              <strong className="block mb-1">Bedrijf bestaat al</strong>
+                              <p className="mb-2 text-sm">
+                                Voor dit KVK-nummer bestaat al een account: <strong>{kvkCheckResult.employer?.company_name || kvkCheckResult.employer?.display_name}</strong>
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => kvkCheckResult.employer && startJoinFlow(kvkCheckResult.employer)}
+                                className="text-sm underline hover:no-underline text-left"
+                              >
+                                Voeg jezelf toe aan dit werkgeversaccount
+                              </button>
+                            </div>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
                 </div>
               )}
 
+              {/* Join Existing Employer Flow */}
+              {joinMode && (
+                <div className="space-y-6">
+                  <p className="p-regular text-slate-600">
+                    Je voegt jezelf toe aan: <strong>{joinEmployer?.company_name || joinEmployer?.display_name}</strong>
+                  </p>
+
+                  {/* Step: Email validation */}
+                  {joinStep === "email" && (
+                    <div className="space-y-4">
+                      <div className="space-y-3">
+                        <Label htmlFor="join-email">Zakelijk e-mailadres *</Label>
+                        <Input
+                          id="join-email"
+                          type="email"
+                          value={joinEmail}
+                          onChange={(e) => {
+                            setJoinEmail(e.target.value);
+                            if (joinDomainError) setJoinDomainError(null);
+                          }}
+                          placeholder="jouw.naam@bedrijf.nl"
+                          className={joinDomainError ? "border-red-500" : ""}
+                        />
+                        {joinDomainError && (
+                          <Alert className="bg-red-50 border-red-200">
+                            <AlertDescription className="text-red-700">
+                              {joinDomainError}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        <p className="p-small text-slate-500">
+                          Je e-mailadres moet overeenkomen met het domein van het werkgeversaccount.
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <button
+                          type="button"
+                          onClick={cancelJoinFlow}
+                          className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+                        >
+                          Annuleren
+                        </button>
+                        <Button
+                          onClick={handleJoinEmailValidation}
+                          disabled={!joinEmail || joinLoading}
+                        >
+                          {joinLoading ? "Controleren..." : "Volgende"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step: Personal details */}
+                  {joinStep === "details" && (
+                    <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-3">
+                          <Label htmlFor="join-firstName">Voornaam *</Label>
+                          <Input
+                            id="join-firstName"
+                            value={joinContact.firstName}
+                            onChange={(e) => setJoinContact(c => ({ ...c, firstName: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <Label htmlFor="join-lastName">Achternaam *</Label>
+                          <Input
+                            id="join-lastName"
+                            value={joinContact.lastName}
+                            onChange={(e) => setJoinContact(c => ({ ...c, lastName: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <Label htmlFor="join-email-display">Zakelijk e-mailadres *</Label>
+                        <Input
+                          id="join-email-display"
+                          type="email"
+                          value={joinEmail}
+                          disabled
+                          className="bg-slate-100 text-slate-600"
+                        />
+                      </div>
+                      <div className="space-y-3">
+                        <Label htmlFor="join-role">Rol</Label>
+                        <Input
+                          id="join-role"
+                          value={joinContact.role}
+                          onChange={(e) => setJoinContact(c => ({ ...c, role: e.target.value }))}
+                        />
+                      </div>
+                      <p className="p-small text-slate-500">
+                        We sturen je een e-mail met een link om je account te verifiëren.
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <button
+                          type="button"
+                          onClick={() => setJoinStep("email")}
+                          className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+                        >
+                          Vorige
+                        </button>
+                        <Button
+                          onClick={handleJoinSubmitDetails}
+                          disabled={!joinContact.firstName || !joinContact.lastName || joinLoading}
+                        >
+                          {joinLoading ? "Bezig..." : "Verstuur verificatie e-mail"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step: Verification sent */}
+                  {joinStep === "verification" && (
+                    <Alert className="bg-[#193DAB]/[0.12] border-none">
+                      <AlertDescription className="text-[#1F2D58]">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                              <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
+                            </svg>
+                          </div>
+                          <div className="flex-1 text-left">
+                            <strong className="block mb-1">Check je e-mail</strong>
+                            <p className="mb-2 text-sm">
+                              We hebben een e-mail gestuurd naar <strong>{joinEmail}</strong> met een link om je toe te voegen aan {joinEmployer?.company_name || joinEmployer?.display_name}.
+                            </p>
+                            <p className="text-xs">
+                              Geen mail gezien? Check je spam of{" "}
+                              <button
+                                onClick={handleJoinResendEmail}
+                                disabled={joinResending}
+                                className="underline disabled:opacity-50"
+                              >
+                                {joinResending ? "Bezig..." : "verstuur 'm opnieuw"}
+                              </button>
+                              .
+                            </p>
+                            <p className="text-xs mt-2">
+                              Verkeerd e-mailadres?{" "}
+                              <button
+                                onClick={() => setJoinStep("email")}
+                                className="underline"
+                              >
+                                Vul een ander e-mailadres in
+                              </button>
+                            </p>
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+
               {/* Company & Billing Form */}
-              {!showKVKSearch && (
+              {!showKVKSearch && !joinMode && (
                 <>
                   {/* Company Data Section */}
                   <div className="space-y-4">
@@ -1053,11 +1514,42 @@ export default function OnboardingPage() {
                           pattern="[0-9]*"
                           maxLength={8}
                           placeholder="12345678"
-                          {...register("kvk")}
+                          value={watch("kvk") || ""}
+                          onChange={handleKvkManualChange}
                           className={formErrors.kvk ? "border-red-500" : ""}
                         />
+                        {checkingKvk && (
+                          <p className="text-sm text-slate-500">KVK-nummer controleren...</p>
+                        )}
                         {formErrors.kvk && (
                           <p className="text-sm text-red-500">{formErrors.kvk}</p>
+                        )}
+                        {/* Inline alert for KVK duplicate in manual form */}
+                        {kvkCheckResult?.exists && !kvkSelected && (
+                          <Alert className="bg-[#193DAB]/[0.12] border-none">
+                            <AlertDescription className="text-[#1F2D58]">
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                                    <path fill="#1F2D58" fillRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z" clipRule="evenodd"/>
+                                  </svg>
+                                </div>
+                                <div className="flex-1">
+                                  <strong className="block mb-1">Bedrijf bestaat al</strong>
+                                  <p className="mb-2 text-sm">
+                                    Voor dit KVK-nummer bestaat al een account: <strong>{kvkCheckResult.employer?.company_name || kvkCheckResult.employer?.display_name}</strong>
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => kvkCheckResult.employer && startJoinFlow(kvkCheckResult.employer)}
+                                    className="text-sm underline hover:no-underline text-left"
+                                  >
+                                    Voeg jezelf toe aan dit werkgeversaccount
+                                  </button>
+                                </div>
+                              </div>
+                            </AlertDescription>
+                          </Alert>
                         )}
                       </div>
                       <div className="space-y-3">
@@ -1212,8 +1704,8 @@ export default function OnboardingPage() {
                 </>
               )}
 
-              {/* Show back button on KVK search screen */}
-              {showKVKSearch && (
+              {/* Show back button on KVK search screen (not in join mode) */}
+              {showKVKSearch && !joinMode && (
                 <div className="flex justify-start">
                   <button
                     type="button"
@@ -1231,17 +1723,19 @@ export default function OnboardingPage() {
                   <DialogHeader>
                     <DialogTitle>Bedrijf bestaat al</DialogTitle>
                     <DialogDescription>
-                      Het geselecteerde KVK-nummer is al gekoppeld aan een bestaand werkgeversaccount:{" "}
+                      Voor dit KVK-nummer bestaat al een account:{" "}
                       <strong>{duplicateEmployer?.company_name || duplicateEmployer?.display_name}</strong>
                     </DialogDescription>
                   </DialogHeader>
                   <p className="p-regular mb-4">
-                    Je kunt geen nieuw werkgeversaccount aanmaken met hetzelfde KVK-nummer. 
-                    Neem contact op met de beheerder om jezelf toe te voegen aan het bestaande account.
+                    Werk je hier? Je kunt jezelf toevoegen aan dit bestaande werkgeversaccount.
                   </p>
                   <div className="flex justify-end gap-2">
                     <Button variant="secondary" onClick={() => setDuplicateDialogOpen(false)}>
-                      Sluiten
+                      Annuleren
+                    </Button>
+                    <Button onClick={() => duplicateEmployer && startJoinFlow(duplicateEmployer)}>
+                      Voeg jezelf toe
                     </Button>
                   </div>
                 </DialogContent>

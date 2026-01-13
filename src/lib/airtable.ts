@@ -283,6 +283,11 @@ export async function updateUser(
   if (fields.email !== undefined) airtableFields.email = fields.email;
   if (fields.status !== undefined) airtableFields.status = fields.status;
   if (fields.role !== undefined) airtableFields.role = fields.role;
+  // Support linking user to existing employer (for join flow)
+  if (fields.employer_id !== undefined) {
+    // Airtable Link fields require an array of record IDs
+    airtableFields.employer_id = fields.employer_id ? [fields.employer_id] : null;
+  }
 
   const record = await base(USERS_TABLE).update(id, airtableFields);
 
@@ -319,6 +324,30 @@ export async function getEmployerByKVK(kvkNumber: string): Promise<EmployerRecor
     });
   } catch (error: any) {
     console.error("Error getting employer by KVK:", error);
+    return null;
+  }
+}
+
+/**
+ * Get employer by Airtable record ID
+ * Used for joining existing employer flow
+ */
+export async function getEmployerById(id: string): Promise<EmployerRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const record = await base(EMPLOYERS_TABLE).find(id);
+
+    if (!record) return null;
+
+    return employerRecordSchema.parse({
+      id: record.id,
+      ...record.fields,
+    });
+  } catch (error: any) {
+    console.error("Error getting employer by ID:", error);
     return null;
   }
 }
