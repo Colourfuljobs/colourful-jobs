@@ -31,6 +31,11 @@ export default async function middleware(req: NextRequest) {
   }
 
   if (token) {
+    // Never redirect auth API calls; they must return JSON
+    if (pathname.startsWith("/api/auth")) {
+      return NextResponse.next();
+    }
+
     // If user is logged in and tries to access login page, redirect to dashboard
     if (pathname.startsWith("/login")) {
       const url = req.nextUrl.clone();
