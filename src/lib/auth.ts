@@ -195,11 +195,36 @@ function loginEmailHtml({ url }: { url: string }) {
 `;
 }
 
+// Determine if we're in production
+const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://");
+const cookieDomain = process.env.NEXTAUTH_URL 
+  ? new URL(process.env.NEXTAUTH_URL).hostname 
+  : undefined;
+
+console.log("🔧 NextAuth config:", { 
+  useSecureCookies, 
+  cookieDomain,
+  NEXTAUTH_URL: process.env.NEXTAUTH_URL 
+});
+
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   adapter: AirtableAdapter(),
   pages: {
     signIn: "/login",
+  },
+  // Cookie configuration for Vercel deployment
+  cookies: {
+    sessionToken: {
+      name: useSecureCookies ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+        domain: undefined, // Let the browser handle this
+      },
+    },
   },
   session: {
     strategy: "jwt",
@@ -306,6 +331,7 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user }) {
+      console.log("🔐 signIn callback:", { userId: user.id, email: user.email });
       // Allow sign in
       return true;
     },
@@ -330,12 +356,20 @@ export const authOptions: NextAuthOptions = {
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
+      console.log("🎫 jwt callback:", { 
+        hasUser: !!user, 
+        trigger, 
+        tokenSub: token?.sub,
+        userEmail: user?.email 
+      });
+      
       // Bij nieuwe login: zet lastActivity timestamp
       if (user) {
         (token as any).employerId = (user as any).employerId ?? null;
         (token as any).status =
           ((user as any).status as EmployerStatus) ?? "pending_onboarding";
         (token as any).lastActivity = Date.now();
+        console.log("🎫 jwt: new user login, setting token data");
       }
       
       // Check inactiviteit (60 minuten = 3600000 milliseconden)
@@ -356,7 +390,14 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      console.log("📋 session callback:", { 
+        hasToken: !!token, 
+        tokenSub: token?.sub,
+        tokenEmail: token?.email 
+      });
+      
       if (!token || !token.sub) {
+        console.log("📋 session: no valid token, returning unauthenticated");
         // If token is missing, return session as-is (will be null/unauthorized)
         return session;
       }
@@ -367,6 +408,7 @@ export const authOptions: NextAuthOptions = {
         status:
           ((token as any).status as EmployerStatus) ?? "pending_onboarding",
       };
+      console.log("📋 session: authenticated user:", session.user.email);
       return session;
     },
   },
