@@ -58,11 +58,23 @@ export const employerRecordSchema = z.object({
   role: z.array(z.string()).optional(), // Linked record to Roles table
 });
 
+export const walletRecordSchema = z.object({
+  id: z.string(),
+  owner_employer: z.string().nullable().optional(), // Linked record to Employers
+  owner_user: z.string().nullable().optional(), // Linked record to Users
+  owner_type: z.enum(["employer", "user"]).default("employer"),
+  balance: z.number().int().default(0),
+  "created-at": z.string().optional(),
+  "last-updated": z.string().optional(),
+});
+
 type UserRecord = z.infer<typeof userRecordSchema>;
 type EmployerRecord = z.infer<typeof employerRecordSchema>;
+type WalletRecord = z.infer<typeof walletRecordSchema>;
 
 const USERS_TABLE = process.env.AIRTABLE_USERS_TABLE || "Users";
 const EMPLOYERS_TABLE = process.env.AIRTABLE_EMPLOYERS_TABLE || "Employers";
+const WALLETS_TABLE = process.env.AIRTABLE_WALLETS_TABLE || "Wallets";
 const DEFAULT_EMPLOYER_ROLE_ID = process.env.AIRTABLE_DEFAULT_EMPLOYER_ROLE_ID;
 
 if (!DEFAULT_EMPLOYER_ROLE_ID) {
@@ -337,4 +349,87 @@ export async function deleteEmployer(id: string): Promise<void> {
   }
 }
 
+/**
+ * Create a new wallet for an employer
+ * Called automatically when a new employer is created during onboarding
+ */
+export async function createWallet(employerId: string): Promise<WalletRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
 
+  const airtableFields: Record<string, any> = {
+    owner_type: "employer",
+    owner_employer: [employerId], // Linked record requires array
+    balance: 0,
+    "created-at": new Date().toISOString(),
+    "last-updated": new Date().toISOString(),
+  };
+
+  try {
+    const record = await base(WALLETS_TABLE).create(airtableFields);
+
+    // Update the record to set the id field to the Airtable record ID
+    await base(WALLETS_TABLE).update(record.id, { id: record.id });
+
+    const fields = record.fields;
+    // Extract linked record ID from array
+    const owner_employer = Array.isArray(fields.owner_employer)
+      ? fields.owner_employer[0] || null
+      : fields.owner_employer || null;
+
+    return walletRecordSchema.parse({
+      id: record.id,
+      ...fields,
+      owner_employer,
+    });
+  } catch (error: any) {
+    console.error("Error creating wallet in Airtable:", {
+      table: WALLETS_TABLE,
+      fields: airtableFields,
+      error: error.message,
+      statusCode: error.statusCode,
+    });
+    throw new Error(`Failed to create wallet: ${error.message || "Unknown error"}`);
+  }
+}
+
+/**
+ * Get wallet by employer ID
+ * Returns the wallet associated with the given employer, or null if not found
+ */
+export async function getWalletByEmployerId(employerId: string): Promise<WalletRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const records = await base(WALLETS_TABLE)
+      .select({
+        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({owner_employer}))`,
+        maxRecords: 1,
+      })
+      .firstPage();
+
+    if (!records[0]) return null;
+
+    const fields = records[0].fields;
+    // Extract linked record ID from array
+    const owner_employer = Array.isArray(fields.owner_employer)
+      ? fields.owner_employer[0] || null
+      : fields.owner_employer || null;
+    const owner_user = Array.isArray(fields.owner_user)
+      ? fields.owner_user[0] || null
+      : fields.owner_user || null;
+
+    return walletRecordSchema.parse({
+      id: records[0].id,
+      ...fields,
+      owner_employer,
+      owner_user,
+    });
+  } catch (error: any) {
+    console.error("Error getting wallet by employer ID:", error);
+    return null;
+  }
+}

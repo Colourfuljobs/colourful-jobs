@@ -1,5 +1,5 @@
 import { authOptions } from "@/lib/auth";
-import { createEmployer, createUser, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer } from "@/lib/airtable";
+import { createEmployer, createUser, createWallet, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -21,7 +21,37 @@ export async function POST(request: Request) {
     let employerId: string;
 
     if (existingUser) {
-      // User already exists - don't allow creating duplicate account
+      // Check if user is still in pending_onboarding status
+      if (existingUser.status === "pending_onboarding") {
+        // User exists but hasn't verified yet - allow them to continue
+        // Update their name/role if provided
+        if (first_name || last_name || role) {
+          await updateUser(existingUser.id, {
+            first_name: first_name || existingUser.first_name,
+            last_name: last_name || existingUser.last_name,
+            role: role || existingUser.role,
+          });
+        }
+        
+        // Log that we're resending verification
+        await logEvent({
+          event_type: "user_email_pending",
+          actor_user_id: existingUser.id,
+          employer_id: existingUser.employer_id || undefined,
+          source: "web",
+          ip_address: clientIP,
+          payload: { resend: true },
+        });
+
+        // Return existing user/employer IDs so frontend can send magic link
+        return NextResponse.json({
+          userId: existingUser.id,
+          employerId: existingUser.employer_id,
+          resend: true,
+        });
+      }
+      
+      // User already exists and is active - don't allow creating duplicate account
       return NextResponse.json(
         { error: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan." },
         { status: 409 }
@@ -29,6 +59,16 @@ export async function POST(request: Request) {
     } else {
       // Create new employer
       const employer = await createEmployer({});
+      
+      // Create wallet for the employer (fire-and-forget - don't block onboarding if it fails)
+      let walletId: string | null = null;
+      try {
+        const wallet = await createWallet(employer.id);
+        walletId = wallet.id;
+      } catch (error) {
+        console.error("Failed to create wallet for employer:", employer.id, error);
+        // Continue with onboarding - wallet can be created manually later
+      }
       
       // Create new user with name and role
       const user = await createUser({
@@ -50,6 +90,18 @@ export async function POST(request: Request) {
         source: "web",
         ip_address: clientIP,
       });
+
+      // Log wallet_created event (if wallet was created successfully)
+      if (walletId) {
+        await logEvent({
+          event_type: "wallet_created",
+          actor_user_id: userId,
+          employer_id: employerId,
+          source: "web",
+          ip_address: clientIP,
+          payload: { wallet_id: walletId },
+        });
+      }
 
       // Log user_created event
       await logEvent({

@@ -69,7 +69,7 @@ export function KVKSearch({ onSelect, onSkip }: KVKSearchProps) {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        <label htmlFor="kvk-search" className="p-regular block mb-1">
+        <label htmlFor="kvk-search" className="p-regular block mb-1 font-semibold">
           Zoek op bedrijfsnaam of KVK-nummer
         </label>
         <div className="flex gap-2">
@@ -82,6 +82,12 @@ export function KVKSearch({ onSelect, onSkip }: KVKSearchProps) {
             className="flex-1"
           />
         </div>
+        <button
+          onClick={onSkip}
+          className="text-sm text-slate-500 underline hover:no-underline cursor-pointer"
+        >
+          Overslaan en handmatig invullen
+        </button>
         {loading && (
           <p className="p-small text-slate-500">Zoeken...</p>
         )}
@@ -110,15 +116,6 @@ export function KVKSearch({ onSelect, onSkip }: KVKSearchProps) {
       {query && results.length === 0 && !loading && (
         <p className="p-small text-slate-500">Geen resultaten gevonden</p>
       )}
-
-      <div className="flex justify-between items-center pt-4">
-        <button
-          onClick={onSkip}
-          className="p-regular text-[#1F2D58] underline hover:no-underline cursor-pointer"
-        >
-          Overslaan en handmatig invullen
-        </button>
-      </div>
     </div>
   );
 }

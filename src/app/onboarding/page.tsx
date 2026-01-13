@@ -59,6 +59,56 @@ export default function OnboardingPage() {
     role: "",
   });
 
+  // LocalStorage key for persisting onboarding state
+  const ONBOARDING_STORAGE_KEY = "colourful_onboarding_state";
+
+  // Save onboarding state to localStorage
+  const saveOnboardingState = useCallback((contactData: typeof contact, emailSentState: boolean) => {
+    try {
+      localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({
+        contact: contactData,
+        emailSent: emailSentState,
+        timestamp: Date.now(),
+      }));
+    } catch (e) {
+      console.error("Error saving onboarding state:", e);
+    }
+  }, []);
+
+  // Clear onboarding state from localStorage
+  const clearOnboardingState = useCallback(() => {
+    try {
+      localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    } catch (e) {
+      console.error("Error clearing onboarding state:", e);
+    }
+  }, []);
+
+  // Restore onboarding state from localStorage on mount
+  useEffect(() => {
+    // Only restore if not authenticated (if authenticated, email is already verified)
+    if (status === "unauthenticated") {
+      try {
+        const saved = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+        if (saved) {
+          const { contact: savedContact, emailSent: savedEmailSent, timestamp } = JSON.parse(saved);
+          
+          // Only restore if saved within last 24 hours (magic link validity)
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+          if (Date.now() - timestamp < twentyFourHours) {
+            setContact(savedContact);
+            setEmailSent(savedEmailSent);
+          } else {
+            // Expired, clear it
+            clearOnboardingState();
+          }
+        }
+      } catch (e) {
+        console.error("Error restoring onboarding state:", e);
+      }
+    }
+  }, [status, clearOnboardingState]);
+
   // Step 2 state
   const [showKVKSearch, setShowKVKSearch] = useState(true);
   const [kvkSelected, setKvkSelected] = useState(false);
@@ -139,18 +189,21 @@ export default function OnboardingPage() {
       setEmailVerified(true);
       setStep1Complete(true);
       
+      // Clear localStorage since email is now verified
+      clearOnboardingState();
+
       // Only redirect to step 2 on initial load, not when navigating back
       if (step === 1 && !emailSent && !initialRedirectDone) {
         setStep(2);
         setInitialRedirectDone(true);
       }
-      
+
       // Set email in form if available
       if (session.user?.email) {
         setValue("email", session.user.email, { shouldValidate: false });
         setContact(c => ({ ...c, email: session.user?.email || "" }));
       }
-      
+
       // Fetch user data from database to pre-fill form
       const fetchUserData = async () => {
         try {
@@ -173,13 +226,13 @@ export default function OnboardingPage() {
           console.error("Error fetching user data:", error);
         }
       };
-      
+
       fetchUserData();
     } else if (status === "unauthenticated" && emailSent) {
       // Email sent but not logged in yet, stay on step 1 with email sent message
       setStep(1);
     }
-  }, [status, session, emailSent, step, setValue]);
+  }, [status, session, emailSent, step, setValue, clearOnboardingState]);
 
   // Handle step click navigation
   const handleStepClick = useCallback((targetStep: Step) => {
@@ -341,6 +394,7 @@ export default function OnboardingPage() {
   async function handleSubmitStep1() {
     if (!contact.email || !contact.firstName || !contact.lastName) return;
     setLoading(true);
+    setEmailError(null);
     try {
       const response = await fetch("/api/onboarding", {
         method: "POST",
@@ -354,6 +408,9 @@ export default function OnboardingPage() {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        
+        // Send magic link (works for both new users and pending_onboarding users)
         try {
           await signIn("email", {
             email: contact.email,
@@ -361,9 +418,19 @@ export default function OnboardingPage() {
             callbackUrl: "/onboarding",
           });
           setEmailSent(true);
+          // Save state to localStorage so it persists after refresh
+          saveOnboardingState(contact, true);
+          
+          // Show appropriate message for resend
+          if (data.resend) {
+            toast.success("Verificatie e-mail opnieuw verstuurd", {
+              description: "Check je inbox voor de nieuwe verificatielink.",
+            });
+          }
         } catch (signInError) {
           console.error("Error sending magic link:", signInError);
           setEmailSent(true);
+          saveOnboardingState(contact, true);
         }
       } else {
         const data = await response.json();
@@ -400,6 +467,8 @@ export default function OnboardingPage() {
         callbackUrl: "/onboarding",
       });
       setEmailSent(true);
+      // Update localStorage with fresh timestamp
+      saveOnboardingState(contact, true);
       toast.success("E-mail opnieuw verstuurd", {
         description: "Check je inbox opnieuw.",
       });
@@ -425,7 +494,10 @@ export default function OnboardingPage() {
       if (response.ok) {
         // Sign out and redirect to fresh onboarding
         await signOut({ redirect: false });
-        
+
+        // Clear localStorage
+        clearOnboardingState();
+
         // Reset all state
         setContact({ firstName: "", lastName: "", email: "", role: "" });
         setEmailVerified(false);
@@ -441,11 +513,11 @@ export default function OnboardingPage() {
         setFormErrors({});
         setStep(1);
         setRestartDialogOpen(false);
-        
+
         toast.success("Account verwijderd", {
           description: "Je kunt nu opnieuw beginnen met een nieuw e-mailadres.",
         });
-        
+
         // Reload to ensure clean state
         router.refresh();
       } else {
@@ -714,7 +786,7 @@ export default function OnboardingPage() {
       <Card className="p-8">
         <CardHeader className="p-0 pb-6">
           <CardTitle>Account aanmaken</CardTitle>
-          <CardDescription className="p-regular mt-1">
+          <CardDescription className="p-regular mt-1 text-slate-400">
             Stap {step} van {stepLabels.length}: {stepLabels[step - 1]}
           </CardDescription>
         </CardHeader>
@@ -733,14 +805,14 @@ export default function OnboardingPage() {
                   type="button"
                   onClick={() => isClickable && handleStepClick(stepNumber)}
                   disabled={!isClickable}
-                  className={`flex-1 rounded-full px-3 py-1.5 text-center p-small font-medium transition-all duration-200 ${
+                  className={`flex-1 rounded-full px-3 text-center p-small font-medium transition-all duration-200 ${
                     isActive
-                      ? "bg-[#1F2D58]/20 text-[#1F2D58] ring-2 ring-[#1F2D58]/30"
+                      ? "bg-[#39ADE5] !text-white pt-1.5 pb-[9px] [text-shadow:-0.7px_-0.7px_0_rgba(0,0,0,0.15),0.7px_-0.7px_0_rgba(0,0,0,0.15),-0.7px_0.7px_0_rgba(0,0,0,0.15),0.7px_0.7px_0_rgba(0,0,0,0.15),0_-0.7px_0_rgba(0,0,0,0.15),0_0.7px_0_rgba(0,0,0,0.15),-0.7px_0_0_rgba(0,0,0,0.15),0.7px_0_0_rgba(0,0,0,0.15)]"
                       : isCompleted
-                      ? "border border-emerald-500 bg-emerald-50 text-emerald-700 cursor-pointer hover:bg-emerald-100 hover:border-emerald-600"
+                      ? "border border-emerald-500 bg-emerald-50 !text-emerald-600 cursor-pointer hover:bg-emerald-100 hover:border-emerald-600 pt-1.5 pb-[9px]"
                       : isClickable
-                      ? "border border-slate-200 bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 hover:border-slate-300"
-                      : "border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60"
+                      ? "border border-slate-200 bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 hover:border-slate-300 py-1.5"
+                      : "border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
                   }`}
                 >
                   {label}
@@ -821,25 +893,45 @@ export default function OnboardingPage() {
                   </div>
                 </>
               ) : emailSent && !emailVerified ? (
-                <Alert className="border-emerald-200 bg-emerald-50">
-                  <AlertTitle className="text-lg font-semibold text-emerald-900">
-                    Check je e-mail
-                  </AlertTitle>
-                  <AlertDescription className="text-emerald-700">
-                    <p className="p-regular mb-2">
-                      We hebben je een e-mail gestuurd met een link om je email te verifiëren.
-                    </p>
-                    <p className="p-small text-emerald-600">
-                      Geen mail gezien? Check je spam of{" "}
-                      <button
-                        onClick={handleResendEmail}
-                        disabled={isResending}
-                        className="underline disabled:opacity-50"
-                      >
-                        {isResending ? "Bezig..." : "verstuur 'm opnieuw"}
-                      </button>
-                      .
-                    </p>
+                <Alert className="bg-[#193DAB]/[0.12] border-none">
+                  <AlertDescription className="text-[#1F2D58]">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                          <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <strong className="block mb-1">Check je e-mail</strong>
+                        <p className="mb-2 text-sm">
+                          We hebben een e-mail gestuurd naar <strong>{contact.email}</strong> met een link om je email te verifiëren.
+                        </p>
+                        <p className="text-xs">
+                          Geen mail gezien? Check je spam of{" "}
+                          <button
+                            onClick={handleResendEmail}
+                            disabled={isResending}
+                            className="underline disabled:opacity-50"
+                          >
+                            {isResending ? "Bezig..." : "verstuur 'm opnieuw"}
+                          </button>
+                          .
+                        </p>
+                        <p className="text-xs mt-2">
+                          Verkeerd e-mailadres?{" "}
+                          <button
+                            onClick={() => {
+                              clearOnboardingState();
+                              setEmailSent(false);
+                              setContact({ firstName: "", lastName: "", email: "", role: "" });
+                            }}
+                            className="underline"
+                          >
+                            Vul andere gegevens in
+                          </button>
+                        </p>
+                      </div>
+                    </div>
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -917,17 +1009,17 @@ export default function OnboardingPage() {
           )}
 
           {/* Step 2: Company & Billing Data */}
-          {step === 2 && status === "authenticated" && (
+          {/* DEV MODE: status check tijdelijk uitgeschakeld voor styling */}
+          {step === 2 && (
             <div className="space-y-8">
               {/* KVK Search Section */}
               {showKVKSearch && (
                 <div className="space-y-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <h4>Bedrijf zoeken via KVK (optioneel)</h4>
+                      <h4>Bedrijfsgegevens ophalen</h4>
                       <p className="p-regular text-slate-600">
-                        Vul je KVK-nummer of bedrijfsnaam in om je bedrijfsgegevens automatisch in te vullen. 
-                        Of sla over om alles handmatig in te vullen.
+                        Vul je bedrijfsnaam of KVK-nummer in, zodat wij in de volgende stap je bedrijfsgegevens automatisch kunnen invullen.
                       </p>
                     </div>
                     <KVKSearch onSelect={handleKVKSelect} onSkip={handleSkipKVK} />
@@ -981,7 +1073,7 @@ export default function OnboardingPage() {
                         )}
                       </div>
                       <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="website_url">Website-URL</Label>
+                        <Label htmlFor="website_url">Website-URL *</Label>
                         <Input 
                           id="website_url" 
                           type="url" 
@@ -1101,7 +1193,7 @@ export default function OnboardingPage() {
                     <button
                       type="button"
                       onClick={() => setShowKVKSearch(true)}
-                      className="p-regular text-[#1F2D58] underline hover:no-underline cursor-pointer transition-colors"
+                      className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
                     >
                       Vorige
                     </button>
@@ -1126,7 +1218,7 @@ export default function OnboardingPage() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="p-regular text-[#1F2D58] underline hover:no-underline cursor-pointer transition-colors"
+                    className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
                   >
                     Vorige
                   </button>
@@ -1158,7 +1250,8 @@ export default function OnboardingPage() {
           )}
 
           {/* Step 3: Website Data */}
-          {step === 3 && status === "authenticated" && (
+          {/* DEV MODE: status check tijdelijk uitgeschakeld voor styling */}
+          {step === 3 && (
             <div className="space-y-8">
               <div className="space-y-4">
                 <h4>Websitegegevens</h4>
@@ -1238,7 +1331,7 @@ export default function OnboardingPage() {
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="p-regular text-[#1F2D58] underline hover:no-underline cursor-pointer transition-colors"
+                  className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
                 >
                   Vorige
                 </button>

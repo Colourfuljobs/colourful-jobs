@@ -15,7 +15,7 @@ export const companyDataSchema = z.object({
   company_name: z.string().min(1, "Juridische bedrijfsnaam is verplicht"),
   kvk: z.string().min(1, "KVK-nummer is verplicht").regex(/^\d{8}$/, "KVK-nummer moet 8 cijfers bevatten"),
   phone: z.string().min(1, "Telefoonnummer is verplicht"),
-  website_url: z.string().url("Voer een geldige URL in (bijv. https://www.voorbeeld.nl)").or(z.literal("")).optional(),
+  website_url: z.string().min(1, "Website-URL is verplicht").url("Voer een geldige URL in (bijv. https://www.voorbeeld.nl)"),
 });
 
 // Billing data validation (Employers table)

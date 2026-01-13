@@ -97,9 +97,10 @@ h4 {
 h5 {
   font-family: "sofia-pro", sans-serif;
   font-weight: 700;
-  font-size: 1.375rem; /* 22pt - fixed size for all breakpoints */
+  font-size: 1.25rem; /* 20px - fixed size for all breakpoints */
   line-height: 120%;
   color: #1F2D58;
+  margin-bottom: 0.5rem; /* 8px */
 }
 
 h6 {
@@ -119,25 +120,25 @@ h6 {
 .p-large {
   font-family: "sofia-pro", sans-serif;
   font-weight: 400;
-  font-size: 1rem; /* 16pt */
+  font-size: 0.9375rem; /* 15px */
   line-height: 150%;
-  color: #1F2D58;
+  /* Color removed to allow Tailwind utility classes (text-slate-400, etc.) to work */
 }
 
 .p-regular {
   font-family: "sofia-pro", sans-serif;
   font-weight: 400;
-  font-size: 0.875rem; /* 14pt */
+  font-size: 0.9375rem; /* 15px */
   line-height: 150%;
-  color: #1F2D58;
+  /* Color removed to allow Tailwind utility classes (text-slate-400, etc.) to work */
 }
 
 .p-small {
   font-family: "sofia-pro", sans-serif;
   font-weight: 400;
-  font-size: 0.8125rem; /* 13pt */
+  font-size: 0.875rem; /* 14px */
   line-height: 120%;
-  color: #1F2D58;
+  /* Color removed to allow Tailwind utility classes (text-slate-400, etc.) to work */
 }
 
 /* Cursor pointer voor alle klikbare elementen */

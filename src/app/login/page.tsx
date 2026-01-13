@@ -57,11 +57,20 @@ export default function LoginPage() {
             </Button>
           </form>
           {sent && (
-            <Alert className="mt-4 border-emerald-200 bg-emerald-50">
-              <AlertDescription className="text-emerald-700 text-sm">
-                <strong className="block mb-1">Check je e-mail</strong>
-                <p className="mb-2">We hebben je een e-mail gestuurd met een link om veilig in te loggen.</p>
-                <p className="text-xs">Geen mail gezien? Check je spam of verstuur &apos;m opnieuw.</p>
+            <Alert className="mt-4 bg-[#193DAB]/[0.12] border-none">
+              <AlertDescription className="text-[#1F2D58]">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                      <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <strong className="block mb-1">Check je e-mail</strong>
+                    <p className="mb-2 text-sm">We hebben je een e-mail gestuurd met een link om veilig in te loggen.</p>
+                    <p className="text-xs">Geen mail gezien? Check je spam of verstuur &apos;m opnieuw.</p>
+                  </div>
+                </div>
               </AlertDescription>
             </Alert>
           )}

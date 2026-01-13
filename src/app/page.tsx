@@ -17,7 +17,7 @@ export default function Home() {
         <h2 className="h5">
           Kies hoe je wilt starten
         </h2>
-        <ul className="space-y-3 list-none">
+        <ul className="space-y-1 list-none">
           <li className="p-regular flex gap-2">
             <span className="text-[#1F2D58] font-bold">•</span>
             <span>

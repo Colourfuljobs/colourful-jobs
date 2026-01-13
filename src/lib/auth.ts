@@ -32,7 +32,9 @@ function verificationEmailText({ url }: { url: string }) {
 function verificationEmailHtml({ url }: { url: string }) {
   const backgroundColor = "#E8EEF2";
   const textColor = "#1F2D58";
+  const textColorWithOpacity = "rgba(31, 45, 88, 0.7)";
   const buttonColor = "#F86600";
+  const logoUrl = `${process.env.NEXTAUTH_URL}/email/colourful-jobs_logo.png`;
   
   return `
 <!DOCTYPE html>
@@ -46,6 +48,12 @@ function verificationEmailHtml({ url }: { url: string }) {
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${backgroundColor};">
     <tr>
       <td align="center" style="padding: 40px 20px;">
+        
+        <!-- Logo -->
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="${logoUrl}" alt="Colourful jobs" style="height: 32px; width: auto; display: block; margin: 0 auto;">
+        </div>
+        
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px 12px 32px 32px; overflow: hidden; box-shadow: 0 2px 8px rgba(31, 45, 88, 0.08);">
           
           <!-- Content -->
@@ -58,7 +66,7 @@ function verificationEmailHtml({ url }: { url: string }) {
               </h1>
               
               <!-- Body text -->
-              <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: ${textColor};">
+              <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: ${textColorWithOpacity};">
                 Klik op de knop hieronder om je e-mailadres te bevestigen en het aanmaken van je account verder af te ronden.
               </p>
               
@@ -74,7 +82,7 @@ function verificationEmailHtml({ url }: { url: string }) {
               </table>
               
               <!-- Disclaimer -->
-              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: ${textColor}; font-style: italic;">
+              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: ${textColorWithOpacity}; font-style: italic;">
                 Deze link is 24 uur geldig en kan maar één keer worden gebruikt. Heb je dit niet aangevraagd? Dan kun je deze e-mail negeren.
               </p>
               
@@ -84,7 +92,7 @@ function verificationEmailHtml({ url }: { url: string }) {
           <!-- Footer -->
           <tr>
             <td style="padding: 32px 40px; background-color: #F8FAFC; border-top: 1px solid #E2E8F0;">
-              <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: ${textColor};">
+              <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: ${textColorWithOpacity};">
                 Met vriendelijke groet,<br>
                 Het Colourful jobs team
               </p>
@@ -92,11 +100,6 @@ function verificationEmailHtml({ url }: { url: string }) {
           </tr>
           
         </table>
-        
-        <!-- Small print -->
-        <p style="margin: 24px 0 0; font-size: 12px; line-height: 1.5; color: #64748b; text-align: center;">
-          © ${new Date().getFullYear()} Colourful jobs
-        </p>
         
       </td>
     </tr>
@@ -115,7 +118,9 @@ function loginEmailText({ url }: { url: string }) {
 function loginEmailHtml({ url }: { url: string }) {
   const backgroundColor = "#E8EEF2";
   const textColor = "#1F2D58";
+  const textColorWithOpacity = "rgba(31, 45, 88, 0.7)";
   const buttonColor = "#F86600";
+  const logoUrl = `${process.env.NEXTAUTH_URL}/email/colourful-jobs_logo.png`;
   
   return `
 <!DOCTYPE html>
@@ -129,6 +134,12 @@ function loginEmailHtml({ url }: { url: string }) {
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${backgroundColor};">
     <tr>
       <td align="center" style="padding: 40px 20px;">
+        
+        <!-- Logo -->
+        <div style="text-align: center; margin-bottom: 24px;">
+          <img src="${logoUrl}" alt="Colourful jobs" style="height: 32px; width: auto; display: block; margin: 0 auto;">
+        </div>
+        
         <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px 12px 32px 32px; overflow: hidden; box-shadow: 0 2px 8px rgba(31, 45, 88, 0.08);">
           
           <!-- Content -->
@@ -141,7 +152,7 @@ function loginEmailHtml({ url }: { url: string }) {
               </h1>
               
               <!-- Body text -->
-              <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: ${textColor};">
+              <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: ${textColorWithOpacity};">
                 Klik op de knop hieronder om je e-mailadres te bevestigen en in te loggen.
               </p>
               
@@ -157,7 +168,7 @@ function loginEmailHtml({ url }: { url: string }) {
               </table>
               
               <!-- Disclaimer -->
-              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: ${textColor}; font-style: italic;">
+              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: ${textColorWithOpacity}; font-style: italic;">
                 Deze link is 24 uur geldig en kan maar één keer worden gebruikt. Heb je dit niet aangevraagd? Dan kun je deze e-mail negeren.
               </p>
               
@@ -167,7 +178,7 @@ function loginEmailHtml({ url }: { url: string }) {
           <!-- Footer -->
           <tr>
             <td style="padding: 32px 40px; background-color: #F8FAFC; border-top: 1px solid #E2E8F0;">
-              <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: ${textColor};">
+              <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: ${textColorWithOpacity};">
                 Met vriendelijke groet,<br>
                 Het Colourful jobs team
               </p>
@@ -175,11 +186,6 @@ function loginEmailHtml({ url }: { url: string }) {
           </tr>
           
         </table>
-        
-        <!-- Small print -->
-        <p style="margin: 24px 0 0; font-size: 12px; line-height: 1.5; color: #64748b; text-align: center;">
-          © ${new Date().getFullYear()} Colourful jobs
-        </p>
         
       </td>
     </tr>
