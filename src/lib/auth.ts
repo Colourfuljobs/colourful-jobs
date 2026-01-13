@@ -341,6 +341,19 @@ export const authOptions: NextAuthOptions = {
         (token as any).lastActivity = Date.now();
       }
       
+      // Bij session update: haal verse user data op uit database
+      if (trigger === "update" && token.email) {
+        try {
+          const freshUser = await getUserByEmail(token.email as string);
+          if (freshUser) {
+            (token as any).employerId = freshUser.employer_id ?? null;
+            (token as any).status = (freshUser.status as EmployerStatus) ?? "pending_onboarding";
+          }
+        } catch (error) {
+          console.error("[Auth] Error refreshing user data:", error);
+        }
+      }
+      
       // Check inactiviteit (60 minuten)
       const inactivityTimeout = 60 * 60 * 1000;
       const lastActivity = (token as any).lastActivity || Date.now();
@@ -351,9 +364,7 @@ export const authOptions: NextAuthOptions = {
       }
       
       // Update lastActivity bij elke request
-      if (trigger === "update" || !trigger) {
-        (token as any).lastActivity = Date.now();
-      }
+      (token as any).lastActivity = Date.now();
       
       return token;
     },

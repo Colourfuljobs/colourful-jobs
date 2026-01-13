@@ -34,7 +34,7 @@ const stepLabels = [
 ];
 
 export default function OnboardingPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
   
   // Step management
@@ -229,6 +229,8 @@ export default function OnboardingPage() {
             
             if (response.ok) {
               localStorage.removeItem("colourful_join_employer_id");
+              // Refresh de sessie zodat de nieuwe status in de token zit
+              await update();
               toast.success("Welkom bij Colourful jobs!", {
                 description: "Je bent succesvol toegevoegd aan het werkgeversaccount.",
               });
@@ -1013,6 +1015,9 @@ export default function OnboardingPage() {
       });
 
       if (employerResponse.ok) {
+        // Refresh de sessie zodat de nieuwe status (active) in de token zit
+        await update();
+        
         toast.success("Welkom bij Colourful Jobs!", {
           description: "Je werkgeversaccount is succesvol aangemaakt.",
         });
