@@ -13,7 +13,8 @@ export default async function middleware(req: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/api/auth");
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/onboarding");
 
   if (!token && !isPublic) {
     const url = req.nextUrl.clone();
