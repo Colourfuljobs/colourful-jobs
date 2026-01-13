@@ -5,7 +5,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 export async function POST(request: Request) {
-  console.log("[DEBUG-ONB-POST] start", { url: request.url });
   try {
     const body = await request.json();
     const { email, first_name, last_name, role, joinMode, target_employer_id } = body;
@@ -149,7 +148,7 @@ export async function POST(request: Request) {
       employerId,
     });
   } catch (error: any) {
-    console.error("[DEBUG-ONB-POST] error:", error);
+    console.error("[Onboarding POST] error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to create onboarding record" },
       { status: 500 }
@@ -158,7 +157,6 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  console.log("[DEBUG-ONB-PATCH] start", { url: request.url });
   try {
     const session = await getServerSession(authOptions);
 
@@ -276,7 +274,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(updated);
   } catch (error: any) {
-    console.error("[DEBUG-ONB-PATCH] error:", error);
+    console.error("[Onboarding PATCH] error:", error);
     return NextResponse.json(
       { error: error.message || "Failed to update onboarding data" },
       { status: 500 }
@@ -288,12 +286,6 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const kvkNumber = searchParams.get("kvk");
   const getUserData = searchParams.get("user");
-
-  console.log("[DEBUG-ONB-GET] start", {
-    url: request.url,
-    kvkNumber,
-    getUserData,
-  });
 
   // If user parameter is set, return user data for the logged-in user
   if (getUserData === "true") {
@@ -327,7 +319,6 @@ export async function GET(request: Request) {
 
   // Check for KVK duplicate
   if (!kvkNumber) {
-    console.log("[DEBUG-ONB-GET] missing kvk");
     return NextResponse.json({ error: "KVK number is required" }, { status: 400 });
   }
 
@@ -344,7 +335,7 @@ export async function GET(request: Request) {
       } : null,
     });
   } catch (error: any) {
-    console.error("[DEBUG-ONB-GET] Error checking KVK:", error);
+    console.error("[Onboarding GET] Error checking KVK:", error);
     return NextResponse.json(
       { error: error.message || "Failed to check KVK" },
       { status: 500 }
@@ -354,8 +345,6 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
-
-  console.log("[DEBUG-ONB-DELETE] start", { url: request.url });
 
   if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -399,7 +388,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[DEBUG-ONB-DELETE] Error deleting onboarding data:", error);
+    console.error("[Onboarding DELETE] Error deleting onboarding data:", error);
     return NextResponse.json(
       { error: error.message || "Failed to delete onboarding data" },
       { status: 500 }

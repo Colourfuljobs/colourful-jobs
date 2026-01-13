@@ -23,8 +23,9 @@ export default async function middleware(req: NextRequest) {
   }
 
   if (token) {
-    // Never redirect auth API calls; they must return JSON
-    if (pathname.startsWith("/api/auth")) {
+    // Never redirect API calls; they must return JSON, not HTML redirects
+    // API routes handle their own authentication/authorization
+    if (pathname.startsWith("/api/")) {
       return NextResponse.next();
     }
 
