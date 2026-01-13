@@ -361,16 +361,10 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      console.log("[Auth] Session callback:", { hasToken: !!token, sub: token?.sub });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:session-callback',message:'Session callback called',data:{hasToken:!!token,tokenSub:token?.sub,tokenEmail:token?.email},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
+      console.log("[DEBUG-D] Session callback:", { hasToken: !!token, sub: token?.sub, email: token?.email });
       
       if (!token || !token.sub) {
-        console.log("[Auth] No valid token in session callback");
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:session-no-token',message:'No valid token!',data:{token:token?'exists':'null'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
+        console.log("[DEBUG-D] No valid token in session callback!");
         return session;
       }
       session.user = {
@@ -380,10 +374,7 @@ export const authOptions: NextAuthOptions = {
         status:
           ((token as any).status as EmployerStatus) ?? "pending_onboarding",
       };
-      console.log("[Auth] Session created for:", session.user.email);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/7a56e4a5-d799-45fa-8f20-3e2a069bf73b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'auth.ts:session-success',message:'Session created successfully',data:{email:session.user.email,id:session.user.id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
+      console.log("[DEBUG-D] Session created for:", session.user.email);
       return session;
     },
   },
