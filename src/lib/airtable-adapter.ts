@@ -16,11 +16,9 @@ function getBase() {
   const apiKey = process.env.AIRTABLE_API_KEY;
 
   if (!baseId || !apiKey) {
-    console.error("❌ Airtable not configured - missing AIRTABLE_BASE_ID or AIRTABLE_API_KEY");
     throw new Error("Airtable not configured");
   }
 
-  console.log("✅ Airtable adapter initialized with base:", baseId.substring(0, 8) + "...");
   _base = new Airtable({ apiKey }).base(baseId);
   return _base;
 }
@@ -246,9 +244,7 @@ export function AirtableAdapter(): Adapter {
       }
     },
     async createVerificationToken({ identifier, expires, token }) {
-      console.log("📝 createVerificationToken called:", { identifier, tokenLength: token?.length });
       try {
-        // Use full ISO string for DateTime fields in Airtable
         const expiresFormatted = expires.toISOString();
         
         const record = await getBase()(VERIFICATION_TOKENS_TABLE).create({
@@ -257,13 +253,6 @@ export function AirtableAdapter(): Adapter {
           expires: expiresFormatted,
         });
         
-        console.log("✅ Verification token created in Airtable:", { 
-          identifier, 
-          recordId: record.id,
-          expires: expiresFormatted 
-        });
-        
-        // Airtable returns dates in various formats, handle both
         const expiresValue = record.fields.expires;
         const expiresDate = expiresValue instanceof Date 
           ? expiresValue 
@@ -277,20 +266,11 @@ export function AirtableAdapter(): Adapter {
           expires: expiresDate,
         };
       } catch (error: any) {
-        console.error("❌ Error creating verification token:", {
-          table: VERIFICATION_TOKENS_TABLE,
-          identifier,
-          error: error.message,
-          statusCode: error.statusCode,
-          expectedFields: ["identifier", "token", "expires"],
-          expiresValue: expires,
-          expiresFormatted: expires.toISOString().split('T')[0],
-        });
+        console.error("Error creating verification token:", error.message);
         throw error;
       }
     },
     async useVerificationToken({ identifier, token }) {
-      console.log("🔍 useVerificationToken called:", { identifier, tokenLength: token?.length });
       try {
         const records = await getBase()(VERIFICATION_TOKENS_TABLE)
           .select({
@@ -299,13 +279,7 @@ export function AirtableAdapter(): Adapter {
           })
           .firstPage();
 
-        console.log("🔍 Verification token lookup result:", { 
-          found: records.length > 0,
-          recordCount: records.length 
-        });
-
         if (!records[0]) {
-          console.log("❌ No verification token found for:", identifier);
           return null;
         }
 
@@ -315,17 +289,10 @@ export function AirtableAdapter(): Adapter {
           expires: new Date(records[0].fields.expires as string),
         };
 
-        console.log("✅ Verification token found, expires:", verificationToken.expires);
-
         await getBase()(VERIFICATION_TOKENS_TABLE).destroy(records[0].id);
-        console.log("🗑️ Verification token deleted after use");
         return verificationToken;
       } catch (error: any) {
-        console.error("❌ Error in useVerificationToken:", {
-          identifier,
-          error: error.message,
-          statusCode: error.statusCode,
-        });
+        console.error("Error in useVerificationToken:", error.message);
         return null;
       }
     },

@@ -195,25 +195,12 @@ function loginEmailHtml({ url }: { url: string }) {
 `;
 }
 
-// Determine if we're in production (Vercel sets this automatically)
-const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
-
-console.log("🔧 NextAuth config:", { 
-  isProduction,
-  NODE_ENV: process.env.NODE_ENV,
-  VERCEL: process.env.VERCEL,
-  NEXTAUTH_URL: process.env.NEXTAUTH_URL 
-});
-
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   adapter: AirtableAdapter(),
   pages: {
     signIn: "/login",
-    error: "/login", // Redirect auth errors to login page instead of default error page
   },
-  // Use secure cookies in production (Vercel)
-  useSecureCookies: isProduction,
   session: {
     strategy: "jwt",
     maxAge: 14 * 24 * 60 * 60, // 14 dagen in seconden
@@ -319,70 +306,51 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user }) {
-      console.log("🔐 signIn callback:", { userId: user.id, email: user.email });
       // Allow sign in
       return true;
     },
     async redirect({ url, baseUrl }) {
-      console.log("🔀 redirect callback:", { url, baseUrl });
-      
-      // After successful sign in, redirect to dashboard
-      // If url is a relative path, make it absolute
+      // After successful sign in, redirect to appropriate page
       if (url.startsWith("/")) {
         // Don't redirect back to login after successful sign in
         if (url === "/login" || url.startsWith("/login")) {
-          console.log("🔀 redirecting to dashboard (was login)");
           return `${baseUrl}/dashboard`;
         }
-        const redirectUrl = `${baseUrl}${url}`;
-        console.log("🔀 redirecting to:", redirectUrl);
-        return redirectUrl;
+        return `${baseUrl}${url}`;
       }
       // If url is from same origin, use it (unless it's login)
       try {
         if (new URL(url).origin === baseUrl) {
           if (url.includes("/login")) {
-            console.log("🔀 redirecting to dashboard (was login full url)");
             return `${baseUrl}/dashboard`;
           }
-          console.log("🔀 redirecting to same origin url:", url);
           return url;
         }
-      } catch (e) {
-        console.log("🔀 error parsing url:", e);
+      } catch {
+        // Invalid URL, fall through to default
       }
       // Default: redirect to dashboard
-      console.log("🔀 default redirect to dashboard");
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
-      console.log("🎫 jwt callback:", { 
-        hasUser: !!user, 
-        trigger, 
-        tokenSub: token?.sub,
-        userEmail: user?.email 
-      });
-      
-      // Bij nieuwe login: zet lastActivity timestamp
+      // Bij nieuwe login: zet user data in token
       if (user) {
         (token as any).employerId = (user as any).employerId ?? null;
         (token as any).status =
           ((user as any).status as EmployerStatus) ?? "pending_onboarding";
         (token as any).lastActivity = Date.now();
-        console.log("🎫 jwt: new user login, setting token data");
       }
       
-      // Check inactiviteit (60 minuten = 3600000 milliseconden)
-      const inactivityTimeout = 60 * 60 * 1000; // 60 minuten
+      // Check inactiviteit (60 minuten)
+      const inactivityTimeout = 60 * 60 * 1000;
       const lastActivity = (token as any).lastActivity || Date.now();
       const isInactive = Date.now() - lastActivity > inactivityTimeout;
       
-      // Als inactief, forceer logout door null te returnen
       if (isInactive) {
         return null as any;
       }
       
-      // Update lastActivity bij elke request (tenzij het een scheduled update is)
+      // Update lastActivity bij elke request
       if (trigger === "update" || !trigger) {
         (token as any).lastActivity = Date.now();
       }
@@ -390,15 +358,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      console.log("📋 session callback:", { 
-        hasToken: !!token, 
-        tokenSub: token?.sub,
-        tokenEmail: token?.email 
-      });
-      
       if (!token || !token.sub) {
-        console.log("📋 session: no valid token, returning unauthenticated");
-        // If token is missing, return session as-is (will be null/unauthorized)
         return session;
       }
       session.user = {
@@ -408,7 +368,6 @@ export const authOptions: NextAuthOptions = {
         status:
           ((token as any).status as EmployerStatus) ?? "pending_onboarding",
       };
-      console.log("📋 session: authenticated user:", session.user.email);
       return session;
     },
   },
