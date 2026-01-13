@@ -827,9 +827,12 @@ export default function OnboardingPage() {
   async function saveStep2Data() {
     const formData = getValues();
     
+    console.log("[DEBUG-STEP2] submit start", { kvk: formData.kvk, kvkSelected, saving });
+
     // Basic KVK length check to avoid bad fetch/parsing
     if (formData.kvk && formData.kvk.length !== 8) {
       setFormErrors((prev) => ({ ...prev, kvk: "KVK-nummer moet 8 cijfers bevatten" }));
+      console.log("[DEBUG-STEP2] kvk length invalid");
       return false;
     }
 
@@ -843,10 +846,12 @@ export default function OnboardingPage() {
           setDuplicateEmployer(checkData.employer);
           setKvkCheckResult(checkData); // Shows inline alert
           setDuplicateDialogOpen(true); // Shows dialog popup
+          console.log("[DEBUG-STEP2] kvk duplicate found", checkData);
           return false; // Block submit
         }
       } else {
         setFormErrors((prev) => ({ ...prev, kvk: "Kon KVK niet controleren, probeer opnieuw." }));
+        console.log("[DEBUG-STEP2] kvk check failed", checkResponse.status);
         return false;
       }
     }
@@ -875,6 +880,12 @@ export default function OnboardingPage() {
       });
     }
     
+    console.log("[DEBUG-STEP2] validation", {
+      companyOk: companyResult.success,
+      billingOk: billingResult.success,
+      errors: newErrors,
+    });
+
     if (Object.keys(newErrors).length > 0) {
       setFormErrors(newErrors);
       // Scroll to first error
@@ -911,6 +922,8 @@ export default function OnboardingPage() {
           invoice_country: formData.invoice_country,
         }),
       });
+
+      console.log("[DEBUG-STEP2] patch response", response.status);
 
       if (response.ok) {
         setStep2Complete(true);
