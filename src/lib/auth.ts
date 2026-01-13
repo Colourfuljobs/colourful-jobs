@@ -333,8 +333,11 @@ export const authOptions: NextAuthOptions = {
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
+      console.log("[Auth] JWT callback:", { hasUser: !!user, trigger, sub: token?.sub });
+      
       // Bij nieuwe login: zet user data in token
       if (user) {
+        console.log("[Auth] New user login, setting token data for:", user.email);
         (token as any).employerId = (user as any).employerId ?? null;
         (token as any).status =
           ((user as any).status as EmployerStatus) ?? "pending_onboarding";
@@ -358,7 +361,10 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      console.log("[Auth] Session callback:", { hasToken: !!token, sub: token?.sub });
+      
       if (!token || !token.sub) {
+        console.log("[Auth] No valid token in session callback");
         return session;
       }
       session.user = {
@@ -368,6 +374,7 @@ export const authOptions: NextAuthOptions = {
         status:
           ((token as any).status as EmployerStatus) ?? "pending_onboarding",
       };
+      console.log("[Auth] Session created for:", session.user.email);
       return session;
     },
   },
