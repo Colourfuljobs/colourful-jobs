@@ -291,7 +291,8 @@ export function AirtableAdapter(): Adapter {
         console.log("[Auth] Search formula:", formula.substring(0, 100) + "...");
         
         // Retry mechanism for Airtable eventual consistency
-        let records: Awaited<ReturnType<ReturnType<typeof getBase>["select"]["firstPage"]>> = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let records: any[] = [];
         const maxRetries = 3;
         const retryDelay = 1000; // 1 second
         
