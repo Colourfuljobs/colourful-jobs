@@ -200,6 +200,7 @@ export const authOptions: NextAuthOptions = {
   adapter: AirtableAdapter(),
   pages: {
     signIn: "/login",
+    error: "/auth/error",
   },
   session: {
     strategy: "jwt",
