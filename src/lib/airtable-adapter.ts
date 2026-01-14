@@ -291,22 +291,24 @@ export function AirtableAdapter(): Adapter {
         console.log("[Auth] Search formula:", formula.substring(0, 100) + "...");
         
         // Retry mechanism for Airtable eventual consistency
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let records: any[] = [];
         const maxRetries = 3;
         const retryDelay = 1000; // 1 second
+        let foundRecord = null;
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          records = await getBase()(VERIFICATION_TOKENS_TABLE)
+          const results = await getBase()(VERIFICATION_TOKENS_TABLE)
             .select({
               filterByFormula: formula,
               maxRecords: 1,
             })
             .firstPage();
           
-          console.log(`[Auth] Attempt ${attempt}/${maxRetries}: Records found:`, records.length);
+          console.log(`[Auth] Attempt ${attempt}/${maxRetries}: Records found:`, results.length);
           
-          if (records.length > 0) break;
+          if (results.length > 0) {
+            foundRecord = results[0];
+            break;
+          }
           
           if (attempt < maxRetries) {
             console.log(`[Auth] Retrying in ${retryDelay}ms...`);
@@ -314,7 +316,7 @@ export function AirtableAdapter(): Adapter {
           }
         }
 
-        if (!records[0]) {
+        if (!foundRecord) {
           console.log("[Auth] No verification token found after retries - token may be expired, already used, or mismatched");
           
           // Debug: Try to find any tokens for this identifier
@@ -349,13 +351,13 @@ export function AirtableAdapter(): Adapter {
           return null;
         }
 
-        console.log("[Auth] Verification token found with ID:", records[0].id);
-        console.log("[Auth] Token expires:", records[0].fields.expires);
+        console.log("[Auth] Verification token found with ID:", foundRecord.id);
+        console.log("[Auth] Token expires:", foundRecord.fields.expires);
         
         const verificationToken = {
-          identifier: records[0].fields.identifier as string,
-          token: records[0].fields.token as string,
-          expires: new Date(records[0].fields.expires as string),
+          identifier: foundRecord.fields.identifier as string,
+          token: foundRecord.fields.token as string,
+          expires: new Date(foundRecord.fields.expires as string),
         };
 
         // Check if token is expired
@@ -363,7 +365,7 @@ export function AirtableAdapter(): Adapter {
           console.log("[Auth] Token is EXPIRED! Expires:", verificationToken.expires, "Now:", new Date());
         }
 
-        await getBase()(VERIFICATION_TOKENS_TABLE).destroy(records[0].id);
+        await getBase()(VERIFICATION_TOKENS_TABLE).destroy(foundRecord.id);
         console.log("[Auth] Verification token deleted successfully");
         return verificationToken;
       } catch (error: any) {
