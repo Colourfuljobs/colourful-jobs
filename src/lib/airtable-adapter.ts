@@ -145,8 +145,9 @@ export function AirtableAdapter(): Adapter {
       
       const record = await getBase()(SESSIONS_TABLE).create({
         sessionToken,
-        userId,
+        userId: [userId], // Link to Users requires array
         expires: expiresFormatted,
+        "created-at": new Date().toISOString(),
       });
       
       // Handle date parsing from Airtable
@@ -157,9 +158,14 @@ export function AirtableAdapter(): Adapter {
           ? new Date(expiresValue) 
           : new Date(expiresValue as any);
       
+      // Extract userId from linked record array
+      const userIdValue = Array.isArray(record.fields.userId)
+        ? record.fields.userId[0]
+        : record.fields.userId;
+      
       return {
         sessionToken: record.fields.sessionToken as string,
-        userId: record.fields.userId as string,
+        userId: userIdValue as string,
         expires: expiresDate,
       };
     },
@@ -181,13 +187,18 @@ export function AirtableAdapter(): Adapter {
           return null;
         }
 
-        const user = await getUserById(session.fields.userId as string);
+        // Extract userId from linked record array
+        const userIdValue = Array.isArray(session.fields.userId)
+          ? session.fields.userId[0]
+          : session.fields.userId;
+
+        const user = await getUserById(userIdValue as string);
         if (!user) return null;
 
         return {
           session: {
             sessionToken: session.fields.sessionToken as string,
-            userId: session.fields.userId as string,
+            userId: userIdValue as string,
             expires,
           },
           user,
@@ -223,9 +234,14 @@ export function AirtableAdapter(): Adapter {
             ? new Date(expiresValue) 
             : new Date(expiresValue as any);
         
+        // Extract userId from linked record array
+        const userIdValue = Array.isArray(record.fields.userId)
+          ? record.fields.userId[0]
+          : record.fields.userId;
+        
         return {
           sessionToken: record.fields.sessionToken as string,
-          userId: record.fields.userId as string,
+          userId: userIdValue as string,
           expires: expiresDate,
         };
       } catch {

@@ -203,7 +203,7 @@ export const authOptions: NextAuthOptions = {
     error: "/auth/error",
   },
   session: {
-    strategy: "jwt",
+    strategy: "database",
     maxAge: 14 * 24 * 60 * 60, // 14 dagen in seconden
     updateAge: 60 * 60, // Ververs sessie elke 60 minuten bij activiteit
   },
