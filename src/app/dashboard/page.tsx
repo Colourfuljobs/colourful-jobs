@@ -40,7 +40,7 @@ export default function DashboardPage() {
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#F86600] border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1F2D58]"></div>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export default function DashboardPage() {
   if (status === "unauthenticated" || session?.user?.status === "pending_onboarding") {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#F86600] border-t-transparent"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1F2D58]"></div>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import Airtable from "airtable";
 import { z } from "zod";
+import { getErrorMessage, hasStatusCode } from "./utils";
 
 const baseId = process.env.AIRTABLE_BASE_ID;
 const apiKey = process.env.AIRTABLE_API_KEY;
@@ -75,12 +76,44 @@ type WalletRecord = z.infer<typeof walletRecordSchema>;
 const USERS_TABLE = process.env.AIRTABLE_USERS_TABLE || "Users";
 const EMPLOYERS_TABLE = process.env.AIRTABLE_EMPLOYERS_TABLE || "Employers";
 const WALLETS_TABLE = process.env.AIRTABLE_WALLETS_TABLE || "Wallets";
-const DEFAULT_EMPLOYER_ROLE_ID = process.env.AIRTABLE_DEFAULT_EMPLOYER_ROLE_ID;
+const ROLES_TABLE = process.env.AIRTABLE_ROLES_TABLE || "Roles";
 
-if (!DEFAULT_EMPLOYER_ROLE_ID) {
-  console.warn(
-    "AIRTABLE_DEFAULT_EMPLOYER_ROLE_ID is not set. Employers will be created without a default role."
-  );
+// Cache for the employer role ID (so we don't query Airtable every time)
+let cachedEmployerRoleId: string | null = null;
+
+/**
+ * Get the "employer" role ID from the Roles table
+ * Caches the result to avoid repeated API calls
+ */
+async function getEmployerRoleId(): Promise<string | null> {
+  // Return cached value if available
+  if (cachedEmployerRoleId) {
+    return cachedEmployerRoleId;
+  }
+
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const records = await base(ROLES_TABLE)
+      .select({
+        filterByFormula: `LOWER({id}) = 'employer'`,
+        maxRecords: 1,
+      })
+      .firstPage();
+
+    if (records[0]) {
+      cachedEmployerRoleId = records[0].id;
+      return cachedEmployerRoleId;
+    }
+
+    console.warn("No 'employer' role found in Roles table. Employers will be created without a role.");
+    return null;
+  } catch (error: unknown) {
+    console.error("Error fetching employer role:", getErrorMessage(error));
+    return null;
+  }
 }
 
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
@@ -152,14 +185,14 @@ export async function createUser(fields: {
       ...fields,
       employer_id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating user in Airtable:", {
       table: USERS_TABLE,
       fields: airtableFields,
-      error: error.message,
-      statusCode: error.statusCode,
+      error: getErrorMessage(error),
+      statusCode: hasStatusCode(error) ? error.statusCode : undefined,
     });
-    throw new Error(`Failed to create user: ${error.message || "Unknown error"}`);
+    throw new Error(`Failed to create user: ${getErrorMessage(error)}`);
   }
 }
 
@@ -168,10 +201,13 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
     throw new Error("Airtable not configured");
   }
 
+  // Get the employer role ID (cached after first call)
+  const employerRoleId = await getEmployerRoleId();
+
   const airtableFields: Record<string, any> = {
     status: fields.status ?? "draft",
-    // Set default employer role (linked record to Roles table) if configured
-    ...(DEFAULT_EMPLOYER_ROLE_ID && { role: fields.role ?? [DEFAULT_EMPLOYER_ROLE_ID] }),
+    // Automatically link to "employer" role from Roles table
+    ...(employerRoleId && { role: fields.role ?? [employerRoleId] }),
     "created-at": new Date().toISOString(),
   };
 
@@ -208,16 +244,14 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
       id: record.id,
       ...record.fields,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating employer in Airtable:", {
       table: EMPLOYERS_TABLE,
       fields: airtableFields,
-      error: error.message,
-      statusCode: error.statusCode,
+      error: getErrorMessage(error),
+      statusCode: hasStatusCode(error) ? error.statusCode : undefined,
     });
-    throw new Error(
-      `Failed to create employer: ${error.message || "Unknown error"}`
-    );
+    throw new Error(`Failed to create employer: ${getErrorMessage(error)}`);
   }
 }
 
@@ -322,8 +356,8 @@ export async function getEmployerByKVK(kvkNumber: string): Promise<EmployerRecor
       id: records[0].id,
       ...records[0].fields,
     });
-  } catch (error: any) {
-    console.error("Error getting employer by KVK:", error);
+  } catch (error: unknown) {
+    console.error("Error getting employer by KVK:", getErrorMessage(error));
     return null;
   }
 }
@@ -346,8 +380,8 @@ export async function getEmployerById(id: string): Promise<EmployerRecord | null
       id: record.id,
       ...record.fields,
     });
-  } catch (error: any) {
-    console.error("Error getting employer by ID:", error);
+  } catch (error: unknown) {
+    console.error("Error getting employer by ID:", getErrorMessage(error));
     return null;
   }
 }
@@ -359,9 +393,9 @@ export async function deleteUser(id: string): Promise<void> {
 
   try {
     await base(USERS_TABLE).destroy(id);
-  } catch (error: any) {
-    console.error("Error deleting user from Airtable:", error);
-    throw new Error(`Failed to delete user: ${error.message || "Unknown error"}`);
+  } catch (error: unknown) {
+    console.error("Error deleting user from Airtable:", getErrorMessage(error));
+    throw new Error(`Failed to delete user: ${getErrorMessage(error)}`);
   }
 }
 
@@ -372,9 +406,9 @@ export async function deleteEmployer(id: string): Promise<void> {
 
   try {
     await base(EMPLOYERS_TABLE).destroy(id);
-  } catch (error: any) {
-    console.error("Error deleting employer from Airtable:", error);
-    throw new Error(`Failed to delete employer: ${error.message || "Unknown error"}`);
+  } catch (error: unknown) {
+    console.error("Error deleting employer from Airtable:", getErrorMessage(error));
+    throw new Error(`Failed to delete employer: ${getErrorMessage(error)}`);
   }
 }
 
@@ -412,14 +446,14 @@ export async function createWallet(employerId: string): Promise<WalletRecord> {
       ...fields,
       owner_employer,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating wallet in Airtable:", {
       table: WALLETS_TABLE,
       fields: airtableFields,
-      error: error.message,
-      statusCode: error.statusCode,
+      error: getErrorMessage(error),
+      statusCode: hasStatusCode(error) ? error.statusCode : undefined,
     });
-    throw new Error(`Failed to create wallet: ${error.message || "Unknown error"}`);
+    throw new Error(`Failed to create wallet: ${getErrorMessage(error)}`);
   }
 }
 
@@ -457,8 +491,8 @@ export async function getWalletByEmployerId(employerId: string): Promise<WalletR
       owner_employer,
       owner_user,
     });
-  } catch (error: any) {
-    console.error("Error getting wallet by employer ID:", error);
+  } catch (error: unknown) {
+    console.error("Error getting wallet by employer ID:", getErrorMessage(error));
     return null;
   }
 }

@@ -80,7 +80,7 @@ export function ImageUpload({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 flex flex-col h-full">
       <Label htmlFor={id}>
         {label} {required && "*"}
       </Label>
@@ -90,7 +90,7 @@ export function ImageUpload({
         onDrop={handleDrop}
         onClick={handleClick}
         className={`
-          relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors
+          relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors flex-1
           ${
             isDragging
               ? "border-[#193DAB] bg-[#193DAB]/5"

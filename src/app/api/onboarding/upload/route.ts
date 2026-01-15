@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { updateEmployer, getUserByEmail } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
+import { getErrorMessage } from "@/lib/utils";
 import { v2 as cloudinary } from "cloudinary";
 
 // Configure Cloudinary
@@ -177,10 +178,10 @@ export async function POST(request: NextRequest) {
       altText,
       publicId: uploadResult.public_id,
     });
-  } catch (error: any) {
-    console.error("Error uploading image:", error);
+  } catch (error: unknown) {
+    console.error("Error uploading image:", getErrorMessage(error));
     
-    const errorMessage = error?.message || "Fout bij uploaden van afbeelding. Controleer of het bestand een geldige afbeelding is.";
+    const errorMessage = getErrorMessage(error) || "Fout bij uploaden van afbeelding. Controleer of het bestand een geldige afbeelding is.";
     
     return NextResponse.json(
       { error: errorMessage },
@@ -195,7 +196,13 @@ export async function POST(request: NextRequest) {
 }
 
 // Generate alt text based on image type and company data
-function generateAltText(type: "logo" | "header", companyData: any): string {
+interface CompanyDataForAltText {
+  display_name?: string;
+  company_name?: string;
+  sector?: string;
+}
+
+function generateAltText(type: "logo" | "header", companyData: CompanyDataForAltText): string {
   const companyName = companyData.display_name || companyData.company_name || "Bedrijf";
   
   if (type === "logo") {

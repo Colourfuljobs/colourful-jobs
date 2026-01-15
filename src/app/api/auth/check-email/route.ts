@@ -1,8 +1,27 @@
 import { NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/airtable";
+import { checkRateLimit, loginRateLimiter, getIdentifier } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
+    // Rate limiting: 5 attempts per minute per IP
+    const identifier = getIdentifier(request);
+    const rateLimitResult = await checkRateLimit(identifier, loginRateLimiter, 5, 60000);
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Te veel pogingen. Probeer het over een minuut opnieuw." },
+        { 
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": rateLimitResult.limit.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.reset.toString(),
+          }
+        }
+      );
+    }
+
     const { email } = await request.json();
 
     if (!email) {

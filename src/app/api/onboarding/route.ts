@@ -1,11 +1,31 @@
 import { authOptions } from "@/lib/auth";
 import { createEmployer, createUser, createWallet, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
+import { getErrorMessage } from "@/lib/utils";
+import { checkRateLimit, onboardingRateLimiter, getIdentifier } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 export async function POST(request: Request) {
   try {
+    // Rate limiting: 3 account creations per hour per IP
+    const identifier = getIdentifier(request);
+    const rateLimitResult = await checkRateLimit(identifier, onboardingRateLimiter, 3, 3600000);
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Te veel aanmeldpogingen. Probeer het over een uur opnieuw." },
+        { 
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": rateLimitResult.limit.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.reset.toString(),
+          }
+        }
+      );
+    }
+
     const body = await request.json();
     const { email, first_name, last_name, role, joinMode, target_employer_id } = body;
     const clientIP = getClientIP(request);
@@ -147,10 +167,10 @@ export async function POST(request: Request) {
       userId,
       employerId,
     });
-  } catch (error: any) {
-    console.error("[Onboarding POST] error:", error);
+  } catch (error: unknown) {
+    console.error("[Onboarding POST] error:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Failed to create onboarding record" },
+      { error: getErrorMessage(error) || "Failed to create onboarding record" },
       { status: 500 }
     );
   }
@@ -273,10 +293,10 @@ export async function PATCH(request: Request) {
     }
 
     return NextResponse.json(updated);
-  } catch (error: any) {
-    console.error("[Onboarding PATCH] error:", error);
+  } catch (error: unknown) {
+    console.error("[Onboarding PATCH] error:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Failed to update onboarding data" },
+      { error: getErrorMessage(error) || "Failed to update onboarding data" },
       { status: 500 }
     );
   }
@@ -308,10 +328,10 @@ export async function GET(request: Request) {
         role: user.role || "",
         email: user.email,
       });
-    } catch (error: any) {
-      console.error("Error getting user data:", error);
+    } catch (error: unknown) {
+      console.error("Error getting user data:", getErrorMessage(error));
       return NextResponse.json(
-        { error: error.message || "Failed to get user data" },
+        { error: getErrorMessage(error) || "Failed to get user data" },
         { status: 500 }
       );
     }
@@ -334,10 +354,10 @@ export async function GET(request: Request) {
         website_url: existingEmployer.website_url,
       } : null,
     });
-  } catch (error: any) {
-    console.error("[Onboarding GET] Error checking KVK:", error);
+  } catch (error: unknown) {
+    console.error("[Onboarding GET] Error checking KVK:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Failed to check KVK" },
+      { error: getErrorMessage(error) || "Failed to check KVK" },
       { status: 500 }
     );
   }
@@ -387,10 +407,10 @@ export async function DELETE(request: Request) {
     await deleteUser(user.id);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[Onboarding DELETE] Error deleting onboarding data:", error);
+  } catch (error: unknown) {
+    console.error("[Onboarding DELETE] Error deleting onboarding data:", getErrorMessage(error));
     return NextResponse.json(
-      { error: error.message || "Failed to delete onboarding data" },
+      { error: getErrorMessage(error) || "Failed to delete onboarding data" },
       { status: 500 }
     );
   }

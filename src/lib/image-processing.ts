@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { getErrorMessage } from "./utils";
 
 export interface CompanyData {
   display_name?: string;
@@ -98,9 +99,9 @@ export async function processImage(
         .toBuffer();
       return webpBuffer;
     }
-  } catch (error: any) {
-    console.error("Error processing image:", error);
-    throw new Error(error.message || "Fout bij verwerken van afbeelding");
+  } catch (error: unknown) {
+    console.error("Error processing image:", getErrorMessage(error));
+    throw new Error(getErrorMessage(error) || "Fout bij verwerken van afbeelding");
   }
 }
 

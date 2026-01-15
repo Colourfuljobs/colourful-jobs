@@ -6,6 +6,7 @@ import {
 } from "@/lib/airtable";
 import { doDomainsMatch } from "@/lib/validation";
 import { logEvent, getClientIP } from "@/lib/events";
+import { checkRateLimit, onboardingRateLimiter, getIdentifier } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
@@ -16,6 +17,24 @@ import { getServerSession } from "next-auth";
  */
 export async function POST(request: Request) {
   try {
+    // Rate limiting: 3 join attempts per hour per IP
+    const identifier = getIdentifier(request);
+    const rateLimitResult = await checkRateLimit(identifier, onboardingRateLimiter, 3, 3600000);
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Te veel pogingen. Probeer het over een uur opnieuw." },
+        { 
+          status: 429,
+          headers: {
+            "X-RateLimit-Limit": rateLimitResult.limit.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": rateLimitResult.reset.toString(),
+          }
+        }
+      );
+    }
+
     const body = await request.json();
     const { email, employer_id } = body;
 

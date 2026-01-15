@@ -1,4 +1,5 @@
 import Airtable from "airtable";
+import { getErrorMessage } from "./utils";
 
 const baseId = process.env.AIRTABLE_BASE_ID;
 const apiKey = process.env.AIRTABLE_API_KEY;
@@ -157,11 +158,11 @@ export async function logEvent(params: LogEventParams): Promise<EventRecord | nu
       "created-at": airtableFields["created-at"],
       ...record.fields,
     } as EventRecord;
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Log but don't throw - event logging should not break the main flow
     console.error("Error logging event to Airtable:", {
       event_type: params.event_type,
-      error: error.message,
+      error: getErrorMessage(error),
     });
     return null;
   }
