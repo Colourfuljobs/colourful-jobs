@@ -47,8 +47,6 @@ export default function RootLayout({
               <div className="flex justify-center mb-8">
                 <a 
                   href="https://colourfuljobs.nl" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
                   className="transition-opacity hover:opacity-80"
                 >
                   <img 
