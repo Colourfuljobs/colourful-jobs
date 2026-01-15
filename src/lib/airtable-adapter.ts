@@ -268,18 +268,11 @@ export function AirtableAdapter(): Adapter {
       try {
         const expiresFormatted = expires.toISOString();
         
-        console.log("[Auth] Creating verification token for:", identifier);
-        console.log("[Auth] Token (first 20 chars):", token.substring(0, 20) + "...");
-        console.log("[Auth] Token length:", token.length);
-        console.log("[Auth] Expires:", expiresFormatted);
-        
         const record = await getBase()(VERIFICATION_TOKENS_TABLE).create({
           identifier,
           token,
           expires: expiresFormatted,
         });
-        
-        console.log("[Auth] Verification token created with ID:", record.id);
         
         const expiresValue = record.fields.expires;
         const expiresDate = expiresValue instanceof Date 
@@ -293,23 +286,16 @@ export function AirtableAdapter(): Adapter {
           token: record.fields.token as string,
           expires: expiresDate,
         };
-      } catch (error: any) {
-        console.error("[Auth] ERROR creating verification token:", error.message, error.statusCode);
+      } catch (error: unknown) {
+        console.error("[Auth] Error creating verification token:", error instanceof Error ? error.message : "Unknown error");
         throw error;
       }
     },
     async useVerificationToken({ identifier, token }) {
       try {
-        console.log("[Auth] Looking for verification token...");
-        console.log("[Auth] Identifier:", identifier);
-        console.log("[Auth] Token (first 20 chars):", token.substring(0, 20) + "...");
-        console.log("[Auth] Token length:", token.length);
-        
         const escapedIdentifier = escapeAirtableString(identifier);
         const escapedToken = escapeAirtableString(token);
         const formula = `AND({identifier} = '${escapedIdentifier}', {token} = '${escapedToken}')`;
-        
-        console.log("[Auth] Search formula:", formula.substring(0, 100) + "...");
         
         // Retry mechanism for Airtable eventual consistency
         const maxRetries = 3;
@@ -324,56 +310,19 @@ export function AirtableAdapter(): Adapter {
             })
             .firstPage();
           
-          console.log(`[Auth] Attempt ${attempt}/${maxRetries}: Records found:`, results.length);
-          
           if (results.length > 0) {
             foundRecord = results[0];
             break;
           }
           
           if (attempt < maxRetries) {
-            console.log(`[Auth] Retrying in ${retryDelay}ms...`);
             await new Promise(resolve => setTimeout(resolve, retryDelay));
           }
         }
 
         if (!foundRecord) {
-          console.log("[Auth] No verification token found after retries - token may be expired, already used, or mismatched");
-          
-          // Debug: Try to find any tokens for this identifier
-          try {
-            const allTokensForEmail = await getBase()(VERIFICATION_TOKENS_TABLE)
-              .select({
-                filterByFormula: `{identifier} = '${escapedIdentifier}'`,
-                maxRecords: 10,
-              })
-              .firstPage();
-            console.log("[Auth] Total tokens for this email:", allTokensForEmail.length);
-            if (allTokensForEmail.length > 0) {
-              allTokensForEmail.forEach((r, i) => {
-                const storedToken = r.fields.token as string;
-                const storedExpires = r.fields.expires as string;
-                console.log(`[Auth] Token ${i + 1}:`);
-                console.log(`  - Length: ${storedToken?.length}`);
-                console.log(`  - Prefix: ${storedToken?.substring(0, 20)}`);
-                console.log(`  - Suffix: ${storedToken?.substring(storedToken.length - 20)}`);
-                console.log(`  - Expires: ${storedExpires}`);
-                console.log(`  - Matches input: ${storedToken === token}`);
-              });
-              
-              // Compare requested token with stored tokens
-              console.log("[Auth] Requested token prefix:", token.substring(0, 20));
-              console.log("[Auth] Requested token suffix:", token.substring(token.length - 20));
-            }
-          } catch (debugError) {
-            console.log("[Auth] Debug query failed:", debugError);
-          }
-          
           return null;
         }
-
-        console.log("[Auth] Verification token found with ID:", foundRecord.id);
-        console.log("[Auth] Token expires:", foundRecord.fields.expires);
         
         const verificationToken = {
           identifier: foundRecord.fields.identifier as string,
@@ -381,17 +330,10 @@ export function AirtableAdapter(): Adapter {
           expires: new Date(foundRecord.fields.expires as string),
         };
 
-        // Check if token is expired
-        if (verificationToken.expires < new Date()) {
-          console.log("[Auth] Token is EXPIRED! Expires:", verificationToken.expires, "Now:", new Date());
-        }
-
         await getBase()(VERIFICATION_TOKENS_TABLE).destroy(foundRecord.id);
-        console.log("[Auth] Verification token deleted successfully");
         return verificationToken;
-      } catch (error: any) {
-        console.error("[Auth] ERROR in useVerificationToken:", error.message);
-        console.error("[Auth] Error stack:", error.stack);
+      } catch (error: unknown) {
+        console.error("[Auth] Error in useVerificationToken:", error instanceof Error ? error.message : "Unknown error");
         return null;
       }
     },

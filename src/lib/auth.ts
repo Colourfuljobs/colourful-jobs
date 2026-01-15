@@ -23,13 +23,36 @@ declare module "next-auth" {
   }
 }
 
-// Plain text version of verification email (new accounts)
-function verificationEmailText({ url }: { url: string }) {
-  return `Verifieer je email voor Colourful jobs\n\nKlik op de link hieronder om je e-mailadres te bevestigen en het aanmaken van je account verder af te ronden.\n\n${url}\n\nDeze link is 24 uur geldig en kan maar één keer worden gebruikt. Heb je dit niet aangevraagd? Dan kun je deze e-mail negeren.\n\nMet vriendelijke groet,\nHet Colourful jobs team`;
+// Email template configuration
+interface EmailTemplateConfig {
+  subject: string;
+  heading: string;
+  bodyText: string;
+  buttonText: string;
 }
 
-// HTML version of verification email (new accounts)
-function verificationEmailHtml({ url }: { url: string }) {
+const EMAIL_TEMPLATES = {
+  verification: {
+    subject: "Verifieer je email voor Colourful jobs",
+    heading: "Verifieer je email",
+    bodyText: "Klik op de knop hieronder om je e-mailadres te bevestigen en het aanmaken van je account verder af te ronden.",
+    buttonText: "Email direct verifiëren",
+  },
+  login: {
+    subject: "Inloggen bij Colourful jobs",
+    heading: "Inloggen bij Colourful jobs",
+    bodyText: "Klik op de knop hieronder om je e-mailadres te bevestigen en in te loggen.",
+    buttonText: "Direct inloggen",
+  },
+} as const;
+
+// Generate plain text email
+function generateEmailText(config: EmailTemplateConfig, url: string): string {
+  return `${config.subject}\n\n${config.bodyText}\n\n${url}\n\nDeze link is 24 uur geldig en kan maar één keer worden gebruikt. Heb je dit niet aangevraagd? Dan kun je deze e-mail negeren.\n\nMet vriendelijke groet,\nHet Colourful jobs team`;
+}
+
+// Generate HTML email with consistent styling
+function generateEmailHtml(config: EmailTemplateConfig, url: string): string {
   const backgroundColor = "#E8EEF2";
   const textColor = "#1F2D58";
   const textColorWithOpacity = "rgba(31, 45, 88, 0.7)";
@@ -42,7 +65,7 @@ function verificationEmailHtml({ url }: { url: string }) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verifieer je email - Colourful jobs</title>
+  <title>${config.subject}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; background-color: ${backgroundColor};">
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${backgroundColor};">
@@ -62,12 +85,12 @@ function verificationEmailHtml({ url }: { url: string }) {
               
               <!-- Heading -->
               <h1 style="margin: 0 0 24px; font-size: 24px; font-weight: 700; line-height: 1.3; color: ${textColor};">
-                Verifieer je email
+                ${config.heading}
               </h1>
               
               <!-- Body text -->
               <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: ${textColorWithOpacity};">
-                Klik op de knop hieronder om je e-mailadres te bevestigen en het aanmaken van je account verder af te ronden.
+                ${config.bodyText}
               </p>
               
               <!-- Button -->
@@ -75,93 +98,7 @@ function verificationEmailHtml({ url }: { url: string }) {
                 <tr>
                   <td style="border-radius: 100px; background-color: ${buttonColor};">
                     <a href="${url}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 100px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);">
-                      Email direct verifiëren
-                    </a>
-                  </td>
-                </tr>
-              </table>
-              
-              <!-- Disclaimer -->
-              <p style="margin: 0; font-size: 13px; line-height: 1.6; color: ${textColorWithOpacity}; font-style: italic;">
-                Deze link is 24 uur geldig en kan maar één keer worden gebruikt. Heb je dit niet aangevraagd? Dan kun je deze e-mail negeren.
-              </p>
-              
-            </td>
-          </tr>
-          
-          <!-- Footer -->
-          <tr>
-            <td style="padding: 32px 40px; background-color: #F8FAFC; border-top: 1px solid #E2E8F0;">
-              <p style="margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: ${textColorWithOpacity};">
-                Met vriendelijke groet,<br>
-                Het Colourful jobs team
-              </p>
-            </td>
-          </tr>
-          
-        </table>
-        
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-`;
-}
-
-// Plain text version of login email (existing users)
-function loginEmailText({ url }: { url: string }) {
-  return `Inloggen bij Colourful jobs\n\nKlik op de link hieronder om je e-mailadres te bevestigen en in te loggen.\n\n${url}\n\nDeze link is 24 uur geldig en kan maar één keer worden gebruikt. Heb je dit niet aangevraagd? Dan kun je deze e-mail negeren.\n\nMet vriendelijke groet,\nHet Colourful jobs team`;
-}
-
-// HTML version of login email (existing users)
-function loginEmailHtml({ url }: { url: string }) {
-  const backgroundColor = "#E8EEF2";
-  const textColor = "#1F2D58";
-  const textColorWithOpacity = "rgba(31, 45, 88, 0.7)";
-  const buttonColor = "#F86600";
-  const logoUrl = `${process.env.NEXTAUTH_URL}/email/colourful-jobs_logo.png`;
-  
-  return `
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inloggen bij Colourful jobs</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; background-color: ${backgroundColor};">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${backgroundColor};">
-    <tr>
-      <td align="center" style="padding: 40px 20px;">
-        
-        <!-- Logo -->
-        <div style="text-align: center; margin-bottom: 24px;">
-          <img src="${logoUrl}" alt="Colourful jobs" style="height: 32px; width: auto; display: block; margin: 0 auto;">
-        </div>
-        
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 12px 12px 32px 32px; overflow: hidden; box-shadow: 0 2px 8px rgba(31, 45, 88, 0.08);">
-          
-          <!-- Content -->
-          <tr>
-            <td style="padding: 48px 40px;">
-              
-              <!-- Heading -->
-              <h1 style="margin: 0 0 24px; font-size: 24px; font-weight: 700; line-height: 1.3; color: ${textColor};">
-                Inloggen bij Colourful jobs
-              </h1>
-              
-              <!-- Body text -->
-              <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.6; color: ${textColorWithOpacity};">
-                Klik op de knop hieronder om je e-mailadres te bevestigen en in te loggen.
-              </p>
-              
-              <!-- Button -->
-              <table role="presentation" style="margin: 0 0 32px;">
-                <tr>
-                  <td style="border-radius: 100px; background-color: ${buttonColor};">
-                    <a href="${url}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 100px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);">
-                      Direct inloggen
+                      ${config.buttonText}
                     </a>
                   </td>
                 </tr>
@@ -219,16 +156,11 @@ export const authOptions: NextAuthOptions = {
           const existingUser = await getUserByEmail(identifier);
           const isActiveUser = existingUser && existingUser.status === "active";
           
-          // Use different email based on user status
-          const subject = isActiveUser 
-            ? "Inloggen bij Colourful jobs" 
-            : "Verifieer je email voor Colourful jobs";
-          const textContent = isActiveUser 
-            ? loginEmailText({ url }) 
-            : verificationEmailText({ url });
-          const htmlContent = isActiveUser 
-            ? loginEmailHtml({ url }) 
-            : verificationEmailHtml({ url });
+          // Use different email template based on user status
+          const template = isActiveUser ? EMAIL_TEMPLATES.login : EMAIL_TEMPLATES.verification;
+          const subject = template.subject;
+          const textContent = generateEmailText(template, url);
+          const htmlContent = generateEmailHtml(template, url);
           
           // Extract email address from provider.from (could be "Name <email>" or just "email")
           const emailMatch = provider.from.match(/<(.+)>/) || [null, provider.from];
