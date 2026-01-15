@@ -38,6 +38,9 @@ async function getUserById(id: string): Promise<AdapterUser | null> {
       ? record.fields.employer_id[0] || null
       : record.fields.employer_id || null;
     
+    // Get status with default fallback
+    const status = (record.fields.status as string) || "pending_onboarding";
+    
     return {
       id: record.id,
       email,
@@ -45,6 +48,7 @@ async function getUserById(id: string): Promise<AdapterUser | null> {
       name: null,
       image: null,
       employerId: employer_id,
+      status,
     } as AdapterUser;
   } catch {
     return null;
@@ -82,6 +86,7 @@ export function AirtableAdapter(): Adapter {
         name: null,
         image: null,
         employerId: user.employer_id || null,
+        status: user.status || "pending_onboarding",
       } as AdapterUser;
     },
     async getUserByAccount({ providerAccountId, provider }) {

@@ -1152,10 +1152,10 @@ export default function OnboardingPage() {
                       isActive
                         ? "bg-[#39ADE5] !text-white pt-1.5 pb-[9px] [text-shadow:-0.7px_-0.7px_0_rgba(0,0,0,0.15),0.7px_-0.7px_0_rgba(0,0,0,0.15),-0.7px_0.7px_0_rgba(0,0,0,0.15),0.7px_0.7px_0_rgba(0,0,0,0.15),0_-0.7px_0_rgba(0,0,0,0.15),0_0.7px_0_rgba(0,0,0,0.15),-0.7px_0_0_rgba(0,0,0,0.15),0.7px_0_0_rgba(0,0,0,0.15)]"
                         : isCompleted
-                        ? "border border-emerald-500 bg-emerald-50 !text-emerald-600 cursor-pointer hover:bg-emerald-100 hover:border-emerald-600 pt-1.5 pb-[9px]"
+                        ? "bg-emerald-50 !text-emerald-600 cursor-pointer hover:bg-emerald-100 pt-1.5 pb-[9px]"
                         : isClickable
-                        ? "border border-slate-200 bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 hover:border-slate-300 py-1.5"
-                        : "border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
+                        ? "bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 py-1.5"
+                        : "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
                     }`}
                   >
                     {label}
@@ -1537,7 +1537,7 @@ export default function OnboardingPage() {
                   <div className="space-y-4">
                     <h4>Bedrijfsgegevens</h4>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2 md:col-span-2">
+                      <div className="space-y-2">
                         <Label htmlFor="company_name">Juridische bedrijfsnaam *</Label>
                         <Input
                           id="company_name"
@@ -1549,6 +1549,18 @@ export default function OnboardingPage() {
                         )}
                       </div>
                       <div className="space-y-3">
+                        <Label htmlFor="phone">Telefoonnummer *</Label>
+                        <Input
+                          id="phone"
+                          type="tel"
+                          {...register("phone")}
+                          className={formErrors.phone ? "border-red-500" : ""}
+                        />
+                        {formErrors.phone && (
+                          <p className="text-sm text-red-500">{formErrors.phone}</p>
+                        )}
+                      </div>
+                      <div className="space-y-3 md:col-span-2">
                         <Label htmlFor="kvk">KVK-nummer *</Label>
                         <Input
                           id="kvk"
@@ -1592,18 +1604,6 @@ export default function OnboardingPage() {
                               </div>
                             </AlertDescription>
                           </Alert>
-                        )}
-                      </div>
-                      <div className="space-y-3">
-                        <Label htmlFor="phone">Telefoonnummer *</Label>
-                        <Input
-                          id="phone"
-                          type="tel"
-                          {...register("phone")}
-                          className={formErrors.phone ? "border-red-500" : ""}
-                        />
-                        {formErrors.phone && (
-                          <p className="text-sm text-red-500">{formErrors.phone}</p>
                         )}
                       </div>
                       <div className="space-y-2 md:col-span-2">
