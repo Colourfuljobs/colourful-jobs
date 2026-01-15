@@ -1155,9 +1155,9 @@ export default function OnboardingPage() {
                     disabled={!isClickable}
                     className={`flex-1 rounded-full px-3 text-center p-small font-medium transition-all duration-200 ${
                       isActive
-                        ? "bg-[#CEDDC9] !text-[#41712F] pt-1.5 pb-[9px]"
+                        ? "bg-[#DEEEE3] !text-[#41712F] pt-1.5 pb-[9px]"
                         : isCompleted
-                        ? "bg-[#CEDDC9] !text-[#41712F] cursor-pointer hover:bg-[#CEDDC9]/80 pt-1.5 pb-[9px]"
+                        ? "bg-[#DEEEE3] !text-[#41712F] cursor-pointer hover:bg-[#DEEEE3]/80 pt-1.5 pb-[9px]"
                         : isClickable
                         ? "bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 py-1.5"
                         : "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
