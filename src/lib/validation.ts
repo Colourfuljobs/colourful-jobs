@@ -35,7 +35,6 @@ export const billingDataSchema = z.object({
 export const websiteDataSchema = z.object({
   display_name: z.string().min(1, "Weergavenaam is verplicht"),
   sector: z.string().min(1, "Sector is verplicht"),
-  location: z.string().min(1, "Locatie is verplicht"),
   short_description: z.string().min(1, "Omschrijving is verplicht"),
   // Logo and header_image are uploaded separately, validation handled in UI
   logo: z.any().optional(),

@@ -43,18 +43,25 @@ export default function RootLayout({
         />
         <SessionProvider>
           <div className="min-h-screen">
-            <header className="bg-white/80 backdrop-blur">
-              <div className="mx-auto flex max-w-5xl items-center justify-center px-6 py-4">
-                <img 
-                  src="/logo.svg" 
-                  alt="Colourful Jobs" 
-                  width={200} 
-                  height={40}
-                  style={{ width: '200px', height: '40px' }}
-                />
+            <main className="mx-auto max-w-5xl px-6 py-8">
+              <div className="flex justify-center mb-8">
+                <a 
+                  href="https://colourfuljobs.nl" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="transition-opacity hover:opacity-80"
+                >
+                  <img 
+                    src="/logo.svg" 
+                    alt="Colourful jobs" 
+                    width={200} 
+                    height={40}
+                    style={{ width: '200px', height: '40px' }}
+                  />
+                </a>
               </div>
-            </header>
-            <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+              {children}
+            </main>
           </div>
           <Toaster position="bottom-center" richColors />
         </SessionProvider>

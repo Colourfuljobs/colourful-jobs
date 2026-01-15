@@ -138,8 +138,8 @@ export function ImageUpload({
                 strokeLinejoin="round"
               />
             </svg>
-            <p className="mt-2 p-regular text-slate-700">
-              <span className="font-medium text-[#193DAB]">Klik om te uploaden</span> of sleep hierheen
+            <p className="mt-2 p-regular text-[#1F2D58]">
+              <span className="font-medium underline">Klik om te uploaden</span> of sleep hierheen
             </p>
             <p className="mt-1 p-small text-slate-500">
               PNG, JPG, WebP, AVIF, SVG tot 5MB

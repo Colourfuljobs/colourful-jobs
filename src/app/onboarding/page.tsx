@@ -30,7 +30,7 @@ type Step = 1 | 2 | 3;
 const stepLabels = [
   "Persoonlijke gegevens",
   "Bedrijfs- & Factuurgegevens",
-  "Websitegegevens",
+  "Bedrijfsprofiel",
 ];
 
 export default function OnboardingPage() {
@@ -185,7 +185,6 @@ export default function OnboardingPage() {
       invoice_country: "Nederland",
       display_name: "",
       sector: "",
-      location: "",
       short_description: "",
     },
   });
@@ -212,6 +211,19 @@ export default function OnboardingPage() {
 
   // Track if initial redirect has happened
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+
+  // Pre-fill display_name with company_name when entering step 3
+  useEffect(() => {
+    if (step === 3) {
+      const currentDisplayName = watch("display_name");
+      const currentCompanyName = watch("company_name");
+      
+      // Only pre-fill if display_name is empty and company_name has a value
+      if (!currentDisplayName && currentCompanyName) {
+        setValue("display_name", currentCompanyName, { shouldValidate: false });
+      }
+    }
+  }, [step, watch, setValue]);
 
   // Check if user is logged in and set step accordingly
   useEffect(() => {
@@ -627,7 +639,6 @@ export default function OnboardingPage() {
       display_name: companyData.display_name,
       company_name: companyData.company_name,
       sector: companyData.sector,
-      location: companyData.location,
     }));
 
     try {
@@ -1062,7 +1073,6 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           display_name: formData.display_name,
           sector: formData.sector,
-          location: formData.location,
           short_description: formData.short_description,
           status: "active",
         }),
@@ -1128,47 +1138,84 @@ export default function OnboardingPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Card className="p-8">
-        <CardHeader className="p-0 pb-6">
-          <CardTitle>{joinMode ? "Toevoegen aan werkgeversaccount" : "Account aanmaken"}</CardTitle>
-          {!joinMode && (
-            <CardDescription className="p-regular mt-1 text-slate-400">
-              Stap {step} van {stepLabels.length}: {stepLabels[step - 1]}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          {/* Clickable Step Indicator - hidden in join mode */}
-          {!joinMode && (
-            <div className="mb-8 flex gap-2">
-              {stepLabels.map((label, index) => {
-                const stepNumber = (index + 1) as Step;
-                const isActive = stepNumber === step;
-                const isCompleted = stepNumber === 1 ? step1Complete : stepNumber === 2 ? step2Complete : false;
-                const isClickable = stepNumber === 1 || (stepNumber === 2 && step1Complete) || (stepNumber === 3 && step2Complete);
-                
-                return (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => isClickable && handleStepClick(stepNumber)}
-                    disabled={!isClickable}
-                    className={`flex-1 rounded-full px-3 text-center p-small font-medium transition-all duration-200 ${
-                      isActive
-                        ? "bg-[#DEEEE3] !text-[#41712F] pt-1.5 pb-[9px]"
-                        : isCompleted
-                        ? "bg-[#DEEEE3] !text-[#41712F] cursor-pointer hover:bg-[#DEEEE3]/80 pt-1.5 pb-[9px]"
-                        : isClickable
-                        ? "bg-slate-50 text-slate-600 cursor-pointer hover:bg-slate-100 py-1.5"
-                        : "bg-slate-50 text-slate-400 cursor-not-allowed opacity-60 pt-1.5 pb-[9px]"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+      <Card className="p-0 overflow-hidden">
+        {/* Intro section with title and stepper - 50% opacity background */}
+        {!joinMode && (
+          <div className="bg-white/50 px-8 pt-8 pb-10">
+            <CardTitle className="mb-6 contempora-small">Account aanmaken</CardTitle>
+            
+            {/* Step Indicator */}
+            <div className="pb-2">
+              <nav aria-label="Progress">
+                <ol className="flex items-center">
+                  {stepLabels.map((label, index) => {
+                    const stepNumber = (index + 1) as Step;
+                    const isActive = stepNumber === step;
+                    const isCompleted = stepNumber === 1 ? step1Complete : stepNumber === 2 ? step2Complete : false;
+                    const isClickable = stepNumber === 1 || (stepNumber === 2 && step1Complete) || (stepNumber === 3 && step2Complete);
+                    // Line should only be dark if step is completed AND we're past that step
+                    const lineCompleted = isCompleted && step > stepNumber;
+                    
+                    // Determine text alignment for labels
+                    let labelAlignment = 'left-0';
+                    if (index === 1) labelAlignment = 'left-1/2 -translate-x-1/2'; // centered
+                    if (index === 2) labelAlignment = 'right-0'; // right-aligned
+                    
+                    return (
+                      <li key={label} className={`relative ${index !== stepLabels.length - 1 ? 'flex-1' : ''}`}>
+                        <div className="flex items-center">
+                          {/* Step button/indicator */}
+                          <button
+                            type="button"
+                            onClick={() => isClickable && handleStepClick(stepNumber)}
+                            disabled={!isClickable}
+                            className={`relative flex items-center justify-center ${
+                              isClickable ? 'cursor-pointer' : 'cursor-not-allowed'
+                            }`}
+                          >
+                            <span
+                              className={`flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200 ${
+                                stepNumber <= step
+                                  ? 'bg-[#1F2D58] text-white'
+                                  : 'bg-[#1F2D58]/[0.12] text-[#1F2D58]'
+                              } ${isClickable && stepNumber > step ? 'hover:bg-[#1F2D58]/[0.20]' : ''}`}
+                            >
+                              <span className="text-[13px] font-medium -mt-0.5">{stepNumber}</span>
+                            </span>
+                            <span className={`absolute -bottom-6 ${labelAlignment} whitespace-nowrap text-xs ${
+                              isActive ? 'font-bold text-[#1F2D58]' : 'font-normal text-[#1F2D58]'
+                            }`}>
+                              {label}
+                            </span>
+                          </button>
+                          
+                          {/* Connecting line */}
+                          {index !== stepLabels.length - 1 && (
+                            <div className="flex-1 px-3">
+                              <div className={`h-0.5 w-full transition-colors duration-200 ${
+                                lineCompleted ? 'bg-[#1F2D58]' : 'bg-[#1F2D58]/[0.12]'
+                              }`} />
+                            </div>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </nav>
             </div>
-          )}
+          </div>
+        )}
+        
+        {/* Join mode header */}
+        {joinMode && (
+          <div className="bg-white/50 px-8 pt-8 pb-10">
+            <CardTitle>Toevoegen aan werkgeversaccount</CardTitle>
+          </div>
+        )}
+        
+        {/* Form content - 100% white background */}
+        <CardContent className="p-8 bg-white">
 
           {/* Step 1: Personal Data */}
           {step === 1 && (
@@ -1220,7 +1267,7 @@ export default function OnboardingPage() {
                     )}
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="role">Rol</Label>
+                    <Label htmlFor="role">Functie</Label>
                     <Input
                       id="role"
                       value={contact.role}
@@ -1330,7 +1377,7 @@ export default function OnboardingPage() {
                     </p>
                   </div>
                   <div className="space-y-3">
-                    <Label htmlFor="role">Rol</Label>
+                    <Label htmlFor="role">Functie</Label>
                     <Input
                       id="role"
                       value={contact.role}
@@ -1462,7 +1509,7 @@ export default function OnboardingPage() {
                         </p>
                       </div>
                       <div className="space-y-3">
-                        <Label htmlFor="join-role">Rol</Label>
+                        <Label htmlFor="join-role">Functie</Label>
                         <Input
                           id="join-role"
                           value={joinContact.role}
@@ -1565,25 +1612,43 @@ export default function OnboardingPage() {
                           <p className="text-sm text-red-500">{formErrors.phone}</p>
                         )}
                       </div>
-                      <div className="space-y-3 md:col-span-2">
-                        <Label htmlFor="kvk">KVK-nummer *</Label>
-                        <Input
-                          id="kvk"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          maxLength={8}
-                          placeholder="12345678"
-                          value={watch("kvk") || ""}
-                          onChange={handleKvkManualChange}
-                          className={formErrors.kvk ? "border-red-500" : ""}
-                        />
-                        {checkingKvk && (
-                          <p className="text-sm text-slate-500">KVK-nummer controleren...</p>
-                        )}
-                        {formErrors.kvk && (
-                          <p className="text-sm text-red-500">{formErrors.kvk}</p>
-                        )}
-                        {/* Inline alert for KVK duplicate in manual form */}
+                      {/* KVK en Website-URL naast elkaar */}
+                      <div className="md:col-span-2 space-y-3">
+                        <div className="flex gap-4">
+                          <div className="space-y-2 w-1/2">
+                            <Label htmlFor="kvk">KVK-nummer *</Label>
+                            <Input
+                              id="kvk"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength={8}
+                              placeholder="12345678"
+                              value={watch("kvk") || ""}
+                              onChange={handleKvkManualChange}
+                              className={formErrors.kvk ? "border-red-500" : ""}
+                            />
+                            {checkingKvk && (
+                              <p className="text-sm text-slate-500">KVK-nummer controleren...</p>
+                            )}
+                            {formErrors.kvk && (
+                              <p className="text-sm text-red-500">{formErrors.kvk}</p>
+                            )}
+                          </div>
+                          <div className="space-y-2 w-1/2">
+                            <Label htmlFor="website_url">Website-URL *</Label>
+                            <Input 
+                              id="website_url" 
+                              type="url" 
+                              {...register("website_url")} 
+                              placeholder="https://www.voorbeeld.nl"
+                              className={formErrors.website_url ? "border-red-500" : ""}
+                            />
+                            {formErrors.website_url && (
+                              <p className="text-sm text-red-500">{formErrors.website_url}</p>
+                            )}
+                          </div>
+                        </div>
+                        {/* KVK duplicate alert - volle breedte */}
                         {kvkCheckResult?.exists && !kvkSelected && (
                           <Alert className="bg-[#193DAB]/[0.12] border-none">
                             <AlertDescription className="text-[#1F2D58]">
@@ -1611,31 +1676,19 @@ export default function OnboardingPage() {
                           </Alert>
                         )}
                       </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="website_url">Website-URL *</Label>
-                        <Input 
-                          id="website_url" 
-                          type="url" 
-                          {...register("website_url")} 
-                          placeholder="https://www.voorbeeld.nl"
-                          className={formErrors.website_url ? "border-red-500" : ""}
-                        />
-                        {formErrors.website_url && (
-                          <p className="text-sm text-red-500">{formErrors.website_url}</p>
-                        )}
-                      </div>
                     </div>
                   </div>
 
-                  {/* Billing Data Section */}
+                  {/* Billing Data Section - 5 column grid voor perfecte uitlijning */}
                   <div className="space-y-4">
                     <h4>Factuurgegevens</h4>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="reference-nr">Referentienummer</Label>
+                    <div className="grid grid-cols-5 gap-4">
+                      {/* Rij 1: Ref (1) | Contact (2) | Email (2) */}
+                      <div className="space-y-2 col-span-1">
+                        <Label htmlFor="reference-nr">Ref.nr.</Label>
                         <Input id="reference-nr" {...register("reference-nr")} />
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="invoice_contact_name">Contactpersoon facturatie *</Label>
                         <Input
                           id="invoice_contact_name"
@@ -1646,7 +1699,7 @@ export default function OnboardingPage() {
                           <p className="text-sm text-red-500">{formErrors.invoice_contact_name}</p>
                         )}
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="invoice_email">E-mail facturatie *</Label>
                         <Input
                           id="invoice_email"
@@ -1658,7 +1711,9 @@ export default function OnboardingPage() {
                           <p className="text-sm text-red-500">{formErrors.invoice_email}</p>
                         )}
                       </div>
-                      <div className="space-y-2 md:col-span-2">
+
+                      {/* Rij 2: Straat (3) | Nr (1) | Toev (1) */}
+                      <div className="space-y-2 col-span-3">
                         <Label htmlFor="invoice_street">Straat *</Label>
                         <Input
                           id="invoice_street"
@@ -1669,8 +1724,8 @@ export default function OnboardingPage() {
                           <p className="text-sm text-red-500">{formErrors.invoice_street}</p>
                         )}
                       </div>
-                      <div className="space-y-3">
-                        <Label htmlFor="invoice_house-nr">Huisnummer *</Label>
+                      <div className="space-y-2 col-span-1">
+                        <Label htmlFor="invoice_house-nr">Nr. *</Label>
                         <Input
                           id="invoice_house-nr"
                           {...register("invoice_house-nr")}
@@ -1680,11 +1735,13 @@ export default function OnboardingPage() {
                           <p className="p-small text-red-500">{formErrors["invoice_house-nr"]}</p>
                         )}
                       </div>
-                      <div className="space-y-3">
-                        <Label htmlFor="invoice_house-nr-add">Toevoeging</Label>
+                      <div className="space-y-2 col-span-1">
+                        <Label htmlFor="invoice_house-nr-add">Toev.</Label>
                         <Input id="invoice_house-nr-add" {...register("invoice_house-nr-add")} />
                       </div>
-                      <div className="space-y-3">
+
+                      {/* Rij 3: Postcode (1) | Plaats (2) | Land (2) */}
+                      <div className="space-y-2 col-span-1">
                         <Label htmlFor="invoice_postal-code">Postcode *</Label>
                         <Input
                           id="invoice_postal-code"
@@ -1695,7 +1752,7 @@ export default function OnboardingPage() {
                           <p className="p-small text-red-500">{formErrors["invoice_postal-code"]}</p>
                         )}
                       </div>
-                      <div className="space-y-3">
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="invoice_city">Plaats *</Label>
                         <Input
                           id="invoice_city"
@@ -1706,7 +1763,7 @@ export default function OnboardingPage() {
                           <p className="text-sm text-red-500">{formErrors.invoice_city}</p>
                         )}
                       </div>
-                      <div className="space-y-2 md:col-span-2">
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="invoice_country">Land *</Label>
                         <Select
                           id="invoice_country"
@@ -1795,10 +1852,15 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div className="space-y-8">
               <div className="space-y-4">
-                <h4>Websitegegevens</h4>
+                <div className="space-y-2">
+                  <h4>Bedrijfsprofiel</h4>
+                  <p className="p-regular text-slate-600">
+                    Deze gegevens verschijnen op jullie bedrijfsprofiel op colourfuljobs.nl en zijn zichtbaar voor kandidaten.
+                  </p>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="display_name">Weergavenaam organisatie *</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="display_name">Weergavenaam bedrijf *</Label>
                     <Input
                       id="display_name"
                       {...register("display_name")}
@@ -1808,7 +1870,7 @@ export default function OnboardingPage() {
                       <p className="text-sm text-red-500">{formErrors.display_name}</p>
                     )}
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Label htmlFor="sector">Sector *</Label>
                     <Input
                       id="sector"
@@ -1819,19 +1881,8 @@ export default function OnboardingPage() {
                       <p className="text-sm text-red-500">{formErrors.sector}</p>
                     )}
                   </div>
-                  <div className="space-y-3">
-                    <Label htmlFor="location">Locatie *</Label>
-                    <Input
-                      id="location"
-                      {...register("location")}
-                      className={formErrors.location ? "border-red-500" : ""}
-                    />
-                    {formErrors.location && (
-                      <p className="text-sm text-red-500">{formErrors.location}</p>
-                    )}
-                  </div>
                   <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="short_description">Omschrijving organisatie *</Label>
+                    <Label htmlFor="short_description">Omschrijving bedrijf *</Label>
                     <Textarea
                       id="short_description"
                       rows={4}
@@ -1842,7 +1893,7 @@ export default function OnboardingPage() {
                       <p className="text-sm text-red-500">{formErrors.short_description}</p>
                     )}
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <ImageUpload
                       id="logo"
                       label="Logo"
@@ -1853,10 +1904,10 @@ export default function OnboardingPage() {
                       error={logoError || undefined}
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
                     <ImageUpload
                       id="header_image"
-                      label="Hoofdafbeelding / headerbeeld"
+                      label="Headerbeeld"
                       required
                       preview={headerPreview || undefined}
                       uploading={uploadingHeader}

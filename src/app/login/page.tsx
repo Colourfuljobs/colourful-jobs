@@ -147,7 +147,7 @@ export default function LoginPage() {
   if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding")) {
     return (
       <div className="mx-auto max-w-md">
-        <Card className="pt-6 px-8 pb-8">
+        <Card className="p-8">
           <CardContent className="p-0 flex flex-col items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F86600] mb-4"></div>
             <p className="p-regular text-[#1F2D58]">Even geduld...</p>
@@ -159,14 +159,17 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md">
-      <Card className="pt-6 px-8 pb-8">
-        <CardHeader className="p-0 mb-6">
-          <CardTitle>Inloggen</CardTitle>
-          <CardDescription className="p-regular mt-2 text-[#1F2D58]/70">
+      <Card className="p-0 overflow-hidden">
+        {/* Intro section with title - 50% opacity background */}
+        <div className="bg-white/50 px-8 pt-6 pb-8">
+          <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
+          <CardDescription className="p-regular text-[#1F2D58]/70">
             Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen.
           </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
+        </div>
+        
+        {/* Form content - 100% white background */}
+        <CardContent className="p-8 bg-white">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-mailadres</Label>
@@ -226,7 +229,7 @@ export default function LoginPage() {
               )}
             </div>
             <Button type="submit" disabled={!email || loading}>
-              {loading ? "Versturen..." : "Verstuur verificatielink"}
+              {loading ? "Versturen..." : "Stuur e-mail link"}
             </Button>
           </form>
           {sent && (

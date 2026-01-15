@@ -63,7 +63,7 @@ function AuthErrorContent() {
   const { title, description } = getErrorMessage();
 
   return (
-    <div className="h-screen bg-[#E8EEF2] flex items-center justify-center p-4 overflow-hidden">
+    <div className="flex items-center justify-center -mt-8" style={{ minHeight: 'calc(100vh - 160px)' }}>
       <div className="mx-auto max-w-md w-full">
         <Card className="pt-8 px-8 pb-8 bg-white rounded-t-[0.75rem] rounded-b-[2rem] border-none">
           <CardHeader className="p-0 mb-6 text-center">
@@ -106,7 +106,7 @@ function AuthErrorContent() {
 export default function AuthErrorPage() {
   return (
     <Suspense fallback={
-      <div className="h-screen bg-[#E8EEF2] flex items-center justify-center p-4">
+      <div className="flex items-center justify-center -mt-8" style={{ minHeight: 'calc(100vh - 160px)' }}>
         <div className="animate-pulse">Laden...</div>
       </div>
     }>
