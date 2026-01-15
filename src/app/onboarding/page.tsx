@@ -249,18 +249,23 @@ export default function OnboardingPage() {
                 description: "Je bent succesvol toegevoegd aan het werkgeversaccount.",
               });
               router.push("/dashboard");
+              // Note: don't clear isJoinCallback here - keep showing loading until redirect completes
             } else {
               const errorData = await response.json();
               toast.error("Fout bij voltooien", {
                 description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
               });
+              // Clear join state on error so user can see the normal UI
+              setIsJoinCallback(false);
+              setJoinCompleting(false);
             }
           } catch (error) {
             console.error("Error completing join flow:", error);
             toast.error("Fout bij voltooien", {
               description: "Er ging iets mis. Probeer het later opnieuw.",
             });
-          } finally {
+            // Clear join state on error so user can see the normal UI
+            setIsJoinCallback(false);
             setJoinCompleting(false);
           }
         };
@@ -1081,8 +1086,9 @@ export default function OnboardingPage() {
     }
   }
 
-  // Show loading screen when completing join from magic link (early detection or during completion)
-  if (joinCompleting || (isJoinCallback && status === "loading")) {
+  // Show loading screen when completing join from magic link
+  // Keep showing this until redirect is complete (isJoinCallback stays true until explicitly cleared on error)
+  if (joinCompleting || isJoinCallback) {
     return (
       <div className="mx-auto max-w-3xl">
         <Card className="p-8">
