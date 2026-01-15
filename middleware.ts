@@ -1,14 +1,31 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
 
 const ONBOARDING_PATH = "/onboarding";
 const DASHBOARD_PATH = "/dashboard";
+const LOGIN_PATH = "/login";
 
+/**
+ * Middleware for database session strategy
+ * 
+ * With database sessions, we can't validate the session in middleware (Edge runtime).
+ * Instead, we:
+ * 1. Check if a session cookie exists (basic filter)
+ * 2. Let the actual pages/APIs validate the session via getServerSession()
+ * 
+ * This is secure because getServerSession() in pages/APIs validates against the database.
+ */
 export default async function middleware(req: NextRequest) {
-  const token = await getToken({ req });
   const { pathname } = req.nextUrl;
 
+  // Check for session cookie (NextAuth uses different names based on environment)
+  const sessionToken = 
+    req.cookies.get("__Secure-next-auth.session-token")?.value ||
+    req.cookies.get("next-auth.session-token")?.value;
+
+  const hasSessionCookie = !!sessionToken;
+
+  // Public routes - always accessible
   const isPublic =
     pathname === "/" ||
     pathname.startsWith("/login") ||
@@ -16,54 +33,35 @@ export default async function middleware(req: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/onboarding");
 
-  if (!token && !isPublic) {
+  // Protected routes - require session cookie
+  // The actual session validation happens in the page/API via getServerSession()
+  if (!hasSessionCookie && !isPublic) {
     const url = req.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = LOGIN_PATH;
     return NextResponse.redirect(url);
   }
 
-  if (token) {
-    // Never redirect API calls; they must return JSON, not HTML redirects
-    // API routes handle their own authentication/authorization
-    if (pathname.startsWith("/api/")) {
+  // Never redirect API calls in middleware
+  // API routes handle their own auth via getServerSession()
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
+  // If user has a session cookie, redirect login to dashboard
+  // The dashboard page will validate the actual session
+  if (hasSessionCookie && pathname.startsWith("/login")) {
+    // Check if this is a callback from magic link (has callbackUrl or token params)
+    const callbackUrl = req.nextUrl.searchParams.get("callbackUrl");
+    const token = req.nextUrl.searchParams.get("token");
+    
+    // Allow login page if it's processing auth callback
+    if (callbackUrl || token) {
       return NextResponse.next();
-    }
-
-    const status = (token as any).status as
-      | "pending_onboarding"
-      | "active"
-      | undefined;
-
-    // For pending_onboarding users: allow access to login and home page
-    // so they can switch to a different account if needed
-    // The login page will handle signing them out
-    if (status === "pending_onboarding") {
-      // Allow login page and home page - login page will handle signout
-      if (pathname.startsWith("/login") || pathname === "/") {
-        return NextResponse.next();
-      }
-      // Force other pages to onboarding
-      if (pathname !== ONBOARDING_PATH) {
-        const url = req.nextUrl.clone();
-        url.pathname = ONBOARDING_PATH;
-        return NextResponse.redirect(url);
-      }
-      return NextResponse.next();
-    }
-
-    // For active users: redirect login page to dashboard
-    if (pathname.startsWith("/login")) {
-      const url = req.nextUrl.clone();
-      url.pathname = DASHBOARD_PATH;
-      return NextResponse.redirect(url);
     }
     
-    // For active users: redirect home page to dashboard
-    if (status === "active" && pathname === "/") {
-      const url = req.nextUrl.clone();
-      url.pathname = DASHBOARD_PATH;
-      return NextResponse.redirect(url);
-    }
+    const url = req.nextUrl.clone();
+    url.pathname = DASHBOARD_PATH;
+    return NextResponse.redirect(url);
   }
 
   return NextResponse.next();

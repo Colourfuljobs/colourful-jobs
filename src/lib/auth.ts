@@ -296,13 +296,17 @@ export const authOptions: NextAuthOptions = {
         source: "web",
       });
     },
-    async signOut({ token }) {
+    async signOut({ session }) {
       // Log user_logout event when user signs out
-      if (token?.sub) {
+      // With database sessions, we get session instead of token
+      if (session?.user?.id) {
+        const userId = (session.user as any).id;
+        const employerId = (session.user as any).employerId || null;
+        
         await logEvent({
           event_type: "user_logout",
-          actor_user_id: token.sub,
-          employer_id: (token as any).employerId || null,
+          actor_user_id: userId,
+          employer_id: employerId,
           source: "web",
         });
       }
@@ -336,87 +340,15 @@ export const authOptions: NextAuthOptions = {
       // Default: redirect to dashboard
       return `${baseUrl}/dashboard`;
     },
-    async jwt({ token, user, trigger }) {
-      // Bij nieuwe login: haal ALTIJD verse data uit database
-      // NextAuth's Email provider geeft niet alle custom velden door
-      if (user) {
-        const userEmail = user.email || token.email as string;
-        
-        if (userEmail) {
-          try {
-            const dbUser = await getUserByEmail(userEmail);
-            if (dbUser) {
-              (token as any).employerId = dbUser.employer_id ?? null;
-              (token as any).status = (dbUser.status as EmployerStatus) ?? "pending_onboarding";
-            } else {
-              // Fallback naar user object als db lookup faalt
-              (token as any).employerId = (user as any).employerId ?? null;
-              (token as any).status = ((user as any).status as EmployerStatus) ?? "pending_onboarding";
-            }
-          } catch {
-            // Fallback naar user object
-            (token as any).employerId = (user as any).employerId ?? null;
-            (token as any).status = ((user as any).status as EmployerStatus) ?? "pending_onboarding";
-          }
-        } else {
-          // Geen email beschikbaar, gebruik user object direct
-          (token as any).employerId = (user as any).employerId ?? null;
-          (token as any).status = ((user as any).status as EmployerStatus) ?? "pending_onboarding";
-        }
-        (token as any).lastActivity = Date.now();
-      }
-      
-      // Bij session update: haal verse user data op uit database
-      if (trigger === "update" && token.email) {
-        try {
-          const freshUser = await getUserByEmail(token.email as string);
-          if (freshUser) {
-            (token as any).employerId = freshUser.employer_id ?? null;
-            (token as any).status = (freshUser.status as EmployerStatus) ?? "pending_onboarding";
-          }
-        } catch (error) {
-          console.error("[Auth] Error refreshing user data:", error);
-        }
-      }
-      
-      // Vangnet: als token status pending_onboarding is maar database zegt active, update de token
-      // Dit vangt gevallen op waar de token al bestond met oude status
-      if (!user && token.email && (token as any).status === "pending_onboarding") {
-        try {
-          const dbUser = await getUserByEmail(token.email as string);
-          if (dbUser && dbUser.status === "active") {
-            (token as any).employerId = dbUser.employer_id ?? null;
-            (token as any).status = "active";
-          }
-        } catch {
-          // Silently fail - dit is een optimistische check
-        }
-      }
-      
-      // Check inactiviteit (60 minuten)
-      const inactivityTimeout = 60 * 60 * 1000;
-      const lastActivity = (token as any).lastActivity || Date.now();
-      const isInactive = Date.now() - lastActivity > inactivityTimeout;
-      
-      if (isInactive) {
-        return null as any;
-      }
-      
-      // Update lastActivity bij elke request
-      (token as any).lastActivity = Date.now();
-      
-      return token;
-    },
-    async session({ session, token }) {
-      if (!token || !token.sub) {
-        return session;
-      }
+    // With database sessions, the session callback receives { session, user }
+    // The user comes directly from the database via the adapter
+    async session({ session, user }) {
+      // User is fetched from database by adapter, includes custom fields
       session.user = {
-        id: token.sub as string,
-        email: (token.email as string) || session.user?.email || "",
-        employerId: (token as any).employerId ?? null,
-        status:
-          ((token as any).status as EmployerStatus) ?? "pending_onboarding",
+        id: user.id,
+        email: user.email || "",
+        employerId: (user as any).employerId ?? null,
+        status: ((user as any).status as EmployerStatus) ?? "pending_onboarding",
       };
       return session;
     },
