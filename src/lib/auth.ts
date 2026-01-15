@@ -337,11 +337,39 @@ export const authOptions: NextAuthOptions = {
       return `${baseUrl}/dashboard`;
     },
     async jwt({ token, user, trigger }) {
-      // Bij nieuwe login: zet user data in token
+      // Bij nieuwe login: haal ALTIJD verse data uit database
+      // NextAuth's Email provider geeft niet alle custom velden door
       if (user) {
-        (token as any).employerId = (user as any).employerId ?? null;
-        (token as any).status =
-          ((user as any).status as EmployerStatus) ?? "pending_onboarding";
+        const userEmail = user.email || token.email as string;
+        console.log("[Auth JWT] New login detected for:", userEmail);
+        console.log("[Auth JWT] User object from adapter:", { id: user.id, email: user.email, status: (user as any).status });
+        
+        if (userEmail) {
+          try {
+            const dbUser = await getUserByEmail(userEmail);
+            console.log("[Auth JWT] Database user found:", dbUser ? { id: dbUser.id, status: dbUser.status, employer_id: dbUser.employer_id } : null);
+            if (dbUser) {
+              (token as any).employerId = dbUser.employer_id ?? null;
+              (token as any).status = (dbUser.status as EmployerStatus) ?? "pending_onboarding";
+              console.log("[Auth JWT] Token updated with status:", (token as any).status);
+            } else {
+              // Fallback naar user object als db lookup faalt
+              (token as any).employerId = (user as any).employerId ?? null;
+              (token as any).status = ((user as any).status as EmployerStatus) ?? "pending_onboarding";
+              console.log("[Auth JWT] Fallback to user object, status:", (token as any).status);
+            }
+          } catch (error) {
+            console.error("[Auth] Error fetching user data on login:", error);
+            // Fallback naar user object
+            (token as any).employerId = (user as any).employerId ?? null;
+            (token as any).status = ((user as any).status as EmployerStatus) ?? "pending_onboarding";
+          }
+        } else {
+          // Geen email beschikbaar, gebruik user object direct
+          (token as any).employerId = (user as any).employerId ?? null;
+          (token as any).status = ((user as any).status as EmployerStatus) ?? "pending_onboarding";
+          console.log("[Auth JWT] No email available, using user object status:", (token as any).status);
+        }
         (token as any).lastActivity = Date.now();
       }
       
@@ -355,6 +383,21 @@ export const authOptions: NextAuthOptions = {
           }
         } catch (error) {
           console.error("[Auth] Error refreshing user data:", error);
+        }
+      }
+      
+      // Vangnet: als token status pending_onboarding is maar database zegt active, update de token
+      // Dit vangt gevallen op waar de token al bestond met oude status
+      if (!user && token.email && (token as any).status === "pending_onboarding") {
+        try {
+          const dbUser = await getUserByEmail(token.email as string);
+          if (dbUser && dbUser.status === "active") {
+            console.log("[Auth JWT] Status mismatch detected! Token: pending_onboarding, DB: active. Updating token.");
+            (token as any).employerId = dbUser.employer_id ?? null;
+            (token as any).status = "active";
+          }
+        } catch (error) {
+          // Silently fail - dit is een optimistische check
         }
       }
       
