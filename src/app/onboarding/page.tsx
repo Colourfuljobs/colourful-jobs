@@ -127,6 +127,20 @@ export default function OnboardingPage() {
   const [joinResending, setJoinResending] = useState(false);
   const [joinCompleting, setJoinCompleting] = useState(false); // True when returning from magic link
   
+  // Early detection of join callback - check immediately on mount
+  const [isJoinCallback, setIsJoinCallback] = useState(false);
+  useEffect(() => {
+    // Check URL and localStorage immediately to show loading state early
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasJoinParam = urlParams.get("join") === "true";
+      const hasStoredEmployer = !!localStorage.getItem("colourful_join_employer_id");
+      if (hasJoinParam && hasStoredEmployer) {
+        setIsJoinCallback(true);
+      }
+    }
+  }, []);
+  
   // Step 3 state (image uploads)
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [headerPreview, setHeaderPreview] = useState<string | null>(null);
@@ -1067,7 +1081,22 @@ export default function OnboardingPage() {
     }
   }
 
-  // Show loading state while session is being checked
+  // Show loading screen when completing join from magic link (early detection or during completion)
+  if (joinCompleting || (isJoinCallback && status === "loading")) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Card className="p-8">
+          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F86600] mb-4"></div>
+            <p className="p-large text-[#1F2D58]">Account wordt gekoppeld...</p>
+            <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading state while session is being checked (non-join flow)
   if (status === "loading") {
     return (
       <Card className="mx-auto max-w-3xl p-8">
@@ -1083,21 +1112,6 @@ export default function OnboardingPage() {
           </div>
         </CardContent>
       </Card>
-    );
-  }
-
-  // Show loading screen when completing join from magic link
-  if (joinCompleting) {
-    return (
-      <div className="mx-auto max-w-3xl">
-        <Card className="p-8">
-          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F86600] mb-4"></div>
-            <p className="p-large text-[#1F2D58]">Account wordt gekoppeld...</p>
-            <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
-          </CardContent>
-        </Card>
-      </div>
     );
   }
 

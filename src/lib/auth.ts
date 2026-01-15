@@ -212,14 +212,6 @@ export const authOptions: NextAuthOptions = {
       server: process.env.EMAIL_SERVER,
       from: process.env.EMAIL_FROM,
       sendVerificationRequest: async ({ identifier, url, provider }) => {
-        // ALTIJD: Log de verificatie URL (handig voor development/testing)
-        console.log("\n========================================");
-        console.log("🔗 MAGIC LINK voor", identifier);
-        console.log("👉", url);
-        console.log("========================================\n");
-        
-        // Probeer email te verzenden, maar faal NIET als het mislukt
-        // Dit zorgt ervoor dat de magic link altijd in de logs staat
         try {
           const transport = createTransport(provider.server);
           
@@ -261,9 +253,9 @@ export const authOptions: NextAuthOptions = {
             console.log("✅ Email succesvol verzonden naar", identifier);
           }
         } catch (emailError: any) {
-          // Log de error maar gooi NIET - zo kan de user de magic link uit logs halen
+          // Log de error maar gooi NIET - NextAuth verwacht dat deze functie niet faalt
           console.error("⚠️ Email verzending mislukt:", emailError.message);
-          console.log("ℹ️ Gebruik de magic link hierboven om door te gaan met testen");
+          throw new Error("Email kon niet worden verzonden. Probeer het later opnieuw.");
         }
       },
     }),
