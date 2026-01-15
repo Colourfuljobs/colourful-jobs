@@ -121,7 +121,7 @@ export default function OnboardingPage() {
   const [joinEmployer, setJoinEmployer] = useState<{ id: string; company_name?: string; display_name?: string; website_url?: string } | null>(null);
   const [joinEmail, setJoinEmail] = useState("");
   const [joinDomainError, setJoinDomainError] = useState<string | null>(null);
-  const [joinStep, setJoinStep] = useState<"email" | "details" | "verification">("email");
+  const [joinStep, setJoinStep] = useState<"confirm" | "verification">("confirm");
   const [joinLoading, setJoinLoading] = useState(false);
   const [joinContact, setJoinContact] = useState({ firstName: "", lastName: "", role: "" });
   const [joinResending, setJoinResending] = useState(false);
@@ -407,22 +407,29 @@ export default function OnboardingPage() {
   const startJoinFlow = (employer: { id: string; company_name?: string; display_name?: string; website_url?: string }) => {
     setJoinMode(true);
     setJoinEmployer(employer);
-    setJoinEmail("");
+    // Pre-fill email from session (verified) or step 1 contact data
+    setJoinEmail(session?.user?.email || contact.email || "");
     setJoinDomainError(null);
-    setJoinStep("email");
-    setJoinContact({ firstName: "", lastName: "", role: "" });
+    setJoinStep("confirm");
+    // Pre-fill personal details from step 1 contact data if available
+    setJoinContact({ 
+      firstName: contact.firstName || "", 
+      lastName: contact.lastName || "", 
+      role: contact.role || "" 
+    });
     setDuplicateDialogOpen(false);
   };
 
-  // Validate join email domain
-  const handleJoinEmailValidation = async () => {
-    if (!joinEmail || !joinEmployer) return;
+  // Submit join - validates domain and either directly joins or sends verification
+  const handleJoinSubmit = async () => {
+    if (!joinContact.firstName || !joinContact.lastName || !joinEmail || !joinEmployer) return;
     
     setJoinLoading(true);
     setJoinDomainError(null);
     
     try {
-      const response = await fetch("/api/onboarding/join", {
+      // First validate the email domain
+      const validateResponse = await fetch("/api/onboarding/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -431,82 +438,105 @@ export default function OnboardingPage() {
         }),
       });
       
-      const data = await response.json();
+      const validateData = await validateResponse.json();
       
-      if (data.valid) {
-        // Domain matches - proceed to personal details
-        setJoinStep("details");
-      } else {
+      if (!validateData.valid) {
         // Domain mismatch - show error
-        setJoinDomainError(data.error || "De domeinnaam van je e-mailadres komt niet overeen met dit werkgeversaccount.");
-      }
-    } catch (error) {
-      console.error("Error validating join email:", error);
-      toast.error("Fout bij validatie", {
-        description: "Er ging iets mis. Probeer het later opnieuw.",
-      });
-    } finally {
-      setJoinLoading(false);
-    }
-  };
-
-  // Submit join personal details and send magic link
-  const handleJoinSubmitDetails = async () => {
-    if (!joinContact.firstName || !joinContact.lastName || !joinEmail || !joinEmployer) return;
-    
-    setJoinLoading(true);
-    
-    try {
-      // Create the user in join mode (without creating a new employer)
-      const createResponse = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: joinEmail,
-          first_name: joinContact.firstName,
-          last_name: joinContact.lastName,
-          role: joinContact.role,
-          joinMode: true,
-          target_employer_id: joinEmployer.id, // For event logging
-        }),
-      });
-      
-      if (!createResponse.ok) {
-        const errorData = await createResponse.json();
-        if (createResponse.status === 409) {
-          toast.error("E-mailadres al in gebruik", {
-            description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
-          });
-        } else {
-          toast.error("Fout bij aanmelden", {
-            description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
-          });
-        }
+        setJoinDomainError(validateData.error || "De domeinnaam van je e-mailadres komt niet overeen met dit werkgeversaccount.");
+        setJoinLoading(false);
         return;
       }
       
-      // Store join employer ID in localStorage for after verification
-      localStorage.setItem("colourful_join_employer_id", joinEmployer.id);
-      // Also store a flag that we're waiting for verification (prevents auto-completion)
-      localStorage.setItem("colourful_join_pending_verification", "true");
+      // Domain is valid - check if email is already verified (same as session email)
+      const verifiedEmail = session?.user?.email;
+      const isSameEmail = joinEmail.toLowerCase() === verifiedEmail?.toLowerCase();
       
-      // Send magic link (same approach as normal onboarding flow)
-      try {
-        await signIn("email", {
-          email: joinEmail,
-          redirect: false,
-          callbackUrl: "/onboarding?join=true",
+      if (isSameEmail) {
+        // Same email as already verified - directly join without new verification
+        // First update user details if needed
+        await fetch("/api/onboarding", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name: joinContact.firstName,
+            last_name: joinContact.lastName,
+            role: joinContact.role,
+          }),
         });
-      } catch (signInError) {
-        console.error("Error sending magic link:", signInError);
+        
+        // Then complete the join
+        const joinResponse = await fetch("/api/onboarding/join", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employer_id: joinEmployer.id,
+          }),
+        });
+        
+        if (joinResponse.ok) {
+          // Refresh session to get new employer data
+          await update();
+          toast.success("Welkom bij Colourful jobs!", {
+            description: `Je bent succesvol toegevoegd aan ${joinEmployer.company_name || joinEmployer.display_name}.`,
+          });
+          router.push("/dashboard");
+        } else {
+          const errorData = await joinResponse.json();
+          toast.error("Fout bij toevoegen", {
+            description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
+          });
+        }
+      } else {
+        // Different email - need to create user and send verification
+        const createResponse = await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: joinEmail,
+            first_name: joinContact.firstName,
+            last_name: joinContact.lastName,
+            role: joinContact.role,
+            joinMode: true,
+            target_employer_id: joinEmployer.id,
+          }),
+        });
+        
+        if (!createResponse.ok) {
+          const errorData = await createResponse.json();
+          if (createResponse.status === 409) {
+            toast.error("E-mailadres al in gebruik", {
+              description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+            });
+          } else {
+            toast.error("Fout bij aanmelden", {
+              description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
+            });
+          }
+          setJoinLoading(false);
+          return;
+        }
+        
+        // Store join employer ID for after verification
+        localStorage.setItem("colourful_join_employer_id", joinEmployer.id);
+        localStorage.setItem("colourful_join_pending_verification", "true");
+        
+        // Send magic link
+        try {
+          await signIn("email", {
+            email: joinEmail,
+            redirect: false,
+            callbackUrl: "/onboarding?join=true",
+          });
+        } catch (signInError) {
+          console.error("Error sending magic link:", signInError);
+        }
+        
+        // Go to verification step
+        setJoinStep("verification");
       }
-      
-      // Proceed to verification step regardless (same as normal flow)
-      setJoinStep("verification");
-      
     } catch (error) {
-      console.error("Error submitting join details:", error);
-      toast.error("Fout bij aanmelden", {
+      console.error("Error in join flow:", error);
+      toast.error("Fout bij toevoegen", {
         description: "Er ging iets mis. Probeer het later opnieuw.",
       });
     } finally {
@@ -543,7 +573,7 @@ export default function OnboardingPage() {
     setJoinEmployer(null);
     setJoinEmail("");
     setJoinDomainError(null);
-    setJoinStep("email");
+    setJoinStep("confirm");
     setKvkCheckResult(null);
     localStorage.removeItem("colourful_join_employer_id");
     localStorage.removeItem("colourful_join_pending_verification");
@@ -1356,9 +1386,27 @@ export default function OnboardingPage() {
                     Je voegt jezelf toe aan: <strong>{joinEmployer?.company_name || joinEmployer?.display_name}</strong>
                   </p>
 
-                  {/* Step: Email validation */}
-                  {joinStep === "email" && (
+                  {/* Combined confirm step - all fields in one screen */}
+                  {joinStep === "confirm" && (
                     <div className="space-y-4">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-3">
+                          <Label htmlFor="join-firstName">Voornaam *</Label>
+                          <Input
+                            id="join-firstName"
+                            value={joinContact.firstName}
+                            onChange={(e) => setJoinContact(c => ({ ...c, firstName: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <Label htmlFor="join-lastName">Achternaam *</Label>
+                          <Input
+                            id="join-lastName"
+                            value={joinContact.lastName}
+                            onChange={(e) => setJoinContact(c => ({ ...c, lastName: e.target.value }))}
+                          />
+                        </div>
+                      </div>
                       <div className="space-y-3">
                         <Label htmlFor="join-email">Zakelijk e-mailadres *</Label>
                         <Input
@@ -1381,7 +1429,20 @@ export default function OnboardingPage() {
                         )}
                         <p className="p-small text-slate-500">
                           Je e-mailadres moet overeenkomen met het domein van het werkgeversaccount.
+                          {session?.user?.email && joinEmail.toLowerCase() === session.user.email.toLowerCase() && (
+                            <span className="block mt-1 text-emerald-600">
+                              Dit is je al geverifieerde e-mailadres — geen nieuwe verificatie nodig.
+                            </span>
+                          )}
                         </p>
+                      </div>
+                      <div className="space-y-3">
+                        <Label htmlFor="join-role">Rol</Label>
+                        <Input
+                          id="join-role"
+                          value={joinContact.role}
+                          onChange={(e) => setJoinContact(c => ({ ...c, role: e.target.value }))}
+                        />
                       </div>
                       <div className="flex justify-between items-center">
                         <button
@@ -1392,76 +1453,21 @@ export default function OnboardingPage() {
                           Annuleren
                         </button>
                         <Button
-                          onClick={handleJoinEmailValidation}
-                          disabled={!joinEmail || joinLoading}
+                          onClick={handleJoinSubmit}
+                          disabled={!joinContact.firstName || !joinContact.lastName || !joinEmail || joinLoading}
                         >
-                          {joinLoading ? "Controleren..." : "Volgende"}
+                          {joinLoading 
+                            ? "Bezig..." 
+                            : session?.user?.email && joinEmail.toLowerCase() === session.user.email.toLowerCase()
+                              ? "Toevoegen"
+                              : "Verstuur verificatie e-mail"
+                          }
                         </Button>
                       </div>
                     </div>
                   )}
 
-                  {/* Step: Personal details */}
-                  {joinStep === "details" && (
-                    <div className="space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="space-y-3">
-                          <Label htmlFor="join-firstName">Voornaam *</Label>
-                          <Input
-                            id="join-firstName"
-                            value={joinContact.firstName}
-                            onChange={(e) => setJoinContact(c => ({ ...c, firstName: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <Label htmlFor="join-lastName">Achternaam *</Label>
-                          <Input
-                            id="join-lastName"
-                            value={joinContact.lastName}
-                            onChange={(e) => setJoinContact(c => ({ ...c, lastName: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <Label htmlFor="join-email-display">Zakelijk e-mailadres *</Label>
-                        <Input
-                          id="join-email-display"
-                          type="email"
-                          value={joinEmail}
-                          disabled
-                          className="bg-slate-100 text-slate-600"
-                        />
-                      </div>
-                      <div className="space-y-3">
-                        <Label htmlFor="join-role">Rol</Label>
-                        <Input
-                          id="join-role"
-                          value={joinContact.role}
-                          onChange={(e) => setJoinContact(c => ({ ...c, role: e.target.value }))}
-                        />
-                      </div>
-                      <p className="p-small text-slate-500">
-                        We sturen je een e-mail met een link om je account te verifiëren.
-                      </p>
-                      <div className="flex justify-between items-center">
-                        <button
-                          type="button"
-                          onClick={() => setJoinStep("email")}
-                          className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
-                        >
-                          Vorige
-                        </button>
-                        <Button
-                          onClick={handleJoinSubmitDetails}
-                          disabled={!joinContact.firstName || !joinContact.lastName || joinLoading}
-                        >
-                          {joinLoading ? "Bezig..." : "Verstuur verificatie e-mail"}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Step: Verification sent */}
+                  {/* Verification step - only shown when different email is used */}
                   {joinStep === "verification" && (
                     <Alert className="bg-[#193DAB]/[0.12] border-none">
                       <AlertDescription className="text-[#1F2D58]">
@@ -1490,10 +1496,10 @@ export default function OnboardingPage() {
                             <p className="text-xs mt-2">
                               Verkeerd e-mailadres?{" "}
                               <button
-                                onClick={() => setJoinStep("email")}
+                                onClick={() => setJoinStep("confirm")}
                                 className="underline"
                               >
-                                Vul een ander e-mailadres in
+                                Wijzig je gegevens
                               </button>
                             </p>
                           </div>
