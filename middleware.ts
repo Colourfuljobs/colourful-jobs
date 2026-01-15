@@ -33,8 +33,6 @@ export default async function middleware(req: NextRequest) {
       | "pending_onboarding"
       | "active"
       | undefined;
-    
-    console.log("[Middleware] Token status:", status, "for path:", pathname, "email:", token.email);
 
     // For pending_onboarding users: allow access to login and home page
     // so they can switch to a different account if needed
