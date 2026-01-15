@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -7,6 +8,11 @@ import { toast } from "sonner";
 
 export default function DashboardPage() {
   const router = useRouter();
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Dashboard | Colourful jobs";
+  }, []);
 
   async function handleSignOut() {
     await signOut({ redirect: false });

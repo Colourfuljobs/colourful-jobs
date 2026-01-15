@@ -19,6 +19,11 @@ export default function LoginPage() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Inloggen | Colourful jobs";
+  }, []);
+
   // If user has a pending_onboarding session and visits login page,
   // silently clear their session so they can log in with an existing account
   // No toast needed - from the user's perspective they weren't "logged in" yet

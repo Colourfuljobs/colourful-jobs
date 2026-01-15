@@ -3,6 +3,15 @@
 ## Text
 - Schrijf altijd 'Colourful jobs', dus met hoofdletter C en kleine letter j
 
+## Page Titles
+- Gebruik ALTIJD het formaat: `[Pagina naam] | Colourful jobs`
+- Voorbeelden:
+  - `Account aanmaken | Colourful jobs`
+  - `Inloggen | Colourful jobs`
+  - `Dashboard | Colourful jobs`
+- Voor client components: gebruik `useEffect` met `document.title = "..."`
+- Voor server components: gebruik `export const metadata = { title: "..." }`
+
 ## Component Gebruik
 - **ALTIJD gebruik shadcn/ui componenten** voor nieuwe features (Button, Input, Card, Form, etc.)
 - Voeg nieuwe shadcn componenten toe via: `npx shadcn@latest add [component-name]`
