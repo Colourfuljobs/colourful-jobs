@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { useState, useEffect } from "react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,11 +11,33 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
 export default function LoginPage() {
+  const { data: session, status: sessionStatus } = useSession();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // If user has a pending_onboarding session and visits login page,
+  // silently clear their session so they can log in with an existing account
+  // No toast needed - from the user's perspective they weren't "logged in" yet
+  useEffect(() => {
+    if (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding") {
+      setIsSigningOut(true);
+      // Clear any localStorage onboarding state
+      try {
+        localStorage.removeItem("colourful_onboarding_state");
+        localStorage.removeItem("colourful_join_employer_id");
+        localStorage.removeItem("colourful_join_pending_verification");
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      signOut({ redirect: false }).then(() => {
+        setIsSigningOut(false);
+      });
+    }
+  }, [sessionStatus, session]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,6 +136,20 @@ export default function LoginPage() {
     } finally {
       setIsResending(false);
     }
+  }
+
+  // Show loading state while signing out
+  if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding")) {
+    return (
+      <div className="mx-auto max-w-md">
+        <Card className="pt-6 px-8 pb-8">
+          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F86600] mb-4"></div>
+            <p className="p-regular text-[#1F2D58]">Even geduld...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

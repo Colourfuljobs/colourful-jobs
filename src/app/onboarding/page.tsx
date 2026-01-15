@@ -1880,8 +1880,8 @@ export default function OnboardingPage() {
         </CardContent>
       </Card>
 
-      {/* Login link for step 1 */}
-      {step === 1 && !emailSent && !emailVerified && (
+      {/* Login link - always visible unless in join mode verification step */}
+      {!(joinMode && joinStep === "verification") && (
         <div className="mt-4 text-center">
           <p className="p-small text-[#1F2D58]">
             Heb je al een account?{" "}

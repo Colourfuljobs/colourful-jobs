@@ -29,22 +29,36 @@ export default async function middleware(req: NextRequest) {
       return NextResponse.next();
     }
 
-    // If user is logged in and tries to access login page, redirect to dashboard
+    const status = (token as any).status as
+      | "pending_onboarding"
+      | "active"
+      | undefined;
+
+    // For pending_onboarding users: allow access to login and home page
+    // so they can switch to a different account if needed
+    // The login page will handle signing them out
+    if (status === "pending_onboarding") {
+      // Allow login page and home page - login page will handle signout
+      if (pathname.startsWith("/login") || pathname === "/") {
+        return NextResponse.next();
+      }
+      // Force other pages to onboarding
+      if (pathname !== ONBOARDING_PATH) {
+        const url = req.nextUrl.clone();
+        url.pathname = ONBOARDING_PATH;
+        return NextResponse.redirect(url);
+      }
+      return NextResponse.next();
+    }
+
+    // For active users: redirect login page to dashboard
     if (pathname.startsWith("/login")) {
       const url = req.nextUrl.clone();
       url.pathname = DASHBOARD_PATH;
       return NextResponse.redirect(url);
     }
     
-    const status = (token as any).status as
-      | "pending_onboarding"
-      | "active"
-      | undefined;
-    if (status === "pending_onboarding" && pathname !== ONBOARDING_PATH) {
-      const url = req.nextUrl.clone();
-      url.pathname = ONBOARDING_PATH;
-      return NextResponse.redirect(url);
-    }
+    // For active users: redirect home page to dashboard
     if (status === "active" && pathname === "/") {
       const url = req.nextUrl.clone();
       url.pathname = DASHBOARD_PATH;
