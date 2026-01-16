@@ -496,3 +496,23 @@ export async function getWalletByEmployerId(employerId: string): Promise<WalletR
     return null;
   }
 }
+
+/**
+ * Delete a wallet by employer ID
+ * Used to clean up wallets when an employer is deleted (e.g., during onboarding restart)
+ */
+export async function deleteWalletByEmployerId(employerId: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    const wallet = await getWalletByEmployerId(employerId);
+    if (wallet) {
+      await base(WALLETS_TABLE).destroy(wallet.id);
+    }
+  } catch (error: unknown) {
+    console.error("Error deleting wallet by employer ID:", getErrorMessage(error));
+    throw new Error(`Failed to delete wallet: ${getErrorMessage(error)}`);
+  }
+}

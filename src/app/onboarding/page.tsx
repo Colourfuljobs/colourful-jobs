@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -983,7 +984,12 @@ export default function OnboardingPage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-3xl">
-        <Card className="p-6 sm:p-8">
+        <div className="flex justify-center mb-8">
+          <Link href="https://www.colourfuljobs.nl/">
+            <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+          </Link>
+        </div>
+        <Card className="p-6 sm:p-8 bg-white">
           <CardContent className="p-0 flex flex-col items-center justify-center py-12">
             <Spinner className="size-12 text-[#F86600] mb-4" />
             <p className="p-large text-[#1F2D58]">Account wordt gekoppeld...</p>
@@ -997,8 +1003,17 @@ export default function OnboardingPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner className="size-12 text-[#1F2D58]" />
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-3xl">
+          <div className="flex justify-center mb-8">
+            <Link href="https://www.colourfuljobs.nl/">
+              <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+            </Link>
+          </div>
+          <div className="flex justify-center">
+            <Spinner className="size-12 text-[#1F2D58]" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -1006,6 +1021,11 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-3xl">
+      <div className="flex justify-center mb-8">
+        <Link href="https://www.colourfuljobs.nl/">
+          <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+        </Link>
+      </div>
       <Card className="p-0 overflow-hidden">
         {/* Header with stepper */}
         {!joinMode && (

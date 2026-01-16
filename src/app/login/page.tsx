@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -159,6 +160,11 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-md">
+        <div className="flex justify-center mb-8">
+          <Link href="https://www.colourfuljobs.nl/">
+            <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+          </Link>
+        </div>
         <Card className="p-6 sm:p-8">
           <CardContent className="p-0 flex flex-col items-center justify-center py-12">
             <Spinner className="size-8 text-[#F86600] mb-4" />
@@ -173,6 +179,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md">
+      <div className="flex justify-center mb-8">
+        <Link href="https://www.colourfuljobs.nl/">
+          <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+        </Link>
+      </div>
       <Card className="p-0 overflow-hidden">
         {/* Intro section with title - 50% opacity background */}
         <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">

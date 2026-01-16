@@ -1,5 +1,5 @@
 import { authOptions } from "@/lib/auth";
-import { createEmployer, createUser, createWallet, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer } from "@/lib/airtable";
+import { createEmployer, createUser, createWallet, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer, deleteWalletByEmployerId } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage } from "@/lib/utils";
 import { checkRateLimit, onboardingRateLimiter, getIdentifier } from "@/lib/rate-limit";
@@ -228,15 +228,6 @@ export async function PATCH(request: Request) {
       const employer = await createEmployer(body);
       employerId = employer.id;
       
-      // Create wallet for the employer
-      let walletId: string | null = null;
-      try {
-        const wallet = await createWallet(employer.id);
-        walletId = wallet.id;
-      } catch (error) {
-        console.error("Failed to create wallet for employer:", employer.id, error);
-      }
-      
       // Link user to the new employer
       await updateUser(user.id, { employer_id: employerId });
       
@@ -251,18 +242,6 @@ export async function PATCH(request: Request) {
           created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
         },
       });
-      
-      // Log wallet_created event
-      if (walletId) {
-        await logEvent({
-          event_type: "wallet_created",
-          actor_user_id: user.id,
-          employer_id: employerId,
-          source: "web",
-          ip_address: clientIP,
-          payload: { wallet_id: walletId },
-        });
-      }
       
       return NextResponse.json(employer);
     }
@@ -283,6 +262,27 @@ export async function PATCH(request: Request) {
 
     // Check if onboarding is completed (employer status changed to active)
     if (body.status === "active") {
+      // Create wallet for the employer when they become active
+      let walletId: string | null = null;
+      try {
+        const wallet = await createWallet(employerId);
+        walletId = wallet.id;
+      } catch (error) {
+        console.error("Failed to create wallet for employer:", employerId, error);
+      }
+      
+      // Log wallet_created event
+      if (walletId) {
+        await logEvent({
+          event_type: "wallet_created",
+          actor_user_id: user.id,
+          employer_id: employerId,
+          source: "web",
+          ip_address: clientIP,
+          payload: { wallet_id: walletId },
+        });
+      }
+      
       await logEvent({
         event_type: "onboarding_completed",
         actor_user_id: user.id,
@@ -393,8 +393,17 @@ export async function DELETE(request: Request) {
       },
     });
 
-    // Delete the employer first (if exists)
+    // Delete the wallet and employer (if exists)
     if (user.employer_id) {
+      // Delete wallet first (if any)
+      try {
+        await deleteWalletByEmployerId(user.employer_id);
+      } catch (error) {
+        console.error("Error deleting wallet:", error);
+        // Continue even if wallet deletion fails (wallet might not exist)
+      }
+      
+      // Then delete employer
       try {
         await deleteEmployer(user.employer_id);
       } catch (error) {
