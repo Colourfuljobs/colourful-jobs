@@ -268,11 +268,55 @@ export function AirtableAdapter(): Adapter {
       try {
         const expiresFormatted = expires.toISOString();
         
-        const record = await getBase()(VERIFICATION_TOKENS_TABLE).create({
+        // Check if user exists to determine request type and link user
+        const existingUser = await getUserByEmail(identifier);
+        const requestType = existingUser?.status === "active" ? "login" : "verification";
+        
+        // Revoke any existing pending tokens for this identifier
+        // This ensures only the newest magic link is valid
+        try {
+          const escapedIdentifier = escapeAirtableString(identifier);
+          const existingTokens = await getBase()(VERIFICATION_TOKENS_TABLE)
+            .select({
+              filterByFormula: `AND({identifier} = '${escapedIdentifier}', {status} = 'pending')`,
+            })
+            .all();
+          
+          // Mark all existing pending tokens as revoked
+          for (const existingToken of existingTokens) {
+            await getBase()(VERIFICATION_TOKENS_TABLE).update(existingToken.id, {
+              status: "revoked",
+            });
+          }
+        } catch (revokeError) {
+          // Log but don't fail - creating the new token is more important
+          console.warn("[Auth] Error revoking existing tokens:", revokeError);
+        }
+        
+        // Construct the full magic link URL
+        const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+        const magicLink = `${baseUrl}/api/auth/callback/email?token=${encodeURIComponent(token)}&email=${encodeURIComponent(identifier)}`;
+        
+        // Build the record fields
+        const recordFields: Record<string, any> = {
           identifier,
           token,
           expires: expiresFormatted,
-        });
+          "magic-link": magicLink,
+          status: "pending",
+          "created-at": new Date().toISOString(),
+          "request-type": requestType,
+        };
+        
+        // Link to user if they exist (Airtable linked fields require array)
+        if (existingUser?.id) {
+          recordFields.user = [existingUser.id];
+        }
+        
+        const record = await getBase()(VERIFICATION_TOKENS_TABLE).create(recordFields);
+        
+        // Update the record to set the id field to the Airtable record ID
+        await getBase()(VERIFICATION_TOKENS_TABLE).update(record.id, { id: record.id });
         
         const expiresValue = record.fields.expires;
         const expiresDate = expiresValue instanceof Date 
@@ -324,13 +368,41 @@ export function AirtableAdapter(): Adapter {
           return null;
         }
         
+        // Check if token was already used or revoked (extra security)
+        const tokenStatus = foundRecord.fields.status as string;
+        if (tokenStatus === "used") {
+          console.warn("[Auth] Attempted to reuse verification token for:", identifier);
+          return null;
+        }
+        if (tokenStatus === "revoked") {
+          console.warn("[Auth] Attempted to use revoked verification token for:", identifier);
+          return null;
+        }
+        
         const verificationToken = {
           identifier: foundRecord.fields.identifier as string,
           token: foundRecord.fields.token as string,
           expires: new Date(foundRecord.fields.expires as string),
         };
 
-        await getBase()(VERIFICATION_TOKENS_TABLE).destroy(foundRecord.id);
+        // Build update fields: mark as used with timestamp
+        const updateFields: Record<string, any> = {
+          status: "used",
+          "used-at": new Date().toISOString(),
+        };
+        
+        // If user wasn't linked yet (user was created after token), link them now
+        const existingUserLink = foundRecord.fields.user;
+        if (!existingUserLink || (Array.isArray(existingUserLink) && existingUserLink.length === 0)) {
+          const user = await getUserByEmail(identifier);
+          if (user?.id) {
+            updateFields.user = [user.id];
+          }
+        }
+        
+        // Update status instead of deleting (keeps record for support/audit)
+        await getBase()(VERIFICATION_TOKENS_TABLE).update(foundRecord.id, updateFields);
+        
         return verificationToken;
       } catch (error: unknown) {
         console.error("[Auth] Error in useVerificationToken:", error instanceof Error ? error.message : "Unknown error");
