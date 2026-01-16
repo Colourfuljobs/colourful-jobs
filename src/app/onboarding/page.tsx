@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { getKVKDetails, type KVKSearchResult } from "@/lib/kvk";
 import { 
   companyDataSchema, 
@@ -211,6 +212,13 @@ export default function OnboardingPage() {
   // Handle authentication and join flow completion
   useEffect(() => {
     if (status === "authenticated" && session) {
+      // If user is already active, redirect to dashboard
+      // They shouldn't be on the onboarding page
+      if (session.user?.status === "active") {
+        router.push("/dashboard");
+        return;
+      }
+      
       setEmailVerified(true);
       setStep1Complete(true);
       clearOnboardingState();
@@ -973,32 +981,35 @@ export default function OnboardingPage() {
   // Loading states
   if (joinCompleting || isJoinCallback) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <Card className="p-8">
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-3xl">
+        <Card className="p-6 sm:p-8">
           <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#F86600] mb-4"></div>
+            <Spinner className="size-12 text-[#F86600] mb-4" />
             <p className="p-large text-[#1F2D58]">Account wordt gekoppeld...</p>
             <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
           </CardContent>
         </Card>
+        </div>
       </div>
     );
   }
 
   if (status === "loading") {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1F2D58]"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="size-12 text-[#1F2D58]" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-3xl">
       <Card className="p-0 overflow-hidden">
         {/* Header with stepper */}
         {!joinMode && (
-          <div className="bg-white/50 px-8 pt-8 pb-10">
+          <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-8 sm:pb-10">
             <CardTitle className="mb-6 contempora-small">Account aanmaken</CardTitle>
             <div className="pb-2">
               <StepIndicator
@@ -1013,13 +1024,13 @@ export default function OnboardingPage() {
         
         {/* Join mode header */}
         {joinMode && (
-          <div className="bg-white/50 px-8 pt-8 pb-10">
+          <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-8 sm:pb-10">
             <CardTitle>Toevoegen aan werkgeversaccount</CardTitle>
           </div>
         )}
         
         {/* Form content */}
-        <CardContent className="p-8 bg-white">
+        <CardContent className="p-6 sm:p-8 bg-white">
           {/* Step 1 */}
           {step === 1 && !joinMode && (
             <Step1Personal
@@ -1154,6 +1165,7 @@ export default function OnboardingPage() {
           </div>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

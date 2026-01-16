@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export const metadata: Metadata = {
   title: "Werkgeversportaal",
@@ -42,26 +43,10 @@ export default function RootLayout({
           }}
         />
         <SessionProvider>
-          <div className="min-h-screen">
-            <main className="mx-auto max-w-5xl px-6 py-8">
-              <div className="flex justify-center mb-8">
-                <a 
-                  href="https://colourfuljobs.nl" 
-                  className="transition-opacity hover:opacity-80"
-                >
-                  <img 
-                    src="/logo.svg" 
-                    alt="Colourful jobs" 
-                    width={200} 
-                    height={40}
-                    style={{ width: '200px', height: '40px' }}
-                  />
-                </a>
-              </div>
-              {children}
-            </main>
-          </div>
-          <Toaster position="bottom-center" richColors />
+          <TooltipProvider>
+            {children}
+            <Toaster position="bottom-center" richColors />
+          </TooltipProvider>
         </SessionProvider>
       </body>
     </html>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { searchKVK, type KVKSearchResult } from "@/lib/kvk";
 
 interface KVKSearchProps {
@@ -89,7 +90,10 @@ export function KVKSearch({ onSelect, onSkip }: KVKSearchProps) {
           Overslaan en handmatig invullen
         </button>
         {loading && (
-          <p className="p-small text-slate-500">Zoeken...</p>
+          <div className="flex items-center gap-2">
+            <Spinner className="size-4 text-[#1F2D58]" />
+            <p className="p-small text-slate-500">Zoeken...</p>
+          </div>
         )}
       </div>
 

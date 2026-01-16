@@ -47,9 +47,9 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // If user has a session cookie, redirect login to dashboard
+  // If user has a session cookie, redirect login and home to dashboard
   // The dashboard page will validate the actual session
-  if (hasSessionCookie && pathname.startsWith("/login")) {
+  if (hasSessionCookie && (pathname.startsWith("/login") || pathname === "/")) {
     // Check if this is a callback from magic link (has callbackUrl or token params)
     const callbackUrl = req.nextUrl.searchParams.get("callbackUrl");
     const token = req.nextUrl.searchParams.get("token");

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 
 function AuthErrorContent() {
   const searchParams = useSearchParams();
@@ -63,9 +64,9 @@ function AuthErrorContent() {
   const { title, description } = getErrorMessage();
 
   return (
-    <div className="flex items-center justify-center -mt-8" style={{ minHeight: 'calc(100vh - 160px)' }}>
+    <div className="flex items-center justify-center px-4 -mt-8" style={{ minHeight: 'calc(100vh - 160px)' }}>
       <div className="mx-auto max-w-md w-full">
-        <Card className="pt-8 px-8 pb-8 bg-white rounded-t-[0.75rem] rounded-b-[2rem] border-none">
+        <Card className="pt-6 sm:pt-8 px-6 sm:px-8 pb-6 sm:pb-8 bg-white rounded-t-[0.75rem] rounded-b-[2rem] border-none">
           <CardHeader className="p-0 mb-6 text-center">
             <div className="mb-4 flex justify-center">
               <div className="w-16 h-16 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center">
@@ -106,8 +107,8 @@ function AuthErrorContent() {
 export default function AuthErrorPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center -mt-8" style={{ minHeight: 'calc(100vh - 160px)' }}>
-        <div className="animate-pulse">Laden...</div>
+      <div className="flex items-center justify-center px-4 -mt-8" style={{ minHeight: 'calc(100vh - 160px)' }}>
+        <Spinner className="size-8 text-[#1F2D58]" />
       </div>
     }>
       <AuthErrorContent />

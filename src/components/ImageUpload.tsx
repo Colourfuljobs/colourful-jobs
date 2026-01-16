@@ -2,6 +2,7 @@
 
 import { useRef, useState, DragEvent } from "react";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 interface ImageUploadProps {
@@ -90,7 +91,7 @@ export function ImageUpload({
         onDrop={handleDrop}
         onClick={handleClick}
         className={`
-          relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors flex-1
+          relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 sm:p-8 transition-colors flex-1
           ${
             isDragging
               ? "border-[#193DAB] bg-[#193DAB]/5"
@@ -119,7 +120,8 @@ export function ImageUpload({
             />
             {!uploading && (
               <p className="mt-2 text-center p-small text-slate-600">
-                Klik of sleep een nieuwe afbeelding hierheen om te vervangen
+                <span className="sm:hidden">Kies afbeelding om te vervangen</span>
+                <span className="hidden sm:inline">Klik of sleep een nieuwe afbeelding hierheen om te vervangen</span>
               </p>
             )}
           </div>
@@ -139,7 +141,8 @@ export function ImageUpload({
               />
             </svg>
             <p className="mt-2 p-regular text-[#1F2D58]">
-              <span className="font-medium underline">Klik om te uploaden</span> of sleep hierheen
+              <span className="font-medium underline sm:hidden">Kies afbeelding</span>
+              <span className="hidden sm:inline"><span className="font-medium underline">Klik om te uploaden</span> of sleep hierheen</span>
             </p>
             <p className="mt-1 p-small text-slate-500">
               PNG, JPG, WebP, AVIF, SVG tot 5MB
@@ -150,7 +153,7 @@ export function ImageUpload({
         {uploading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/80">
             <div className="text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-[#193DAB] border-t-transparent"></div>
+              <Spinner className="mx-auto size-8 text-[#193DAB]" />
               <p className="mt-2 p-small text-slate-600">Uploaden...</p>
             </div>
           </div>

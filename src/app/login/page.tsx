@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 
 export default function LoginPage() {
   const { data: session, status: sessionStatus } = useSession();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,25 +27,33 @@ export default function LoginPage() {
     document.title = "Inloggen | Colourful jobs";
   }, []);
 
-  // If user has a pending_onboarding session and visits login page,
-  // silently clear their session so they can log in with an existing account
-  // No toast needed - from the user's perspective they weren't "logged in" yet
+  // If user has an active session, redirect to dashboard
+  // If user has a pending_onboarding session, silently clear it so they can log in
   useEffect(() => {
-    if (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding") {
-      setIsSigningOut(true);
-      // Clear any localStorage onboarding state
-      try {
-        localStorage.removeItem("colourful_onboarding_state");
-        localStorage.removeItem("colourful_join_employer_id");
-        localStorage.removeItem("colourful_join_pending_verification");
-      } catch (e) {
-        // Ignore localStorage errors
+    if (sessionStatus === "authenticated" && session?.user) {
+      // Active users should go to dashboard
+      if (session.user.status === "active") {
+        router.push("/dashboard");
+        return;
       }
-      signOut({ redirect: false }).then(() => {
-        setIsSigningOut(false);
-      });
+      
+      // Pending onboarding users: clear session so they can log in with existing account
+      if (session.user.status === "pending_onboarding") {
+        setIsSigningOut(true);
+        // Clear any localStorage onboarding state
+        try {
+          localStorage.removeItem("colourful_onboarding_state");
+          localStorage.removeItem("colourful_join_employer_id");
+          localStorage.removeItem("colourful_join_pending_verification");
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+        signOut({ redirect: false }).then(() => {
+          setIsSigningOut(false);
+        });
+      }
     }
-  }, [sessionStatus, session]);
+  }, [sessionStatus, session, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -143,25 +154,28 @@ export default function LoginPage() {
     }
   }
 
-  // Show loading state while signing out
-  if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding")) {
+  // Show loading state while signing out or redirecting active users
+  if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding") || (sessionStatus === "authenticated" && session?.user?.status === "active")) {
     return (
-      <div className="mx-auto max-w-md">
-        <Card className="p-8">
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+        <Card className="p-6 sm:p-8">
           <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F86600] mb-4"></div>
+            <Spinner className="size-8 text-[#F86600] mb-4" />
             <p className="p-regular text-[#1F2D58]">Even geduld...</p>
           </CardContent>
         </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-md">
       <Card className="p-0 overflow-hidden">
         {/* Intro section with title - 50% opacity background */}
-        <div className="bg-white/50 px-8 pt-6 pb-8">
+        <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">
           <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
           <CardDescription className="p-regular text-[#1F2D58]/70">
             Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen.
@@ -169,7 +183,7 @@ export default function LoginPage() {
         </div>
         
         {/* Form content - 100% white background */}
-        <CardContent className="p-8 bg-white">
+        <CardContent className="p-6 sm:p-8 bg-white">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-mailadres</Label>
@@ -235,7 +249,7 @@ export default function LoginPage() {
           {sent && (
             <Alert className="mt-4 bg-[#193DAB]/[0.12] border-none">
               <AlertDescription className="text-[#1F2D58]">
-                <div className="flex items-start gap-3">
+                <div className="flex flex-col sm:flex-row items-start gap-3">
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                       <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
@@ -273,6 +287,7 @@ export default function LoginPage() {
             Maak een account aan
           </Link>
         </p>
+      </div>
       </div>
     </div>
   );

@@ -21,7 +21,7 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-10 px-5 pt-2 pb-[10px]",
-        sm: "h-9 rounded-full px-3 text-xs",
+        sm: "h-[30px] rounded-full px-3 text-xs",
         lg: "h-11 rounded-full px-8 text-base",
         icon: "h-10 w-10",
       },
@@ -72,7 +72,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {shouldShowArrow && <ArrowIcon />}
-        {children}
+        <span className="inline-flex items-center gap-1.5 translate-y-[-1px]">{children}</span>
       </button>
     )
   }

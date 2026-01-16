@@ -55,7 +55,7 @@ export function Step2Company({
             {kvkCheckResult?.exists && (
               <Alert className="bg-[#193DAB]/[0.12] border-none">
                 <AlertDescription className="text-[#1F2D58]">
-                  <div className="flex items-start gap-3">
+                  <div className="flex flex-col sm:flex-row items-start gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                         <path fill="#1F2D58" fillRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z" clipRule="evenodd"/>
@@ -132,10 +132,10 @@ export function Step2Company({
               <p className="text-sm text-red-500">{formErrors.phone}</p>
             )}
           </div>
-          {/* KVK en Website-URL naast elkaar */}
+          {/* KVK en Website-URL naast elkaar op desktop */}
           <div className="md:col-span-2 space-y-3">
-            <div className="flex gap-4">
-              <div className="space-y-2 w-1/2">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="space-y-2 sm:w-1/2">
                 <Label htmlFor="kvk">KVK-nummer *</Label>
                 <Input
                   id="kvk"
@@ -154,7 +154,7 @@ export function Step2Company({
                   <p className="text-sm text-red-500">{formErrors.kvk}</p>
                 )}
               </div>
-              <div className="space-y-2 w-1/2">
+              <div className="space-y-2 sm:w-1/2">
                 <Label htmlFor="website_url">Website-URL *</Label>
                 <Input 
                   id="website_url" 
@@ -172,7 +172,7 @@ export function Step2Company({
             {kvkCheckResult?.exists && !kvkSelected && (
               <Alert className="bg-[#193DAB]/[0.12] border-none">
                 <AlertDescription className="text-[#1F2D58]">
-                  <div className="flex items-start gap-3">
+                  <div className="flex flex-col sm:flex-row items-start gap-3">
                     <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
                         <path fill="#1F2D58" fillRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z" clipRule="evenodd"/>
@@ -202,13 +202,13 @@ export function Step2Company({
       {/* Billing Data Section */}
       <div className="space-y-4">
         <h4>Factuurgegevens</h4>
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           {/* Rij 1: Ref (1) | Contact (2) | Email (2) */}
-          <div className="space-y-2 col-span-1">
+          <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="reference-nr">Ref.nr.</Label>
             <Input id="reference-nr" {...register("reference-nr")} />
           </div>
-          <div className="space-y-2 col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="invoice_contact_name">Contactpersoon facturatie *</Label>
             <Input
               id="invoice_contact_name"
@@ -219,7 +219,7 @@ export function Step2Company({
               <p className="text-sm text-red-500">{formErrors.invoice_contact_name}</p>
             )}
           </div>
-          <div className="space-y-2 col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="invoice_email">E-mail facturatie *</Label>
             <Input
               id="invoice_email"
@@ -232,8 +232,8 @@ export function Step2Company({
             )}
           </div>
 
-          {/* Rij 2: Straat (3) | Nr (1) | Toev (1) */}
-          <div className="space-y-2 col-span-3">
+          {/* Rij 2: Straat (3) | Nr + Toev (2) */}
+          <div className="space-y-2 sm:col-span-3">
             <Label htmlFor="invoice_street">Straat *</Label>
             <Input
               id="invoice_street"
@@ -244,24 +244,27 @@ export function Step2Company({
               <p className="text-sm text-red-500">{formErrors.invoice_street}</p>
             )}
           </div>
-          <div className="space-y-2 col-span-1">
-            <Label htmlFor="invoice_house-nr">Nr. *</Label>
-            <Input
-              id="invoice_house-nr"
-              {...register("invoice_house-nr")}
-              className={formErrors["invoice_house-nr"] ? "border-red-500" : ""}
-            />
-            {formErrors["invoice_house-nr"] && (
-              <p className="p-small text-red-500">{formErrors["invoice_house-nr"]}</p>
-            )}
-          </div>
-          <div className="space-y-2 col-span-1">
-            <Label htmlFor="invoice_house-nr-add">Toev.</Label>
-            <Input id="invoice_house-nr-add" {...register("invoice_house-nr-add")} />
+          {/* Nr en Toev naast elkaar, ook op mobiel */}
+          <div className="sm:col-span-2 grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_house-nr">Nr. *</Label>
+              <Input
+                id="invoice_house-nr"
+                {...register("invoice_house-nr")}
+                className={formErrors["invoice_house-nr"] ? "border-red-500" : ""}
+              />
+              {formErrors["invoice_house-nr"] && (
+                <p className="p-small text-red-500">{formErrors["invoice_house-nr"]}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invoice_house-nr-add">Toev.</Label>
+              <Input id="invoice_house-nr-add" {...register("invoice_house-nr-add")} />
+            </div>
           </div>
 
           {/* Rij 3: Postcode (1) | Plaats (2) | Land (2) */}
-          <div className="space-y-2 col-span-1">
+          <div className="space-y-2 sm:col-span-1">
             <Label htmlFor="invoice_postal-code">Postcode *</Label>
             <Input
               id="invoice_postal-code"
@@ -272,7 +275,7 @@ export function Step2Company({
               <p className="p-small text-red-500">{formErrors["invoice_postal-code"]}</p>
             )}
           </div>
-          <div className="space-y-2 col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="invoice_city">Plaats *</Label>
             <Input
               id="invoice_city"
@@ -283,7 +286,7 @@ export function Step2Company({
               <p className="text-sm text-red-500">{formErrors.invoice_city}</p>
             )}
           </div>
-          <div className="space-y-2 col-span-2">
+          <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="invoice_country">Land *</Label>
             <Select
               id="invoice_country"

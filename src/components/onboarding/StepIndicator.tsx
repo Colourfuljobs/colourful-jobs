@@ -53,7 +53,7 @@ export function StepIndicator({
                   </span>
                   <span className={`absolute -bottom-6 ${labelAlignment} whitespace-nowrap text-xs ${
                     isActive ? 'font-bold text-[#1F2D58]' : 'font-normal text-[#1F2D58]'
-                  }`}>
+                  } ${!isActive ? 'hidden sm:inline' : ''}`}>
                     {label}
                   </span>
                 </button>
