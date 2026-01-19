@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Pencil, X } from "lucide-react"
+import { useEffect, useState, useCallback } from "react"
+import Link from "next/link"
+import { Pencil } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -39,93 +40,149 @@ interface BillingData {
   invoice_country: string
 }
 
+interface GalleryImage {
+  id: string
+  url: string
+}
+
+interface FAQItem {
+  id?: string
+  question: string
+  answer: string
+  order?: number
+}
+
 interface WebsiteData {
   display_name: string
   sector: string
   short_description: string
   logo: string | null
+  logo_id: string | null
   header_image: string | null
-  gallery_images: string[]
+  header_image_id: string | null
+  gallery_images: GalleryImage[]
   video_url: string
-  faq: { question: string; answer: string }[]
+  faq: FAQItem[]
 }
 
-// Mock data - will be replaced with real API calls
-const mockPersonalData: PersonalData = {
-  first_name: "Jan",
-  last_name: "de Vries",
-  email: "jan@voorbeeld.nl",
-  role: "HR Manager",
+// Default empty data
+const emptyPersonalData: PersonalData = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  role: "",
 }
 
-const mockCompanyData: CompanyData = {
-  company_name: "Voorbeeld BV",
-  phone: "+31 20 123 4567",
-  kvk: "12345678",
-  website_url: "https://www.voorbeeld.nl",
+const emptyCompanyData: CompanyData = {
+  company_name: "",
+  phone: "",
+  kvk: "",
+  website_url: "",
 }
 
-const mockBillingData: BillingData = {
-  "reference-nr": "REF-2024-001",
-  invoice_contact_name: "Piet Jansen",
-  invoice_email: "facturen@voorbeeld.nl",
-  invoice_street: "Voorbeeldstraat",
-  "invoice_house-nr": "123",
-  "invoice_house-nr-add": "A",
-  "invoice_postal-code": "1234 AB",
-  invoice_city: "Amsterdam",
-  invoice_country: "Nederland",
+const emptyBillingData: BillingData = {
+  "reference-nr": "",
+  invoice_contact_name: "",
+  invoice_email: "",
+  invoice_street: "",
+  "invoice_house-nr": "",
+  "invoice_house-nr-add": "",
+  "invoice_postal-code": "",
+  invoice_city: "",
+  invoice_country: "",
 }
 
-const mockWebsiteData: WebsiteData = {
-  display_name: "Voorbeeld",
-  sector: "Technologie",
-  short_description: "Wij zijn een innovatief bedrijf dat zich richt op het ontwikkelen van moderne softwareoplossingen voor de zakelijke markt. Onze missie is om bedrijven te helpen groeien door middel van technologie.",
+const emptyWebsiteData: WebsiteData = {
+  display_name: "",
+  sector: "",
+  short_description: "",
   logo: null,
+  logo_id: null,
   header_image: null,
-  gallery_images: [
-    "https://images.unsplash.com/photo-1497366216548-37526070297c?w=100&h=100&fit=crop",
-    "https://images.unsplash.com/photo-1497215842964-222b430dc094?w=100&h=100&fit=crop",
-    "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=100&h=100&fit=crop",
-  ],
+  header_image_id: null,
+  gallery_images: [],
   video_url: "",
-  faq: [
-    { question: "Wat voor bedrijf zijn jullie?", answer: "Wij zijn een technologiebedrijf gespecialiseerd in softwareontwikkeling." },
-  ],
+  faq: [],
 }
 
 // Section edit states
 type EditingSection = "personal" | "company" | "billing" | "website" | null
 
 export default function GegevensPage() {
-  // Loading state
+  // Loading states
   const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Set page title
   useEffect(() => {
     document.title = "Gegevens | Colourful jobs"
   }, [])
 
-  // Simulate loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
-
   // Data states
-  const [personalData, setPersonalData] = useState<PersonalData>(mockPersonalData)
-  const [companyData, setCompanyData] = useState<CompanyData>(mockCompanyData)
-  const [billingData, setBillingData] = useState<BillingData>(mockBillingData)
-  const [websiteData, setWebsiteData] = useState<WebsiteData>(mockWebsiteData)
+  const [personalData, setPersonalData] = useState<PersonalData>(emptyPersonalData)
+  const [companyData, setCompanyData] = useState<CompanyData>(emptyCompanyData)
+  const [billingData, setBillingData] = useState<BillingData>(emptyBillingData)
+  const [websiteData, setWebsiteData] = useState<WebsiteData>(emptyWebsiteData)
 
   // Edit states
   const [editingSection, setEditingSection] = useState<EditingSection>(null)
-  const [editPersonalData, setEditPersonalData] = useState<PersonalData>(mockPersonalData)
-  const [editCompanyData, setEditCompanyData] = useState<CompanyData>(mockCompanyData)
-  const [editBillingData, setEditBillingData] = useState<BillingData>(mockBillingData)
-  const [editWebsiteData, setEditWebsiteData] = useState<WebsiteData>(mockWebsiteData)
+  const [editPersonalData, setEditPersonalData] = useState<PersonalData>(emptyPersonalData)
+  const [editCompanyData, setEditCompanyData] = useState<CompanyData>(emptyCompanyData)
+  const [editBillingData, setEditBillingData] = useState<BillingData>(emptyBillingData)
+  const [editWebsiteData, setEditWebsiteData] = useState<WebsiteData>(emptyWebsiteData)
+
+  // Fetch account data from API
+  const fetchAccountData = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setLoadError(null)
+
+      const response = await fetch("/api/account")
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Kon gegevens niet ophalen")
+      }
+
+      const data = await response.json()
+
+      // Update all data states
+      if (data.personal) {
+        setPersonalData(data.personal)
+      }
+      if (data.company) {
+        setCompanyData(data.company)
+      }
+      if (data.billing) {
+        setBillingData(data.billing)
+      }
+      if (data.website) {
+        setWebsiteData({
+          display_name: data.website.display_name || "",
+          sector: data.website.sector || "",
+          short_description: data.website.short_description || "",
+          logo: data.website.logo || null,
+          logo_id: data.website.logo_id || null,
+          header_image: data.website.header_image || null,
+          header_image_id: data.website.header_image_id || null,
+          gallery_images: data.website.gallery_images || [],
+          video_url: data.website.video_url || "",
+          faq: data.website.faq || [],
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching account data:", error)
+      setLoadError(error instanceof Error ? error.message : "Er is een fout opgetreden")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Load data on mount
+  useEffect(() => {
+    fetchAccountData()
+  }, [fetchAccountData])
 
   // Start editing a section
   const startEditing = (section: EditingSection) => {
@@ -141,25 +198,80 @@ export default function GegevensPage() {
     setEditingSection(null)
   }
 
-  // Save section (mock - just updates local state)
-  const saveSection = (section: EditingSection) => {
-    if (section === "personal") {
-      setPersonalData({ ...editPersonalData })
-      toast.success("Persoonlijke gegevens opgeslagen")
+  // Save section to API
+  const saveSection = async (section: EditingSection) => {
+    if (!section) return
+
+    setIsSaving(true)
+
+    try {
+      let dataToSave: Record<string, any> = {}
+      let sectionName = ""
+
+      if (section === "personal") {
+        dataToSave = {
+          first_name: editPersonalData.first_name,
+          last_name: editPersonalData.last_name,
+          role: editPersonalData.role,
+        }
+        sectionName = "Persoonlijke gegevens"
+      }
+      if (section === "company") {
+        dataToSave = editCompanyData
+        sectionName = "Bedrijfsgegevens"
+      }
+      if (section === "billing") {
+        dataToSave = editBillingData
+        sectionName = "Factuurgegevens"
+      }
+      if (section === "website") {
+        dataToSave = {
+          display_name: editWebsiteData.display_name,
+          sector: editWebsiteData.sector,
+          short_description: editWebsiteData.short_description,
+          video_url: editWebsiteData.video_url,
+        }
+        sectionName = "Bedrijfsprofiel"
+      }
+
+      const response = await fetch("/api/account", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          section,
+          data: dataToSave,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Kon gegevens niet opslaan")
+      }
+
+      // Update local state with saved data
+      if (section === "personal") {
+        setPersonalData({ ...editPersonalData })
+      }
+      if (section === "company") {
+        setCompanyData({ ...editCompanyData })
+      }
+      if (section === "billing") {
+        setBillingData({ ...editBillingData })
+      }
+      if (section === "website") {
+        setWebsiteData({ ...editWebsiteData })
+      }
+
+      toast.success(`${sectionName} opgeslagen`)
+      setEditingSection(null)
+    } catch (error) {
+      console.error("Error saving section:", error)
+      toast.error(error instanceof Error ? error.message : "Er is een fout opgetreden bij het opslaan")
+    } finally {
+      setIsSaving(false)
     }
-    if (section === "company") {
-      setCompanyData({ ...editCompanyData })
-      toast.success("Bedrijfsgegevens opgeslagen")
-    }
-    if (section === "billing") {
-      setBillingData({ ...editBillingData })
-      toast.success("Factuurgegevens opgeslagen")
-    }
-    if (section === "website") {
-      setWebsiteData({ ...editWebsiteData })
-      toast.success("Website gegevens opgeslagen")
-    }
-    setEditingSection(null)
   }
 
   // Skeleton for data fields
@@ -246,6 +358,25 @@ export default function GegevensPage() {
     )
   }
 
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <h1 className="contempora-large text-[#1F2D58]">Gegevens</h1>
+        <div className="rounded-t-[0.75rem] rounded-b-[2rem] bg-white p-6">
+          <p className="text-red-600">{loadError}</p>
+          <Button
+            variant="secondary"
+            className="mt-4"
+            onClick={() => fetchAccountData()}
+            showArrow={false}
+          >
+            Opnieuw proberen
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Page title */}
@@ -276,6 +407,7 @@ export default function GegevensPage() {
               onChange={setEditPersonalData}
               onSave={() => saveSection("personal")}
               onCancel={cancelEditing}
+              isSaving={isSaving}
             />
           ) : (
             <PersonalDataView data={personalData} />
@@ -308,6 +440,7 @@ export default function GegevensPage() {
               onChange={setEditCompanyData}
               onSave={() => saveSection("company")}
               onCancel={cancelEditing}
+              isSaving={isSaving}
             />
           ) : (
             <CompanyDataView data={companyData} />
@@ -340,6 +473,7 @@ export default function GegevensPage() {
               onChange={setEditBillingData}
               onSave={() => saveSection("billing")}
               onCancel={cancelEditing}
+              isSaving={isSaving}
             />
           ) : (
             <BillingDataView data={billingData} />
@@ -377,6 +511,7 @@ export default function GegevensPage() {
               onChange={setEditWebsiteData}
               onSave={() => saveSection("website")}
               onCancel={cancelEditing}
+              isSaving={isSaving}
             />
           ) : (
             <WebsiteDataView data={websiteData} />
@@ -489,9 +624,9 @@ function WebsiteDataView({ data }: { data: WebsiteData }) {
       <div className="space-y-2">
         <p className="text-sm text-[#1F2D58]/60">Afbeeldingen gallery</p>
         {data.gallery_images.length > 0 ? (
-          <div className="flex gap-2 flex-wrap">
-            {data.gallery_images.map((img, i) => (
-              <img key={i} src={img} alt={`Gallery ${i + 1}`} className="h-20 w-20 rounded-lg object-cover" />
+          <div className="flex gap-2 flex-wrap items-end">
+            {data.gallery_images.map((img) => (
+              <img key={img.id} src={img.url} alt="Gallery" className="h-20 max-w-32 rounded-lg object-contain" />
             ))}
           </div>
         ) : (
@@ -521,7 +656,10 @@ function WebsiteDataView({ data }: { data: WebsiteData }) {
         {data.faq.length > 0 ? (
           <div className="space-y-2">
             {data.faq.map((item, i) => (
-              <p key={i} className="text-[#1F2D58]">{item.question}</p>
+              <div key={item.id || i} className="bg-[#E8EEF2] rounded-lg p-3">
+                <p className="font-medium text-[#1F2D58]">{item.question}</p>
+                <p className="text-sm text-[#1F2D58]/70 mt-1">{item.answer}</p>
+              </div>
             ))}
           </div>
         ) : (
@@ -539,16 +677,17 @@ function WebsiteDataView({ data }: { data: WebsiteData }) {
 interface FormActionsProps {
   onSave: () => void
   onCancel: () => void
+  isSaving?: boolean
 }
 
-function FormActions({ onSave, onCancel }: FormActionsProps) {
+function FormActions({ onSave, onCancel, isSaving = false }: FormActionsProps) {
   return (
     <div className="flex justify-end gap-2 pt-4">
-      <Button variant="secondary" onClick={onCancel} showArrow={false}>
+      <Button variant="secondary" onClick={onCancel} showArrow={false} disabled={isSaving}>
         Annuleren
       </Button>
-      <Button onClick={onSave}>
-        Opslaan
+      <Button onClick={onSave} disabled={isSaving}>
+        {isSaving ? "Opslaan..." : "Opslaan"}
       </Button>
     </div>
   )
@@ -559,9 +698,10 @@ interface PersonalDataFormProps {
   onChange: (data: PersonalData) => void
   onSave: () => void
   onCancel: () => void
+  isSaving?: boolean
 }
 
-function PersonalDataForm({ data, onChange, onSave, onCancel }: PersonalDataFormProps) {
+function PersonalDataForm({ data, onChange, onSave, onCancel, isSaving }: PersonalDataFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -571,6 +711,7 @@ function PersonalDataForm({ data, onChange, onSave, onCancel }: PersonalDataForm
             id="first_name"
             value={data.first_name}
             onChange={(e) => onChange({ ...data, first_name: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2">
@@ -579,6 +720,7 @@ function PersonalDataForm({ data, onChange, onSave, onCancel }: PersonalDataForm
             id="last_name"
             value={data.last_name}
             onChange={(e) => onChange({ ...data, last_name: e.target.value })}
+            disabled={isSaving}
           />
         </div>
       </div>
@@ -601,9 +743,10 @@ function PersonalDataForm({ data, onChange, onSave, onCancel }: PersonalDataForm
           id="role"
           value={data.role}
           onChange={(e) => onChange({ ...data, role: e.target.value })}
+          disabled={isSaving}
         />
       </div>
-      <FormActions onSave={onSave} onCancel={onCancel} />
+      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
@@ -613,9 +756,10 @@ interface CompanyDataFormProps {
   onChange: (data: CompanyData) => void
   onSave: () => void
   onCancel: () => void
+  isSaving?: boolean
 }
 
-function CompanyDataForm({ data, onChange, onSave, onCancel }: CompanyDataFormProps) {
+function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: CompanyDataFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -625,6 +769,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel }: CompanyDataFormPr
             id="company_name"
             value={data.company_name}
             onChange={(e) => onChange({ ...data, company_name: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2">
@@ -634,6 +779,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel }: CompanyDataFormPr
             type="tel"
             value={data.phone}
             onChange={(e) => onChange({ ...data, phone: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2">
@@ -645,6 +791,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel }: CompanyDataFormPr
             maxLength={8}
             value={data.kvk}
             onChange={(e) => onChange({ ...data, kvk: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2">
@@ -654,10 +801,11 @@ function CompanyDataForm({ data, onChange, onSave, onCancel }: CompanyDataFormPr
             type="url"
             value={data.website_url}
             onChange={(e) => onChange({ ...data, website_url: e.target.value })}
+            disabled={isSaving}
           />
         </div>
       </div>
-      <FormActions onSave={onSave} onCancel={onCancel} />
+      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
@@ -667,9 +815,10 @@ interface BillingDataFormProps {
   onChange: (data: BillingData) => void
   onSave: () => void
   onCancel: () => void
+  isSaving?: boolean
 }
 
-function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormProps) {
+function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: BillingDataFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
@@ -680,6 +829,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             id="reference-nr"
             value={data["reference-nr"]}
             onChange={(e) => onChange({ ...data, "reference-nr": e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
@@ -688,6 +838,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             id="invoice_contact_name"
             value={data.invoice_contact_name}
             onChange={(e) => onChange({ ...data, invoice_contact_name: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
@@ -697,6 +848,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             type="email"
             value={data.invoice_email}
             onChange={(e) => onChange({ ...data, invoice_email: e.target.value })}
+            disabled={isSaving}
           />
         </div>
 
@@ -707,6 +859,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             id="invoice_street"
             value={data.invoice_street}
             onChange={(e) => onChange({ ...data, invoice_street: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="sm:col-span-2 grid grid-cols-2 gap-4">
@@ -716,6 +869,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
               id="invoice_house-nr"
               value={data["invoice_house-nr"]}
               onChange={(e) => onChange({ ...data, "invoice_house-nr": e.target.value })}
+              disabled={isSaving}
             />
           </div>
           <div className="space-y-2">
@@ -724,6 +878,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
               id="invoice_house-nr-add"
               value={data["invoice_house-nr-add"]}
               onChange={(e) => onChange({ ...data, "invoice_house-nr-add": e.target.value })}
+              disabled={isSaving}
             />
           </div>
         </div>
@@ -735,6 +890,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             id="invoice_postal-code"
             value={data["invoice_postal-code"]}
             onChange={(e) => onChange({ ...data, "invoice_postal-code": e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
@@ -743,6 +899,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             id="invoice_city"
             value={data.invoice_city}
             onChange={(e) => onChange({ ...data, invoice_city: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
@@ -751,6 +908,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
             id="invoice_country"
             value={data.invoice_country}
             onChange={(e) => onChange({ ...data, invoice_country: e.target.value })}
+            disabled={isSaving}
           >
             <option value="">Selecteer een land</option>
             {countries.map((country) => (
@@ -761,7 +919,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel }: BillingDataFormPr
           </Select>
         </div>
       </div>
-      <FormActions onSave={onSave} onCancel={onCancel} />
+      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
@@ -771,6 +929,7 @@ interface WebsiteDataFormProps {
   onChange: (data: WebsiteData) => void
   onSave: () => void
   onCancel: () => void
+  isSaving?: boolean
 }
 
 function WebsiteDataForm({ 
@@ -778,6 +937,7 @@ function WebsiteDataForm({
   onChange, 
   onSave, 
   onCancel,
+  isSaving,
 }: WebsiteDataFormProps) {
   return (
     <div className="space-y-6">
@@ -789,6 +949,7 @@ function WebsiteDataForm({
             id="display_name"
             value={data.display_name}
             onChange={(e) => onChange({ ...data, display_name: e.target.value })}
+            disabled={isSaving}
           />
         </div>
         <div className="space-y-2">
@@ -797,6 +958,7 @@ function WebsiteDataForm({
             id="sector"
             value={data.sector}
             onChange={(e) => onChange({ ...data, sector: e.target.value })}
+            disabled={isSaving}
           />
         </div>
       </div>
@@ -809,70 +971,59 @@ function WebsiteDataForm({
           rows={4}
           value={data.short_description}
           onChange={(e) => onChange({ ...data, short_description: e.target.value })}
+          disabled={isSaving}
         />
       </div>
 
-      {/* Image uploads */}
+      <hr className="border-[#E8EEF2]" />
+
+      {/* Image uploads - read-only preview, editing via Media Library */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label>Logo *</Label>
+          <Label>Logo</Label>
           <div className="flex items-center gap-1.5">
             {data.logo ? (
-              <div className="relative group">
-                <img src={data.logo} alt="Logo" className="h-12 w-12 rounded object-cover" />
-                <button
-                  type="button"
-                  onClick={() => onChange({ ...data, logo: null })}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </div>
+              <img src={data.logo} alt="Logo" className="h-12 w-12 rounded object-cover" />
             ) : (
-              <button
-                type="button"
-                className="h-12 w-12 rounded border-2 border-dashed border-slate-300 hover:border-[#193DAB] flex items-center justify-center text-slate-400 hover:text-[#193DAB] transition-colors"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+              <p className="text-[#1F2D58]/40 italic text-sm">Geen logo</p>
             )}
           </div>
         </div>
         <div className="space-y-2">
-          <Label>Headerbeeld *</Label>
+          <Label>Headerbeeld</Label>
           <div className="flex items-center gap-1.5">
             {data.header_image ? (
-              <div className="relative group">
-                <img src={data.header_image} alt="Header" className="h-12 w-12 rounded object-cover" />
-                <button
-                  type="button"
-                  onClick={() => onChange({ ...data, header_image: null })}
-                  className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-2.5 w-2.5" />
-                </button>
-              </div>
+              <img src={data.header_image} alt="Header" className="h-12 w-32 rounded object-cover" />
             ) : (
-              <button
-                type="button"
-                className="h-12 w-12 rounded border-2 border-dashed border-slate-300 hover:border-[#193DAB] flex items-center justify-center text-slate-400 hover:text-[#193DAB] transition-colors"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+              <p className="text-[#1F2D58]/40 italic text-sm">Geen headerbeeld</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Gallery */}
-      <GalleryUpload
-        images={data.gallery_images}
-        onChange={(images) => onChange({ ...data, gallery_images: images })}
-      />
+      {/* Gallery - read-only preview */}
+      <div className="space-y-2">
+        <Label>Afbeeldingen gallery</Label>
+        {data.gallery_images.length > 0 ? (
+          <div className="flex items-end gap-1.5 flex-wrap">
+            {data.gallery_images.map((img) => (
+              <img key={img.id} src={img.url} alt="Gallery" className="h-12 max-w-24 rounded object-contain" />
+            ))}
+          </div>
+        ) : (
+          <p className="text-[#1F2D58]/40 italic text-sm">Geen afbeeldingen</p>
+        )}
+      </div>
+
+      {/* Media Library link */}
+      <p className="text-sm text-[#1F2D58]/60">
+        Beheer via{" "}
+        <Link href="/dashboard/media-library" className="text-[#193DAB] underline hover:text-[#1F2D58]">
+          Media Library
+        </Link>
+      </p>
+
+      <hr className="border-[#E8EEF2]" />
 
       {/* Video URL */}
       <div className="space-y-2">
@@ -883,124 +1034,29 @@ function WebsiteDataForm({
           placeholder="https://www.youtube.com/watch?v=..."
           value={data.video_url}
           onChange={(e) => onChange({ ...data, video_url: e.target.value })}
+          disabled={isSaving}
         />
       </div>
 
-      {/* FAQ Builder */}
-      <FAQBuilder
-        items={data.faq}
-        onChange={(faq) => onChange({ ...data, faq })}
-      />
-
-      <FormActions onSave={onSave} onCancel={onCancel} />
-    </div>
-  )
-}
-
-// ============================================
-// GALLERY UPLOAD COMPONENT
-// ============================================
-
-interface GalleryUploadProps {
-  images: string[]
-  onChange: (images: string[]) => void
-}
-
-function GalleryUpload({ images, onChange }: GalleryUploadProps) {
-  const removeImage = (index: number) => {
-    onChange(images.filter((_, i) => i !== index))
-  }
-
-  return (
-    <div className="space-y-2">
-      <Label>Afbeeldingen gallery</Label>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {images.map((img, i) => (
-          <div key={i} className="relative group">
-            <img src={img} alt={`Gallery ${i + 1}`} className="h-12 w-12 rounded object-cover" />
-            <button
-              type="button"
-              onClick={() => removeImage(i)}
-              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <X className="h-2.5 w-2.5" />
-            </button>
+      {/* FAQ Builder - read-only for now, will be editable via separate flow */}
+      <div className="space-y-2">
+        <Label>Veelgestelde vragen</Label>
+        {data.faq.length > 0 ? (
+          <div className="space-y-2">
+            {data.faq.map((item, i) => (
+              <div key={item.id || i} className="bg-[#E8EEF2] rounded-lg p-4">
+                <p className="font-medium text-[#1F2D58]">{item.question}</p>
+                <p className="text-sm text-[#1F2D58]/70 mt-1">{item.answer}</p>
+              </div>
+            ))}
           </div>
-        ))}
-        {/* Add button */}
-        <button
-          type="button"
-          className="h-12 w-12 rounded border-2 border-dashed border-slate-300 hover:border-[#193DAB] flex items-center justify-center text-slate-400 hover:text-[#193DAB] transition-colors"
-        >
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+        ) : (
+          <p className="text-[#1F2D58]/40 italic text-sm">Geen veelgestelde vragen</p>
+        )}
       </div>
+
+      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
 
-
-// ============================================
-// FAQ BUILDER COMPONENT
-// ============================================
-
-interface FAQBuilderProps {
-  items: { question: string; answer: string }[]
-  onChange: (items: { question: string; answer: string }[]) => void
-}
-
-function FAQBuilder({ items, onChange }: FAQBuilderProps) {
-  const addItem = () => {
-    onChange([...items, { question: "", answer: "" }])
-  }
-
-  const updateItem = (index: number, field: "question" | "answer", value: string) => {
-    const newItems = [...items]
-    newItems[index] = { ...newItems[index], [field]: value }
-    onChange(newItems)
-  }
-
-  const removeItem = (index: number) => {
-    onChange(items.filter((_, i) => i !== index))
-  }
-
-  return (
-    <div className="space-y-3">
-      <Label>Veelgestelde vragen</Label>
-      {items.map((item, i) => (
-        <div key={i} className="bg-[#E8EEF2] rounded-lg p-4 space-y-3">
-          <div className="flex justify-between items-center gap-2">
-            <div className="flex-1">
-              <Input
-                placeholder="Vraag"
-                value={item.question}
-                onChange={(e) => updateItem(i, "question", e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => removeItem(i)}
-              className="flex-shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#1F2D58] hover:bg-[#1F2D58]/10 transition-colors"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <Textarea
-            placeholder="Antwoord"
-            rows={2}
-            value={item.answer}
-            onChange={(e) => updateItem(i, "answer", e.target.value)}
-          />
-        </div>
-      ))}
-      <Button type="button" variant="secondary" onClick={addItem} showArrow={false}>
-        <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-        Vraag toevoegen
-      </Button>
-    </div>
-  )
-}

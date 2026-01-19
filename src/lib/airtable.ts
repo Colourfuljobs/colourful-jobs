@@ -51,12 +51,33 @@ export const employerRecordSchema = z.object({
   sector: z.string().optional(),
   location: z.string().optional(),
   short_description: z.string().optional(),
-  logo: z.array(z.any()).optional(),
-  "logo_alt-text": z.string().optional(),
-  header_image: z.array(z.any()).optional(),
-  "header_image_alt-text": z.string().optional(),
+  logo: z.array(z.string()).optional(), // Linked record to Media Assets
+  header_image: z.array(z.string()).optional(), // Linked record to Media Assets
+  gallery: z.array(z.string()).optional(), // Linked records to Media Assets
+  video_url: z.string().optional(), // YouTube or Vimeo URL for company page
   status: z.enum(["draft", "active"]).default("draft"),
   role: z.array(z.string()).optional(), // Linked record to Roles table
+});
+
+export const mediaAssetRecordSchema = z.object({
+  id: z.string(),
+  employer_id: z.string().nullable().optional(), // Linked record to Employers
+  type: z.enum(["logo", "sfeerbeeld"]),
+  file: z.array(z.any()).optional(), // Airtable attachment
+  alt_text: z.union([z.string(), z.any()]).optional(), // Can be string or lookup field
+  file_size: z.number().optional(),
+  show_on_company_page: z.boolean().default(false),
+  is_deleted: z.boolean().default(false),
+  "created-at": z.string().optional(),
+});
+
+export const faqRecordSchema = z.object({
+  id: z.string(),
+  employer_id: z.string().nullable().optional(), // Linked record to Employers
+  question: z.string(),
+  answer: z.string(),
+  order: z.number().default(0),
+  "created-at": z.string().optional(),
 });
 
 export const walletRecordSchema = z.object({
@@ -65,18 +86,51 @@ export const walletRecordSchema = z.object({
   owner_user: z.string().nullable().optional(), // Linked record to Users
   owner_type: z.enum(["employer", "user"]).default("employer"),
   balance: z.number().int().default(0),
+  total_purchased: z.number().int().default(0),
+  total_spent: z.number().int().default(0),
   "created-at": z.string().optional(),
   "last-updated": z.string().optional(),
+});
+
+// Airtable attachment object schema
+const airtableAttachmentSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  filename: z.string(),
+  size: z.number().optional(),
+  type: z.string().optional(),
+});
+
+export const transactionRecordSchema = z.object({
+  id: z.string(),
+  employer_id: z.string().nullable().optional(), // Linked record to Employers
+  wallet_id: z.string().nullable().optional(), // Linked record to Wallets
+  vacancy_id: z.string().nullable().optional(), // Linked record to Vacancies
+  user_id: z.string().nullable().optional(), // Linked record to Users
+  type: z.enum(["purchase", "spend", "refund", "adjustment"]),
+  reference_type: z.enum(["vacancy", "order", "admin", "system"]).nullable().optional(),
+  status: z.enum(["paid", "failed", "refunded", "open"]),
+  money_amount: z.number().nullable().optional(),
+  credits_amount: z.number().int(),
+  vacancy_name: z.string().nullable().optional(), // Lookup field from Vacancies
+  invoice: z.array(airtableAttachmentSchema).nullable().optional(), // Attachment field
+  "created-at": z.string().optional(),
 });
 
 type UserRecord = z.infer<typeof userRecordSchema>;
 type EmployerRecord = z.infer<typeof employerRecordSchema>;
 type WalletRecord = z.infer<typeof walletRecordSchema>;
+export type TransactionRecord = z.infer<typeof transactionRecordSchema>;
+export type MediaAssetRecord = z.infer<typeof mediaAssetRecordSchema>;
+export type FAQRecord = z.infer<typeof faqRecordSchema>;
 
 const USERS_TABLE = process.env.AIRTABLE_USERS_TABLE || "Users";
 const EMPLOYERS_TABLE = process.env.AIRTABLE_EMPLOYERS_TABLE || "Employers";
 const WALLETS_TABLE = process.env.AIRTABLE_WALLETS_TABLE || "Wallets";
 const ROLES_TABLE = process.env.AIRTABLE_ROLES_TABLE || "Roles";
+const TRANSACTIONS_TABLE = process.env.AIRTABLE_TRANSACTIONS_TABLE || "Transactions";
+const MEDIA_ASSETS_TABLE = process.env.AIRTABLE_MEDIA_ASSETS_TABLE || "Media Assets";
+const FAQ_TABLE = process.env.AIRTABLE_FAQ_TABLE || "FAQ";
 
 // Cache for the employer role ID (so we don't query Airtable every time)
 let cachedEmployerRoleId: string | null = null;
@@ -229,10 +283,11 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
   if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
+  // Linked records to Media Assets (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
-  if (fields["logo_alt-text"] !== undefined) airtableFields["logo_alt-text"] = fields["logo_alt-text"];
   if (fields.header_image !== undefined) airtableFields.header_image = fields.header_image;
-  if (fields["header_image_alt-text"] !== undefined) airtableFields["header_image_alt-text"] = fields["header_image_alt-text"];
+  if (fields.gallery !== undefined) airtableFields.gallery = fields.gallery;
+  if (fields.video_url !== undefined) airtableFields.video_url = fields.video_url;
 
   try {
     const record = await base(EMPLOYERS_TABLE).create(airtableFields);
@@ -286,10 +341,11 @@ export async function updateEmployer(
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
   if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
+  // Linked records to Media Assets (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
-  if (fields["logo_alt-text"] !== undefined) airtableFields["logo_alt-text"] = fields["logo_alt-text"];
   if (fields.header_image !== undefined) airtableFields.header_image = fields.header_image;
-  if (fields["header_image_alt-text"] !== undefined) airtableFields["header_image_alt-text"] = fields["header_image_alt-text"];
+  if (fields.gallery !== undefined) airtableFields.gallery = fields.gallery;
+  if (fields.video_url !== undefined) airtableFields.video_url = fields.video_url;
   if (fields.status !== undefined) airtableFields.status = fields.status;
 
   const record = await base(EMPLOYERS_TABLE).update(id, airtableFields);
@@ -376,9 +432,19 @@ export async function getEmployerById(id: string): Promise<EmployerRecord | null
 
     if (!record) return null;
 
+    const fields = record.fields;
+    
+    // Extract linked record IDs (Airtable returns arrays for linked records)
+    const logo = Array.isArray(fields.logo) ? fields.logo : [];
+    const header_image = Array.isArray(fields.header_image) ? fields.header_image : [];
+    const gallery = Array.isArray(fields.gallery) ? fields.gallery : [];
+
     return employerRecordSchema.parse({
       id: record.id,
-      ...record.fields,
+      ...fields,
+      logo,
+      header_image,
+      gallery,
     });
   } catch (error: unknown) {
     console.error("Error getting employer by ID:", getErrorMessage(error));
@@ -514,5 +580,453 @@ export async function deleteWalletByEmployerId(employerId: string): Promise<void
   } catch (error: unknown) {
     console.error("Error deleting wallet by employer ID:", getErrorMessage(error));
     throw new Error(`Failed to delete wallet: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Get all transactions for an employer
+ * Returns transactions sorted by created-at date (newest first)
+ */
+export async function getTransactionsByEmployerId(employerId: string): Promise<TransactionRecord[]> {
+  if (!baseId || !apiKey) {
+    console.log("[Transactions] Airtable not configured");
+    return [];
+  }
+
+  try {
+    console.log("[Transactions] Fetching for employer:", employerId);
+    console.log("[Transactions] Using table:", TRANSACTIONS_TABLE);
+    
+    const records = await base(TRANSACTIONS_TABLE)
+      .select({
+        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`,
+        sort: [{ field: "created-at", direction: "desc" }],
+      })
+      .all();
+    
+    console.log("[Transactions] Raw records found:", records.length);
+    if (records.length > 0) {
+      console.log("[Transactions] First record fields:", Object.keys(records[0].fields));
+    }
+
+    return records.map((record) => {
+      const fields = record.fields;
+      
+      // Extract linked record IDs from arrays
+      const employer_id = Array.isArray(fields.employer)
+        ? fields.employer[0] || null
+        : fields.employer || null;
+      const wallet_id = Array.isArray(fields.wallet)
+        ? fields.wallet[0] || null
+        : fields.wallet || null;
+      const vacancy_id = Array.isArray(fields.vacancy)
+        ? fields.vacancy[0] || null
+        : fields.vacancy || null;
+
+      return transactionRecordSchema.parse({
+        id: record.id,
+        employer_id,
+        wallet_id,
+        vacancy_id,
+        user_id: null, // Not used in this table
+        type: fields.type,
+        reference_type: fields.reference_type || null,
+        status: fields.status,
+        money_amount: fields.money_amount || null,
+        credits_amount: fields.credits_amount || 0,
+        vacancy_name: fields.vacancy_name || null,
+        invoice: fields.invoice || null,
+        "created-at": fields["created-at"] as string | undefined,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("[Transactions] Error:", getErrorMessage(error));
+    console.error("[Transactions] Full error:", error);
+    return [];
+  }
+}
+
+// ============================================
+// MEDIA ASSETS FUNCTIONS
+// ============================================
+
+/**
+ * Get a media asset by ID
+ * Returns the media asset or null if not found
+ */
+export async function getMediaAssetById(id: string): Promise<MediaAssetRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const record = await base(MEDIA_ASSETS_TABLE).find(id);
+
+    if (!record) return null;
+
+    const fields = record.fields;
+    const employer_id = Array.isArray(fields.employer)
+      ? fields.employer[0] || null
+      : fields.employer || null;
+
+    // Handle alt_text which can be a string, array (lookup), or undefined
+    let alt_text = "";
+    if (typeof fields.alt_text === "string") {
+      alt_text = fields.alt_text;
+    } else if (Array.isArray(fields.alt_text) && fields.alt_text.length > 0) {
+      alt_text = String(fields.alt_text[0]);
+    }
+
+    return mediaAssetRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      type: fields.type,
+      file: fields.file || [],
+      alt_text,
+      file_size: fields.file_size || 0,
+      show_on_company_page: fields.show_on_company_page || false,
+      is_deleted: fields.is_deleted || false,
+      "created-at": fields["created-at"] as string | undefined,
+    });
+  } catch (error: unknown) {
+    console.error("Error getting media asset by ID:", getErrorMessage(error));
+    return null;
+  }
+}
+
+/**
+ * Get multiple media assets by IDs
+ * Returns the media assets (in no particular order)
+ */
+export async function getMediaAssetsByIds(ids: string[]): Promise<MediaAssetRecord[]> {
+  if (!baseId || !apiKey || ids.length === 0) {
+    return [];
+  }
+
+  try {
+    const results: MediaAssetRecord[] = [];
+    
+    // Fetch each record individually (Airtable doesn't have a batch find)
+    for (const id of ids) {
+      const asset = await getMediaAssetById(id);
+      if (asset && !asset.is_deleted) {
+        results.push(asset);
+      }
+    }
+    
+    return results;
+  } catch (error: unknown) {
+    console.error("Error getting media assets by IDs:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Get all media assets for an employer
+ * Returns media assets sorted by created-at date (newest first)
+ * Optionally filter by type and exclude deleted assets
+ */
+export async function getMediaAssetsByEmployerId(
+  employerId: string,
+  options?: { type?: MediaAssetRecord["type"]; includeDeleted?: boolean }
+): Promise<MediaAssetRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    let filterFormula = `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`;
+    
+    // Add type filter if specified
+    if (options?.type) {
+      filterFormula = `AND(${filterFormula}, {type} = '${options.type}')`;
+    }
+    
+    // Exclude deleted assets by default
+    if (!options?.includeDeleted) {
+      filterFormula = `AND(${filterFormula}, NOT({is_deleted}))`;
+    }
+
+    const records = await base(MEDIA_ASSETS_TABLE)
+      .select({
+        filterByFormula: filterFormula,
+        sort: [{ field: "created-at", direction: "desc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      
+      // Extract linked record ID from array
+      const employer_id = Array.isArray(fields.employer)
+        ? fields.employer[0] || null
+        : fields.employer || null;
+
+      // Handle alt_text which can be a string, array (lookup), or undefined
+      let alt_text = "";
+      if (typeof fields.alt_text === "string") {
+        alt_text = fields.alt_text;
+      } else if (Array.isArray(fields.alt_text) && fields.alt_text.length > 0) {
+        alt_text = String(fields.alt_text[0]);
+      }
+
+      return mediaAssetRecordSchema.parse({
+        id: record.id,
+        employer_id,
+        type: fields.type,
+        file: fields.file || [],
+        alt_text,
+        file_size: fields.file_size || 0,
+        show_on_company_page: fields.show_on_company_page || false,
+        is_deleted: fields.is_deleted || false,
+        "created-at": fields["created-at"] as string | undefined,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting media assets by employer ID:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Create a new media asset
+ */
+export async function createMediaAsset(fields: {
+  employer_id: string;
+  type: MediaAssetRecord["type"];
+  file?: any[];
+  alt_text?: string;
+  file_size?: number;
+  show_on_company_page?: boolean;
+}): Promise<MediaAssetRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    employer: [fields.employer_id], // Linked record requires array
+    type: fields.type,
+    is_deleted: false,
+    "created-at": new Date().toISOString(),
+  };
+
+  if (fields.file) airtableFields.file = fields.file;
+  // Only send alt_text if it's a non-empty string
+  if (fields.alt_text && typeof fields.alt_text === "string" && fields.alt_text.trim().length > 0) {
+    airtableFields.alt_text = fields.alt_text.trim();
+  }
+  if (fields.file_size !== undefined) airtableFields.file_size = fields.file_size;
+  if (fields.show_on_company_page !== undefined) airtableFields.show_on_company_page = fields.show_on_company_page;
+
+  try {
+    const record = await base(MEDIA_ASSETS_TABLE).create(airtableFields);
+
+    const recordFields = record.fields;
+    const employer_id = Array.isArray(recordFields.employer)
+      ? recordFields.employer[0] || null
+      : recordFields.employer || null;
+
+    return mediaAssetRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      type: recordFields.type,
+      file: recordFields.file || [],
+      alt_text: recordFields.alt_text || "",
+      file_size: recordFields.file_size || 0,
+      show_on_company_page: recordFields.show_on_company_page || false,
+      is_deleted: recordFields.is_deleted || false,
+      "created-at": recordFields["created-at"] as string | undefined,
+    });
+  } catch (error: unknown) {
+    console.error("Error creating media asset:", getErrorMessage(error));
+    throw new Error(`Failed to create media asset: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Update a media asset
+ */
+export async function updateMediaAsset(
+  id: string,
+  fields: Partial<Omit<MediaAssetRecord, "id" | "employer_id">>
+): Promise<MediaAssetRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {};
+
+  if (fields.type !== undefined) airtableFields.type = fields.type;
+  if (fields.file !== undefined) airtableFields.file = fields.file;
+  if (fields.alt_text !== undefined) airtableFields.alt_text = fields.alt_text;
+  if (fields.file_size !== undefined) airtableFields.file_size = fields.file_size;
+  if (fields.show_on_company_page !== undefined) airtableFields.show_on_company_page = fields.show_on_company_page;
+  if (fields.is_deleted !== undefined) airtableFields.is_deleted = fields.is_deleted;
+
+  const record = await base(MEDIA_ASSETS_TABLE).update(id, airtableFields);
+
+  const recordFields = record.fields;
+  const employer_id = Array.isArray(recordFields.employer)
+    ? recordFields.employer[0] || null
+    : recordFields.employer || null;
+
+  return mediaAssetRecordSchema.parse({
+    id: record.id,
+    employer_id,
+    type: recordFields.type,
+    file: recordFields.file || [],
+    alt_text: recordFields.alt_text || "",
+    file_size: recordFields.file_size || 0,
+    show_on_company_page: recordFields.show_on_company_page || false,
+    is_deleted: recordFields.is_deleted || false,
+    "created-at": recordFields["created-at"] as string | undefined,
+  });
+}
+
+/**
+ * Soft delete a media asset (sets is_deleted to true)
+ */
+export async function deleteMediaAsset(id: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  await updateMediaAsset(id, { is_deleted: true });
+}
+
+// ============================================
+// FAQ FUNCTIONS
+// ============================================
+
+/**
+ * Get all FAQ items for an employer
+ * Returns FAQ items sorted by order field
+ */
+export async function getFAQByEmployerId(employerId: string): Promise<FAQRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const records = await base(FAQ_TABLE)
+      .select({
+        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`,
+        sort: [{ field: "order", direction: "asc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      
+      // Extract linked record ID from array
+      const employer_id = Array.isArray(fields.employer)
+        ? fields.employer[0] || null
+        : fields.employer || null;
+
+      return faqRecordSchema.parse({
+        id: record.id,
+        employer_id,
+        question: fields.question || "",
+        answer: fields.answer || "",
+        order: fields.order || 0,
+        "created-at": fields["created-at"] as string | undefined,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting FAQ by employer ID:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Create a new FAQ item
+ */
+export async function createFAQ(fields: {
+  employer_id: string;
+  question: string;
+  answer: string;
+  order?: number;
+}): Promise<FAQRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    employer: [fields.employer_id], // Linked record requires array
+    question: fields.question,
+    answer: fields.answer,
+    order: fields.order ?? 0,
+    "created-at": new Date().toISOString(),
+  };
+
+  try {
+    const record = await base(FAQ_TABLE).create(airtableFields);
+
+    const recordFields = record.fields;
+    const employer_id = Array.isArray(recordFields.employer)
+      ? recordFields.employer[0] || null
+      : recordFields.employer || null;
+
+    return faqRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      question: recordFields.question || "",
+      answer: recordFields.answer || "",
+      order: recordFields.order || 0,
+      "created-at": recordFields["created-at"] as string | undefined,
+    });
+  } catch (error: unknown) {
+    console.error("Error creating FAQ:", getErrorMessage(error));
+    throw new Error(`Failed to create FAQ: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Update a FAQ item
+ */
+export async function updateFAQ(
+  id: string,
+  fields: Partial<Omit<FAQRecord, "id" | "employer_id">>
+): Promise<FAQRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {};
+
+  if (fields.question !== undefined) airtableFields.question = fields.question;
+  if (fields.answer !== undefined) airtableFields.answer = fields.answer;
+  if (fields.order !== undefined) airtableFields.order = fields.order;
+
+  const record = await base(FAQ_TABLE).update(id, airtableFields);
+
+  const recordFields = record.fields;
+  const employer_id = Array.isArray(recordFields.employer)
+    ? recordFields.employer[0] || null
+    : recordFields.employer || null;
+
+  return faqRecordSchema.parse({
+    id: record.id,
+    employer_id,
+    question: recordFields.question || "",
+    answer: recordFields.answer || "",
+    order: recordFields.order || 0,
+    "created-at": recordFields["created-at"] as string | undefined,
+  });
+}
+
+/**
+ * Delete a FAQ item permanently
+ */
+export async function deleteFAQ(id: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    await base(FAQ_TABLE).destroy(id);
+  } catch (error: unknown) {
+    console.error("Error deleting FAQ:", getErrorMessage(error));
+    throw new Error(`Failed to delete FAQ: ${getErrorMessage(error)}`);
   }
 }

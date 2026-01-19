@@ -1,5 +1,5 @@
 import { authOptions } from "@/lib/auth";
-import { createEmployer, createUser, createWallet, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, deleteUser, deleteEmployer, deleteWalletByEmployerId } from "@/lib/airtable";
+import { createEmployer, createUser, createWallet, updateEmployer, updateUser, getUserByEmail, getEmployerByKVK, getEmployerById, deleteUser, deleteEmployer, deleteWalletByEmployerId, deleteMediaAsset } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage } from "@/lib/utils";
 import { checkRateLimit, onboardingRateLimiter, getIdentifier } from "@/lib/rate-limit";
@@ -393,9 +393,30 @@ export async function DELETE(request: Request) {
       },
     });
 
-    // Delete the wallet and employer (if exists)
+    // Delete the wallet, media assets, and employer (if exists)
     if (user.employer_id) {
-      // Delete wallet first (if any)
+      // Get employer to find linked media assets
+      const employer = await getEmployerById(user.employer_id);
+      
+      // Soft delete linked media assets (logo, header, gallery)
+      if (employer) {
+        const mediaAssetIds = [
+          ...(employer.logo || []),
+          ...(employer.header_image || []),
+          ...(employer.gallery || []),
+        ];
+        
+        for (const assetId of mediaAssetIds) {
+          try {
+            await deleteMediaAsset(assetId);
+          } catch (error) {
+            console.error("Error deleting media asset:", assetId, error);
+            // Continue even if media deletion fails
+          }
+        }
+      }
+      
+      // Delete wallet (if any)
       try {
         await deleteWalletByEmployerId(user.employer_id);
       } catch (error) {

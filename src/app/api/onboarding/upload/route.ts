@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { updateEmployer, getUserByEmail } from "@/lib/airtable";
+import {
+  getUserByEmail,
+  getEmployerById,
+  createMediaAsset,
+  deleteMediaAsset,
+  updateEmployer,
+} from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage } from "@/lib/utils";
+import { generateAltText } from "@/lib/image-processing";
 import { v2 as cloudinary } from "cloudinary";
 
 // Configure Cloudinary
@@ -104,9 +111,6 @@ export async function POST(request: NextRequest) {
     const base64Data = buffer.toString("base64");
     const dataUri = `data:${file.type};base64,${base64Data}`;
 
-    // Generate alt text
-    const altText = generateAltText(type, companyData);
-
     // Upload to Cloudinary with automatic optimization
     // For SVG files, skip transformations to preserve vector quality
     const isSvg = file.type === "image/svg+xml";
@@ -140,21 +144,52 @@ export async function POST(request: NextRequest) {
           secure: true,
         });
 
-    // Store in Airtable - both the URL (as attachment) and alt text
-    // Note: In Airtable, header field is called "header_image"
-    try {
-      const airtableFieldName = type === "header" ? "header_image" : type;
-      const updateFields: Record<string, any> = {
-        [`${airtableFieldName}_alt-text`]: altText,
-        // Airtable attachment format requires an array of objects with url
-        [airtableFieldName]: [{ url: uploadResult.secure_url }],
-      };
+    // Get employer to check for existing media and get company data for alt text
+    const employer = await getEmployerById(employerId!);
 
-      await updateEmployer(employerId!, updateFields);
-    } catch (airtableError: any) {
-      console.error("Error updating Airtable:", airtableError);
-      // Still return success - the image is uploaded to Cloudinary
-      // We can retry Airtable update later if needed
+    // Generate alt text using shared function for consistency
+    const altText = generateAltText(type === "header" ? "header" : "logo", {
+      display_name: employer?.display_name || companyData.display_name,
+      company_name: employer?.company_name || companyData.company_name,
+      sector: employer?.sector || companyData.sector,
+    });
+
+    // If replacing existing media, soft delete the old one
+    const existingMediaId = type === "logo" 
+      ? employer?.logo?.[0] 
+      : employer?.header_image?.[0];
+    
+    if (existingMediaId) {
+      try {
+        await deleteMediaAsset(existingMediaId);
+      } catch (deleteError) {
+        console.error("Error deleting old media asset:", deleteError);
+        // Continue even if deletion fails
+      }
+    }
+
+    // Create Media Asset record in Airtable
+    // Note: header images use type "sfeerbeeld" in Media Assets table
+    const mediaAsset = await createMediaAsset({
+      employer_id: employerId!,
+      type: type === "logo" ? "logo" : "sfeerbeeld",
+      file: [{ url: uploadResult.secure_url }],
+      alt_text: altText,
+      file_size: Math.round(uploadResult.bytes / 1024), // Convert to KB
+      show_on_company_page: false,
+    });
+
+    // Update Employer with linked record to Media Asset
+    if (type === "logo") {
+      await updateEmployer(employerId!, { logo: [mediaAsset.id] });
+    } else {
+      // Header: add to gallery AND set as header_image
+      // This ensures the image appears in the media library gallery
+      const currentGallery = employer?.gallery || [];
+      await updateEmployer(employerId!, { 
+        gallery: [...currentGallery, mediaAsset.id],
+        header_image: [mediaAsset.id] 
+      });
     }
 
     // Log media_uploaded event
@@ -166,6 +201,7 @@ export async function POST(request: NextRequest) {
       ip_address: clientIP,
       payload: {
         type,
+        media_asset_id: mediaAsset.id,
         public_id: uploadResult.public_id,
         url: uploadResult.secure_url,
       },
@@ -177,6 +213,7 @@ export async function POST(request: NextRequest) {
       optimizedUrl, // URL with automatic format optimization
       altText,
       publicId: uploadResult.public_id,
+      mediaAssetId: mediaAsset.id,
     });
   } catch (error: unknown) {
     console.error("Error uploading image:", getErrorMessage(error));
@@ -195,20 +232,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Generate alt text based on image type and company data
-interface CompanyDataForAltText {
-  display_name?: string;
-  company_name?: string;
-  sector?: string;
-}
-
-function generateAltText(type: "logo" | "header", companyData: CompanyDataForAltText): string {
-  const companyName = companyData.display_name || companyData.company_name || "Bedrijf";
-  
-  if (type === "logo") {
-    return `Logo van ${companyName}`;
-  } else {
-    const sector = companyData.sector ? ` in de ${companyData.sector} sector` : "";
-    return `Header afbeelding van ${companyName}${sector}`;
-  }
-}
