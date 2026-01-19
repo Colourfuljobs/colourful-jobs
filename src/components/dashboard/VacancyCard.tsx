@@ -191,7 +191,7 @@ export function VacancyCard({
           {/* Left side: Title and status */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <h4 className="font-semibold text-[#1F2D58]">{title}</h4>
+              <h4 className="font-bold text-[#1F2D58]">{title}</h4>
               <Badge variant={config.variant}>
                 {config.label}
               </Badge>
@@ -265,7 +265,7 @@ export function VacancyCard({
           {/* Left side: Title and status */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h4 className="font-semibold text-[#1F2D58]">{title}</h4>
+              <h4 className="font-bold text-[#1F2D58]">{title}</h4>
               <Badge variant={config.variant}>
                 {config.label}
               </Badge>

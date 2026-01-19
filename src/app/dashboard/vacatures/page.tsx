@@ -6,11 +6,17 @@ import {
   AlertTriangle,
   Briefcase,
   ChevronDown,
-  Check,
+  Coins,
+  Pencil,
+  Eye,
+  Rocket,
+  Upload,
+  Copy,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import {
   Empty,
   EmptyHeader,
@@ -19,13 +25,27 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "@/components/ui/empty"
-import { VacancyCard, VacancyCardSkeleton, VacancyStatus } from "@/components/dashboard/VacancyCard"
+import { VacancyStatus } from "@/components/dashboard/VacancyCard"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Filter status options (excluding gepubliceerd which is in separate section)
 const filterStatuses: { value: VacancyStatus; label: string }[] = [
@@ -34,6 +54,133 @@ const filterStatuses: { value: VacancyStatus; label: string }[] = [
   { value: "verlopen", label: "Verlopen" },
   { value: "gedepubliceerd", label: "Gedepubliceerd" },
 ]
+
+// Status configuration
+const statusConfig: Record<VacancyStatus, {
+  label: string
+  variant: "muted" | "info" | "success" | "warning" | "error"
+  showCredits: boolean
+  creditMessage?: string
+}> = {
+  concept: {
+    label: "Concept",
+    variant: "muted",
+    showCredits: false,
+  },
+  incompleet: {
+    label: "Incompleet",
+    variant: "muted",
+    showCredits: true,
+  },
+  wacht_op_goedkeuring: {
+    label: "Wacht op goedkeuring",
+    variant: "info",
+    showCredits: true,
+  },
+  gepubliceerd: {
+    label: "Gepubliceerd",
+    variant: "success",
+    showCredits: true,
+  },
+  verlopen: {
+    label: "Verlopen",
+    variant: "warning",
+    showCredits: true,
+    creditMessage: "Deze vacature is verlopen. Boost om de vacature weer actief te maken.",
+  },
+  gedepubliceerd: {
+    label: "Gedepubliceerd",
+    variant: "error",
+    showCredits: true,
+  },
+}
+
+// Actions per status
+const actionsPerStatus: Record<VacancyStatus, Array<{
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "dupliceren"
+  iconOnly?: boolean
+}>> = {
+  concept: [
+    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
+  ],
+  incompleet: [
+    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
+  ],
+  wacht_op_goedkeuring: [
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
+  ],
+  gepubliceerd: [
+    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
+    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
+  ],
+  verlopen: [
+    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
+    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
+    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
+  ],
+  gedepubliceerd: [
+    { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
+    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
+  ],
+}
+
+// Helper function to calculate days remaining
+function getDaysRemaining(closingDate: Date): number {
+  const now = new Date()
+  const diffTime = closingDate.getTime() - now.getTime()
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+}
+
+// Helper function to format date
+function formatDate(date: Date): string {
+  return date.toLocaleDateString("nl-NL", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+// Get publication info text based on status
+function getPublicationInfo(
+  status: VacancyStatus,
+  publishedAt?: Date,
+  closingDate?: Date
+): string | null {
+  switch (status) {
+    case "concept":
+    case "wacht_op_goedkeuring":
+      return "Nog niet online"
+    case "gepubliceerd":
+      if (publishedAt && closingDate) {
+        const daysRemaining = getDaysRemaining(closingDate)
+        return `${formatDate(publishedAt)} · Nog ${daysRemaining} ${daysRemaining === 1 ? "dag" : "dagen"}`
+      }
+      return null
+    case "verlopen":
+      if (publishedAt) {
+        return `${formatDate(publishedAt)} · Verlopen`
+      }
+      return null
+    case "gedepubliceerd":
+      if (publishedAt) {
+        return `${formatDate(publishedAt)} · Offline`
+      }
+      return null
+    default:
+      return null
+  }
+}
 
 // Mock data with extended vacancy info
 interface MockVacancy {
@@ -168,12 +315,14 @@ function StatusFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button 
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1F2D58] hover:text-[#1F2D58]/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F2D58] focus-visible:ring-offset-2 rounded-sm underline underline-offset-2"
+        <Button
+          variant="secondary"
+          size="sm"
+          showArrow={false}
         >
           Filter op status
           <ChevronDown className="h-4 w-4" />
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="p-2 space-y-2">
@@ -260,123 +409,300 @@ export default function VacaturesPage() {
       <h1 className="contempora-large text-[#1F2D58]">Vacatures</h1>
 
       {/* Section 1: Gepubliceerde vacatures */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-bold text-[#1F2D58]">Gepubliceerde vacatures</h2>
-        
+      <section>
         {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <VacancyCardSkeleton key={i} variant="full" />
-            ))}
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
+            </div>
+            <Table className="bg-white">
+              <TableHeader>
+                <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[1, 2, 3].map((i) => (
+                  <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         ) : publishedVacancies.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia>
-                <Briefcase />
-              </EmptyMedia>
-              <EmptyTitle>Geen gepubliceerde vacatures</EmptyTitle>
-              <EmptyDescription>
-                Je hebt nog geen actieve vacatures. Maak een nieuwe vacature aan om kandidaten te bereiken.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button showArrow={false}>
-                <Plus className="h-4 w-4 mr-1" />
-                Nieuwe vacature
-              </Button>
-            </EmptyContent>
-          </Empty>
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
+            </div>
+            <Empty className="bg-white">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Briefcase />
+                </EmptyMedia>
+                <EmptyTitle>Geen gepubliceerde vacatures</EmptyTitle>
+                <EmptyDescription>
+                  Je hebt nog geen actieve vacatures. Maak een nieuwe vacature aan om kandidaten te bereiken.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button showArrow={false}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Nieuwe vacature
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {publishedVacancies.map((vacancy) => (
-              <VacancyCard
-                key={vacancy.id}
-                id={vacancy.id}
-                title={vacancy.title}
-                status={vacancy.status}
-                creditsUsed={vacancy.creditsUsed}
-                location={vacancy.location}
-                employmentType={vacancy.employmentType}
-                publishedAt={vacancy.publishedAt}
-                closingDate={vacancy.closingDate}
-                variant="full"
-                onAction={handleVacancyAction}
-              />
-            ))}
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
+            </div>
+            <Table className="bg-white">
+              <TableHeader>
+                <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {publishedVacancies.map((vacancy) => {
+                  const config = statusConfig[vacancy.status]
+                  const actions = actionsPerStatus[vacancy.status]
+                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy.publishedAt, vacancy.closingDate)
+                  
+                  return (
+                    <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
+                      <TableCell>
+                        <span className="font-bold text-[#1F2D58]">{vacancy.title}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={config.variant}>{config.label}</Badge>
+                        {publicationInfo && (
+                          <div className="text-xs text-[#1F2D58]/60 mt-1">{publicationInfo}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {config.showCredits && (
+                          <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
+                            <Coins className="h-4 w-4" />
+                            <span>{vacancy.creditsUsed}</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {actions.filter(action => !action.iconOnly).map((action) => (
+                            <Button
+                              key={action.action}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                              className="gap-1.5 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                              showArrow={false}
+                            >
+                              <action.icon className="h-3.5 w-3.5" />
+                              {action.label}
+                            </Button>
+                          ))}
+                          {actions.filter(action => action.iconOnly).map((action) => (
+                            <Tooltip key={action.action}>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                                  className="w-[30px] h-[30px] p-0 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                                  showArrow={false}
+                                >
+                                  <action.icon className="h-4 w-4" />
+                                  <span className="sr-only">{action.label}</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{action.label}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>
 
       {/* Section 2: Overige vacatures */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="text-xl font-bold text-[#1F2D58]">Overige vacatures</h2>
-          
-          {/* Status filter */}
-          {!isLoading && otherVacancies.length > 0 && (
-            <StatusFilter
-              selectedStatuses={selectedStatuses}
-              onStatusChange={setSelectedStatuses}
-            />
-          )}
-        </div>
-        
+      <section>
         {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <VacancyCardSkeleton key={i} variant="full" />
-            ))}
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-2">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
+            </div>
+            <Table className="bg-white">
+              <TableHeader>
+                <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[1, 2, 3].map((i) => (
+                  <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         ) : otherVacancies.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia>
-                <Briefcase />
-              </EmptyMedia>
-              <EmptyTitle>Geen overige vacatures</EmptyTitle>
-              <EmptyDescription>
-                Je hebt nog geen concepten, wachtende of verlopen vacatures.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-2">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
+            </div>
+            <Empty className="bg-white">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Briefcase />
+                </EmptyMedia>
+                <EmptyTitle>Geen overige vacatures</EmptyTitle>
+                <EmptyDescription>
+                  Je hebt nog geen concepten, wachtende of verlopen vacatures.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </div>
         ) : filteredOtherVacancies.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia>
-                <Briefcase />
-              </EmptyMedia>
-              <EmptyTitle>
-                {selectedStatuses.length === 0 
-                  ? "Geen filter geselecteerd"
-                  : "Geen vacatures gevonden"
-                }
-              </EmptyTitle>
-              <EmptyDescription>
-                {selectedStatuses.length === 0 
-                  ? "Selecteer minimaal één status in de filter om vacatures te zien."
-                  : "Er zijn geen vacatures met de geselecteerde statussen."
-                }
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <div className="space-y-3">
-            {filteredOtherVacancies.map((vacancy) => (
-              <VacancyCard
-                key={vacancy.id}
-                id={vacancy.id}
-                title={vacancy.title}
-                status={vacancy.status}
-                creditsUsed={vacancy.creditsUsed}
-                location={vacancy.location}
-                employmentType={vacancy.employmentType}
-                publishedAt={vacancy.publishedAt}
-                closingDate={vacancy.closingDate}
-                variant="full"
-                onAction={handleVacancyAction}
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
+              <StatusFilter
+                selectedStatuses={selectedStatuses}
+                onStatusChange={setSelectedStatuses}
               />
-            ))}
+            </div>
+            <Empty className="bg-white">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Briefcase />
+                </EmptyMedia>
+                <EmptyTitle>
+                  {selectedStatuses.length === 0 
+                    ? "Geen filter geselecteerd"
+                    : "Geen vacatures gevonden"
+                  }
+                </EmptyTitle>
+                <EmptyDescription>
+                  {selectedStatuses.length === 0 
+                    ? "Selecteer minimaal één status in de filter om vacatures te zien."
+                    : "Er zijn geen vacatures met de geselecteerde statussen."
+                  }
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </div>
+        ) : (
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
+              <StatusFilter
+                selectedStatuses={selectedStatuses}
+                onStatusChange={setSelectedStatuses}
+              />
+            </div>
+            <Table className="bg-white">
+              <TableHeader>
+                <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOtherVacancies.map((vacancy) => {
+                  const config = statusConfig[vacancy.status]
+                  const actions = actionsPerStatus[vacancy.status]
+                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy.publishedAt, vacancy.closingDate)
+                  
+                  return (
+                    <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
+                      <TableCell>
+                        <span className="font-bold text-[#1F2D58]">{vacancy.title}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={config.variant}>{config.label}</Badge>
+                        {publicationInfo && (
+                          <div className="text-xs text-[#1F2D58]/60 mt-1">{publicationInfo}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {config.showCredits ? (
+                          <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
+                            <Coins className="h-4 w-4" />
+                            <span>{vacancy.creditsUsed}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[#1F2D58]/40">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {actions.filter(action => !action.iconOnly).map((action) => (
+                            <Button
+                              key={action.action}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                              className="gap-1.5 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                              showArrow={false}
+                            >
+                              <action.icon className="h-3.5 w-3.5" />
+                              {action.label}
+                            </Button>
+                          ))}
+                          {actions.filter(action => action.iconOnly).map((action) => (
+                            <Tooltip key={action.action}>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                                  className="w-[30px] h-[30px] p-0 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                                  showArrow={false}
+                                >
+                                  <action.icon className="h-4 w-4" />
+                                  <span className="sr-only">{action.label}</span>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{action.label}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>

@@ -5,12 +5,10 @@ import { Pencil, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { countries } from "@/lib/countries"
 
@@ -174,38 +172,36 @@ export default function GegevensPage() {
 
   // Skeleton for a card section
   const CardSkeleton = ({ title, fieldCount = 4 }: { title: string; fieldCount?: number }) => (
-    <Card className="bg-white border-none">
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
-        <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+      <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
+        <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
           {title}
-        </CardTitle>
+        </h2>
         <Skeleton className="h-8 w-24" />
-      </CardHeader>
-      <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-      <CardContent className="pt-6">
+      </div>
+      <div className="bg-white p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           {Array.from({ length: fieldCount }).map((_, i) => (
             <DataFieldSkeleton key={i} />
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 
   // Skeleton for website/bedrijfsprofiel section
   const WebsiteCardSkeleton = () => (
-    <Card className="bg-white border-none">
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
+    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+      <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
         <div className="space-y-1">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Bedrijfsprofiel
-          </CardTitle>
+          </h2>
           <Skeleton className="h-4 w-80" />
         </div>
         <Skeleton className="h-8 w-24" />
-      </CardHeader>
-      <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-      <CardContent className="pt-6">
+      </div>
+      <div className="bg-white p-6">
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2">
             <DataFieldSkeleton />
@@ -234,8 +230,8 @@ export default function GegevensPage() {
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 
   if (isLoading) {
@@ -256,26 +252,24 @@ export default function GegevensPage() {
       <h1 className="contempora-large text-[#1F2D58]">Gegevens</h1>
 
       {/* Personal Data Section */}
-      <Card className="bg-white border-none">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Persoonlijke gegevens
-          </CardTitle>
+          </h2>
           {editingSection !== "personal" && (
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={() => startEditing("personal")}
-              className="text-[#1F2D58] hover:text-[#193DAB]"
               showArrow={false}
             >
               <Pencil className="h-4 w-4 mr-1" />
               Bewerken
             </Button>
           )}
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           {editingSection === "personal" ? (
             <PersonalDataForm
               data={editPersonalData}
@@ -286,30 +280,28 @@ export default function GegevensPage() {
           ) : (
             <PersonalDataView data={personalData} />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Company Data Section */}
-      <Card className="bg-white border-none">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Bedrijfsgegevens
-          </CardTitle>
+          </h2>
           {editingSection !== "company" && (
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={() => startEditing("company")}
-              className="text-[#1F2D58] hover:text-[#193DAB]"
               showArrow={false}
             >
               <Pencil className="h-4 w-4 mr-1" />
               Bewerken
             </Button>
           )}
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           {editingSection === "company" ? (
             <CompanyDataForm
               data={editCompanyData}
@@ -320,30 +312,28 @@ export default function GegevensPage() {
           ) : (
             <CompanyDataView data={companyData} />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Billing Data Section */}
-      <Card className="bg-white border-none">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Factuurgegevens
-          </CardTitle>
+          </h2>
           {editingSection !== "billing" && (
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={() => startEditing("billing")}
-              className="text-[#1F2D58] hover:text-[#193DAB]"
               showArrow={false}
             >
               <Pencil className="h-4 w-4 mr-1" />
               Bewerken
             </Button>
           )}
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           {editingSection === "billing" ? (
             <BillingDataForm
               data={editBillingData}
@@ -354,35 +344,33 @@ export default function GegevensPage() {
           ) : (
             <BillingDataView data={billingData} />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Website Data Section */}
-      <Card className="bg-white border-none">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
           <div className="space-y-1">
-            <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+            <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
               Bedrijfsprofiel
-            </CardTitle>
+            </h2>
             <p className="text-sm text-[#1F2D58]/60">
               Deze gegevens verschijnen op jullie bedrijfsprofiel op colourfuljobs.nl en zijn zichtbaar voor kandidaten.
             </p>
           </div>
           {editingSection !== "website" && (
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={() => startEditing("website")}
-              className="text-[#1F2D58] hover:text-[#193DAB]"
               showArrow={false}
             >
               <Pencil className="h-4 w-4 mr-1" />
               Bewerken
             </Button>
           )}
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           {editingSection === "website" ? (
             <WebsiteDataForm
               data={editWebsiteData}
@@ -393,8 +381,8 @@ export default function GegevensPage() {
           ) : (
             <WebsiteDataView data={websiteData} />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -475,6 +463,8 @@ function WebsiteDataView({ data }: { data: WebsiteData }) {
         <p className="text-[#1F2D58]">{data.short_description || "-"}</p>
       </div>
 
+      <hr className="border-[#E8EEF2]" />
+
       {/* Images */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
@@ -509,6 +499,8 @@ function WebsiteDataView({ data }: { data: WebsiteData }) {
         )}
       </div>
 
+      <hr className="border-[#E8EEF2]" />
+
       {/* Video */}
       <div className="space-y-1">
         <p className="text-sm text-[#1F2D58]/60">Video URL</p>
@@ -520,6 +512,8 @@ function WebsiteDataView({ data }: { data: WebsiteData }) {
           <p className="text-[#1F2D58]/40 italic">Geen video toegevoegd</p>
         )}
       </div>
+
+      <hr className="border-[#E8EEF2]" />
 
       {/* FAQ */}
       <div className="space-y-2">

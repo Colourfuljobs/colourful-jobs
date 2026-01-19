@@ -4,10 +4,8 @@ import { useEffect, useState } from "react"
 import { UserPlus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -133,14 +131,19 @@ export default function TeamPage() {
   )
 
   const TeamTableSkeleton = () => (
-    <Card className="bg-white border-none overflow-hidden">
-      <Table>
+    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+      <div className="bg-white/50 px-4 pt-4 pb-4">
+        <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
+          Alle teamleden
+        </h2>
+      </div>
+      <Table className="bg-white">
         <TableHeader>
-          <TableRow className="hover:bg-transparent border-[#E8EEF2]">
-            <TableHead className="text-[#1F2D58]/70 font-medium">Naam</TableHead>
-            <TableHead className="text-[#1F2D58]/70 font-medium hidden sm:table-cell">E-mailadres</TableHead>
-            <TableHead className="text-[#1F2D58]/70 font-medium">Status</TableHead>
-            <TableHead className="text-[#1F2D58]/70 font-medium w-[60px]"></TableHead>
+          <TableRow className="hover:bg-transparent border-b border-[#E8EEF2]">
+            <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Naam</TableHead>
+            <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">E-mailadres</TableHead>
+            <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+            <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -149,21 +152,20 @@ export default function TeamPage() {
           ))}
         </TableBody>
       </Table>
-    </Card>
+    </div>
   )
 
   const InviteCardSkeleton = () => (
-    <Card className="bg-white border-none">
-      <CardHeader className="pb-4">
+    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+      <div className="bg-white/50 px-4 pt-4 pb-4">
         <div className="space-y-1">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Teamlid uitnodigen
-          </CardTitle>
+          </h2>
           <Skeleton className="h-4 w-80" />
         </div>
-      </CardHeader>
-      <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-      <CardContent className="pt-6">
+      </div>
+      <div className="bg-white p-6">
         <div className="space-y-4">
           <div className="space-y-2">
             <Skeleton className="h-4 w-24" />
@@ -174,8 +176,8 @@ export default function TeamPage() {
           </div>
           <Skeleton className="h-8 w-full" />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 
   if (isLoading) {
@@ -194,19 +196,24 @@ export default function TeamPage() {
       <h1 className="contempora-large text-[#1F2D58]">Team</h1>
 
       {/* Team Members Table */}
-      <Card className="bg-white border-none overflow-hidden">
-        <Table>
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
+            Alle teamleden
+          </h2>
+        </div>
+        <Table className="bg-white">
           <TableHeader>
-            <TableRow className="hover:bg-transparent border-[#E8EEF2]">
-              <TableHead className="text-[#1F2D58]/70 font-medium">Naam</TableHead>
-              <TableHead className="text-[#1F2D58]/70 font-medium hidden sm:table-cell">E-mailadres</TableHead>
-              <TableHead className="text-[#1F2D58]/70 font-medium">Status</TableHead>
-              <TableHead className="text-[#1F2D58]/70 font-medium w-[60px]"></TableHead>
+            <TableRow className="hover:bg-transparent border-b border-[#E8EEF2]">
+              <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Naam</TableHead>
+              <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">E-mailadres</TableHead>
+              <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+              <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {teamMembers.map((member) => (
-              <TableRow key={member.id} className="border-[#E8EEF2]">
+              <TableRow key={member.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                 {/* Name with avatar */}
                 <TableCell>
                   <div className="flex items-center gap-3">
@@ -256,22 +263,21 @@ export default function TeamPage() {
             ))}
           </TableBody>
         </Table>
-      </Card>
+      </div>
 
       {/* Invite Team Member */}
-      <Card className="bg-white border-none">
-        <CardHeader className="pb-4">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4">
           <div className="space-y-1">
-            <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+            <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
               Teamlid uitnodigen
-            </CardTitle>
+            </h2>
             <p className="text-sm text-[#1F2D58]/60">
               Nodig een collega uit om toegang te krijgen tot dit werkgeversaccount.
             </p>
           </div>
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="invite-email">E-mailadres</Label>
@@ -295,8 +301,8 @@ export default function TeamPage() {
               Na acceptatie krijgt het nieuwe teamlid volledige toegang tot het werkgeversdashboard.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!memberToDelete} onOpenChange={(open) => !open && setMemberToDelete(null)}>

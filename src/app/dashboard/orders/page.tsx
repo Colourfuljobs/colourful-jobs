@@ -14,11 +14,9 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
 import {
   Empty,
   EmptyHeader,
@@ -225,12 +223,14 @@ function TypeFilter({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1F2D58] hover:text-[#1F2D58]/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1F2D58] focus-visible:ring-offset-2 rounded-sm underline underline-offset-2"
+        <Button
+          variant="secondary"
+          size="sm"
+          showArrow={false}
         >
           Filter op type
           <ChevronDown className="h-4 w-4" />
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="p-2 space-y-2">
@@ -351,17 +351,16 @@ export default function OrdersPage() {
       )}
 
       {/* Credits Overview Card */}
-      <Card className="bg-white border-none">
-        <CardHeader className="pb-4">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]/70 flex items-center gap-2">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden mb-10">
+        <div className="bg-white/50 px-4 pt-4 pb-4">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58] flex items-center gap-2">
             <Coins className="h-5 w-5" />
             Creditsoverzicht
-          </CardTitle>
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent>
+          </h2>
+        </div>
+        <div className="bg-white p-6">
           {isLoading ? (
-            <div className="space-y-4 pt-4">
+            <div className="space-y-4">
               <Skeleton className="h-10 w-24" />
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-3 w-full" />
@@ -372,7 +371,7 @@ export default function OrdersPage() {
               <Skeleton className="h-10 w-40 mt-4" />
             </div>
           ) : (
-            <div className="pt-4">
+            <div>
               {/* Available credits - prominent */}
               <div className="space-y-1">
                 <p className="text-4xl font-bold text-[#1F2D58]">
@@ -410,29 +409,26 @@ export default function OrdersPage() {
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Transactions Section */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="text-xl font-bold text-[#1F2D58]">Transacties</h2>
-
-          {/* Type filter */}
-          {!isLoading && mockTransactions.length > 0 && (
-            <TypeFilter
-              selectedTypes={selectedTypes}
-              onTypeChange={setSelectedTypes}
-            />
-          )}
-        </div>
-
-        {/* Transactions Table */}
-        <Card className="bg-white border-none overflow-hidden">
-          {isLoading ? (
-            <TableSkeleton />
-          ) : mockTransactions.length === 0 ? (
-            <Empty className="rounded-t-[0.75rem] rounded-b-[2rem]">
+      <section>
+        {isLoading ? (
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
+            </div>
+            <div className="bg-white">
+              <TableSkeleton />
+            </div>
+          </div>
+        ) : mockTransactions.length === 0 ? (
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
+            </div>
+            <Empty className="bg-white">
               <EmptyHeader>
                 <EmptyMedia>
                   <Coins />
@@ -449,8 +445,17 @@ export default function OrdersPage() {
                 </Button>
               </EmptyContent>
             </Empty>
-          ) : filteredTransactions.length === 0 ? (
-            <Empty className="rounded-t-[0.75rem] rounded-b-[2rem]">
+          </div>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
+              <TypeFilter
+                selectedTypes={selectedTypes}
+                onTypeChange={setSelectedTypes}
+              />
+            </div>
+            <Empty className="bg-white">
               <EmptyHeader>
                 <EmptyMedia>
                   <Coins />
@@ -469,16 +474,25 @@ export default function OrdersPage() {
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
-          ) : (
-            <Table>
+          </div>
+        ) : (
+          <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
+              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
+              <TypeFilter
+                selectedTypes={selectedTypes}
+                onTypeChange={setSelectedTypes}
+              />
+            </div>
+            <Table className="bg-white">
               <TableHeader>
-                <TableRow className="hover:bg-transparent border-[#E8EEF2]">
-                  <TableHead className="text-[#1F2D58]/70 font-medium">Datum</TableHead>
-                  <TableHead className="text-[#1F2D58]/70 font-medium">Type</TableHead>
-                  <TableHead className="text-[#1F2D58]/70 font-medium hidden sm:table-cell">Omschrijving</TableHead>
-                  <TableHead className="text-[#1F2D58]/70 font-medium text-right">Credits</TableHead>
-                  <TableHead className="text-[#1F2D58]/70 font-medium hidden sm:table-cell">Status</TableHead>
-                  <TableHead className="text-[#1F2D58]/70 font-medium w-[60px]">Factuur</TableHead>
+                <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Datum</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Type</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Omschrijving</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]">Factuur</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -489,9 +503,9 @@ export default function OrdersPage() {
                     : null
 
                   return (
-                    <TableRow key={transaction.id} className="border-[#E8EEF2]">
+                    <TableRow key={transaction.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       {/* Date */}
-                      <TableCell className="text-[#1F2D58] whitespace-nowrap">
+                      <TableCell className="text-[#1F2D58] font-bold whitespace-nowrap">
                         {formatDate(transaction.date)}
                       </TableCell>
 
@@ -543,8 +557,8 @@ export default function OrdersPage() {
                 })}
               </TableBody>
             </Table>
-          )}
-        </Card>
+          </div>
+        )}
       </section>
     </div>
   )

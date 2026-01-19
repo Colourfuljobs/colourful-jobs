@@ -4,8 +4,6 @@ import { useEffect, useState } from "react"
 import { Upload, Trash2, Image as ImageIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -116,15 +114,14 @@ export default function MediaLibraryPage() {
 
   // Skeleton components
   const LogoSkeleton = () => (
-    <Card className="bg-white border-none">
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
-        <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+      <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
+        <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
           Logo
-        </CardTitle>
+        </h2>
         <Skeleton className="h-9 w-28" />
-      </CardHeader>
-      <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-      <CardContent className="pt-6">
+      </div>
+      <div className="bg-white p-6">
         <div className="flex items-start gap-4">
           <Skeleton className="h-20 w-[200px] rounded-lg" />
           <div className="flex flex-col gap-1">
@@ -132,30 +129,29 @@ export default function MediaLibraryPage() {
             <Skeleton className="h-4 w-14" />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 
   const ImagesSkeleton = () => (
-    <Card className="bg-white border-none">
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
+    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+      <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Afbeeldingen
-          </CardTitle>
+          </h2>
           <Skeleton className="h-4 w-10" />
         </div>
         <Skeleton className="h-9 w-28" />
-      </CardHeader>
-      <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-      <CardContent className="pt-6">
+      </div>
+      <div className="bg-white p-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-[100px] sm:h-[120px] rounded-lg" />
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 
   if (isLoading) {
@@ -174,11 +170,11 @@ export default function MediaLibraryPage() {
       <h1 className="contempora-large text-[#1F2D58]">Media Library</h1>
 
       {/* Logo Section */}
-      <Card className="bg-white border-none">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
+          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
             Logo
-          </CardTitle>
+          </h2>
           <Button
             variant="secondary"
             size="sm"
@@ -187,9 +183,8 @@ export default function MediaLibraryPage() {
             <Upload className="h-4 w-4 mr-1" />
             Uploaden
           </Button>
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           {logo ? (
             <div className="flex items-start gap-4">
               {/* Logo preview */}
@@ -232,16 +227,16 @@ export default function MediaLibraryPage() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Images Section */}
-      <Card className="bg-white border-none">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
+      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CardTitle className="!text-xl font-medium text-[#1F2D58]">
+            <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
               Afbeeldingen
-            </CardTitle>
+            </h2>
             <span className="text-sm text-[#1F2D58]/60">
               {images.length}/{MAX_IMAGES}
             </span>
@@ -255,9 +250,8 @@ export default function MediaLibraryPage() {
             <Upload className="h-4 w-4 mr-1" />
             Uploaden
           </Button>
-        </CardHeader>
-        <Separator className="mx-6 w-auto bg-[#E8EEF2]" />
-        <CardContent className="pt-6">
+        </div>
+        <div className="bg-white p-6">
           {images.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {images.map((image) => (
@@ -306,8 +300,8 @@ export default function MediaLibraryPage() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
