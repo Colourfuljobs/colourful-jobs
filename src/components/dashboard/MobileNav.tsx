@@ -35,7 +35,7 @@ const navItems = [
     icon: FileText,
   },
   {
-    title: "Media Library",
+    title: "Beeldbank",
     url: "/dashboard/media-library",
     icon: Images,
   },

@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DesktopHeader } from "@/components/dashboard"
 import type { TransactionRecord } from "@/lib/airtable"
 
 // UI Transaction types (mapped from Airtable)
@@ -362,7 +363,7 @@ export default function OrdersPage() {
   if (error) {
     return (
       <div className="space-y-6">
-        <h1 className="contempora-large text-[#1F2D58]">Orders</h1>
+        <DesktopHeader title="Orders" />
         <Alert className="bg-red-50 border-red-200">
           <AlertTriangle className="h-4 w-4 text-red-600" />
           <AlertDescription className="text-red-700">
@@ -385,27 +386,8 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page title */}
-      <h1 className="contempora-large text-[#1F2D58]">Orders</h1>
-
-      {/* Low credits warning */}
-      {!isLoading && credits.available < 10 && (
-        <Alert className="bg-[#193DAB]/[0.12] border-none">
-          <AlertDescription className="text-[#1F2D58]">
-            <div className="flex flex-col sm:flex-row items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-[#F86600]" />
-              </div>
-              <div className="flex-1">
-                <strong className="block mb-1">Bijna op – koop credits</strong>
-                <p className="text-sm">
-                  Je hebt nog maar {credits.available} credits over. Koop credits bij om nieuwe vacatures te kunnen plaatsen.
-                </p>
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Page header with title, credits and actions */}
+      <DesktopHeader title="Orders" />
 
       {/* Credits Overview Card */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden mb-10">

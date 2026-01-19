@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DesktopHeader } from "@/components/dashboard"
 
 // Types
 interface MediaAsset {
@@ -39,7 +40,7 @@ const MAX_IMAGES = 10
 export default function MediaLibraryPage() {
   // Set page title
   useEffect(() => {
-    document.title = "Media Library | Colourful jobs"
+    document.title = "Beeldbank | Colourful jobs"
   }, [])
 
   // Loading states
@@ -339,7 +340,7 @@ export default function MediaLibraryPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="contempora-large text-[#1F2D58]">Media Library</h1>
+        <DesktopHeader title="Beeldbank" />
         <LogoSkeleton />
         <ImagesSkeleton />
       </div>
@@ -364,8 +365,8 @@ export default function MediaLibraryPage() {
         className="hidden"
       />
 
-      {/* Page title */}
-      <h1 className="contempora-large text-[#1F2D58]">Media Library</h1>
+      {/* Page header with title, credits and actions */}
+      <DesktopHeader title="Beeldbank" />
 
       {/* Logo Section */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">

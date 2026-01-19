@@ -46,6 +46,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DesktopHeader } from "@/components/dashboard"
 
 // Filter status options (excluding gepubliceerd which is in separate section)
 const filterStatuses: { value: VacancyStatus; label: string }[] = [
@@ -405,8 +406,8 @@ export default function VacaturesPage() {
 
   return (
     <div className="space-y-8">
-      {/* Page title */}
-      <h1 className="contempora-large text-[#1F2D58]">Vacatures</h1>
+      {/* Page header with title, credits and actions */}
+      <DesktopHeader title="Vacatures" />
 
       {/* Section 1: Gepubliceerde vacatures */}
       <section>

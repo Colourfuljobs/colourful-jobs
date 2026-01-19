@@ -26,10 +26,14 @@ export const userRecordSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   employer_id: z.string().nullable().optional(),
-  status: z.enum(["pending_onboarding", "active"]).default("pending_onboarding"),
+  status: z.enum(["pending_onboarding", "active", "invited"]).default("pending_onboarding"),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   role: z.string().optional(),
+  // Invitation fields
+  invite_token: z.string().nullable().optional(),
+  invite_expires: z.string().nullable().optional(),
+  invited_by: z.string().nullable().optional(), // User ID who sent the invitation
 });
 
 export const employerRecordSchema = z.object({
@@ -117,7 +121,7 @@ export const transactionRecordSchema = z.object({
   "created-at": z.string().optional(),
 });
 
-type UserRecord = z.infer<typeof userRecordSchema>;
+export type UserRecord = z.infer<typeof userRecordSchema>;
 type EmployerRecord = z.infer<typeof employerRecordSchema>;
 type WalletRecord = z.infer<typeof walletRecordSchema>;
 export type TransactionRecord = z.infer<typeof transactionRecordSchema>;
@@ -187,11 +191,15 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
   const employer_id = Array.isArray(fields.employer_id)
     ? fields.employer_id[0] || null
     : fields.employer_id || null;
+  const invited_by = Array.isArray(fields.invited_by)
+    ? fields.invited_by[0] || null
+    : fields.invited_by || null;
 
   return userRecordSchema.parse({
     id: records[0].id,
     ...fields,
     employer_id,
+    invited_by,
   });
 }
 
@@ -202,6 +210,10 @@ export async function createUser(fields: {
   first_name?: string;
   last_name?: string;
   role?: string;
+  // Invitation fields
+  invite_token?: string | null;
+  invite_expires?: string | null;
+  invited_by?: string | null;
 }): Promise<UserRecord> {
   if (!baseId || !apiKey) {
     throw new Error("Airtable not configured");
@@ -222,22 +234,34 @@ export async function createUser(fields: {
   if (fields.last_name) airtableFields.last_name = fields.last_name;
   if (fields.role) airtableFields.role = fields.role;
 
+  // Invitation fields
+  if (fields.invite_token) airtableFields.invite_token = fields.invite_token;
+  if (fields.invite_expires) airtableFields.invite_expires = fields.invite_expires;
+  if (fields.invited_by) {
+    // Airtable Link fields require an array of record IDs
+    airtableFields.invited_by = [fields.invited_by];
+  }
+
   try {
     const record = await base(USERS_TABLE).create(airtableFields);
 
     // Update the record to set the id field to the Airtable record ID
     await base(USERS_TABLE).update(record.id, { id: record.id });
 
-    const fields = record.fields;
+    const resultFields = record.fields;
     // Airtable Link fields return arrays, extract first value
-    const employer_id = Array.isArray(fields.employer_id)
-      ? fields.employer_id[0] || null
-      : fields.employer_id || null;
+    const employer_id = Array.isArray(resultFields.employer_id)
+      ? resultFields.employer_id[0] || null
+      : resultFields.employer_id || null;
+    const invited_by = Array.isArray(resultFields.invited_by)
+      ? resultFields.invited_by[0] || null
+      : resultFields.invited_by || null;
 
     return userRecordSchema.parse({
       id: record.id,
-      ...fields,
+      ...resultFields,
       employer_id,
+      invited_by,
     });
   } catch (error: unknown) {
     console.error("Error creating user in Airtable:", {
@@ -378,6 +402,13 @@ export async function updateUser(
     // Airtable Link fields require an array of record IDs
     airtableFields.employer_id = fields.employer_id ? [fields.employer_id] : null;
   }
+  // Invitation fields
+  if (fields.invite_token !== undefined) airtableFields.invite_token = fields.invite_token;
+  if (fields.invite_expires !== undefined) airtableFields.invite_expires = fields.invite_expires;
+  if (fields.invited_by !== undefined) {
+    // Airtable Link fields require an array of record IDs
+    airtableFields.invited_by = fields.invited_by ? [fields.invited_by] : null;
+  }
 
   const record = await base(USERS_TABLE).update(id, airtableFields);
 
@@ -385,11 +416,15 @@ export async function updateUser(
   const employer_id = Array.isArray(fields_result.employer_id)
     ? fields_result.employer_id[0] || null
     : fields_result.employer_id || null;
+  const invited_by = Array.isArray(fields_result.invited_by)
+    ? fields_result.invited_by[0] || null
+    : fields_result.invited_by || null;
 
   return userRecordSchema.parse({
     id: record.id,
     ...fields_result,
     employer_id,
+    invited_by,
   });
 }
 
@@ -696,7 +731,7 @@ export async function getMediaAssetById(id: string): Promise<MediaAssetRecord | 
 
 /**
  * Get multiple media assets by IDs
- * Returns the media assets (in no particular order)
+ * Returns the media assets in the same order as the input IDs array
  */
 export async function getMediaAssetsByIds(ids: string[]): Promise<MediaAssetRecord[]> {
   if (!baseId || !apiKey || ids.length === 0) {
@@ -1029,4 +1064,149 @@ export async function deleteFAQ(id: string): Promise<void> {
     console.error("Error deleting FAQ:", getErrorMessage(error));
     throw new Error(`Failed to delete FAQ: ${getErrorMessage(error)}`);
   }
+}
+
+// ============================================
+// TEAM FUNCTIONS
+// ============================================
+
+/**
+ * Get a user by their Airtable record ID
+ */
+export async function getUserById(id: string): Promise<UserRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const record = await base(USERS_TABLE).find(id);
+
+    if (!record) return null;
+
+    const fields = record.fields;
+    const employer_id = Array.isArray(fields.employer_id)
+      ? fields.employer_id[0] || null
+      : fields.employer_id || null;
+    const invited_by = Array.isArray(fields.invited_by)
+      ? fields.invited_by[0] || null
+      : fields.invited_by || null;
+
+    return userRecordSchema.parse({
+      id: record.id,
+      ...fields,
+      employer_id,
+      invited_by,
+    });
+  } catch (error: unknown) {
+    console.error("Error getting user by ID:", getErrorMessage(error));
+    return null;
+  }
+}
+
+/**
+ * Get all users (team members) for an employer
+ * Returns both active users and pending invitations (status = "invited")
+ */
+export async function getUsersByEmployerId(employerId: string): Promise<UserRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const records = await base(USERS_TABLE)
+      .select({
+        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer_id}))`,
+        sort: [{ field: "created-at", direction: "desc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      const employer_id = Array.isArray(fields.employer_id)
+        ? fields.employer_id[0] || null
+        : fields.employer_id || null;
+      const invited_by = Array.isArray(fields.invited_by)
+        ? fields.invited_by[0] || null
+        : fields.invited_by || null;
+
+      return userRecordSchema.parse({
+        id: record.id,
+        ...fields,
+        employer_id,
+        invited_by,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting users by employer ID:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Get a user by their invitation token
+ * Used to validate invitation links
+ */
+export async function getUserByInviteToken(token: string): Promise<UserRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const records = await base(USERS_TABLE)
+      .select({
+        filterByFormula: `{invite_token} = '${escapeAirtableString(token)}'`,
+        maxRecords: 1,
+      })
+      .firstPage();
+
+    if (!records[0]) return null;
+
+    const fields = records[0].fields;
+    const employer_id = Array.isArray(fields.employer_id)
+      ? fields.employer_id[0] || null
+      : fields.employer_id || null;
+    const invited_by = Array.isArray(fields.invited_by)
+      ? fields.invited_by[0] || null
+      : fields.invited_by || null;
+
+    return userRecordSchema.parse({
+      id: records[0].id,
+      ...fields,
+      employer_id,
+      invited_by,
+    });
+  } catch (error: unknown) {
+    console.error("Error getting user by invite token:", getErrorMessage(error));
+    return null;
+  }
+}
+
+/**
+ * Unlink a user from their employer (for team member removal)
+ * Sets employer_id to null but keeps the user account
+ */
+export async function unlinkUserFromEmployer(userId: string): Promise<UserRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const record = await base(USERS_TABLE).update(userId, {
+    employer_id: null,
+    "updated-at": new Date().toISOString(),
+  });
+
+  const fields = record.fields;
+  const employer_id = Array.isArray(fields.employer_id)
+    ? fields.employer_id[0] || null
+    : fields.employer_id || null;
+  const invited_by = Array.isArray(fields.invited_by)
+    ? fields.invited_by[0] || null
+    : fields.invited_by || null;
+
+  return userRecordSchema.parse({
+    id: record.id,
+    ...fields,
+    employer_id,
+    invited_by,
+  });
 }

@@ -4,6 +4,7 @@ import {
   getEmployerById,
   getMediaAssetsByIds,
   getFAQByEmployerId,
+  getWalletByEmployerId,
   updateUser,
   updateEmployer,
   createFAQ,
@@ -121,6 +122,22 @@ export async function GET() {
           answer: item.answer,
           order: item.order,
         }));
+
+        // Get wallet/credits data
+        const wallet = await getWalletByEmployerId(user.employer_id);
+        if (wallet) {
+          response.credits = {
+            available: wallet.balance,
+            total_purchased: wallet.total_purchased,
+            total_spent: wallet.total_spent,
+          };
+        } else {
+          response.credits = {
+            available: 0,
+            total_purchased: 0,
+            total_spent: 0,
+          };
+        }
       }
     }
 
@@ -287,12 +304,21 @@ export async function PATCH(request: Request) {
 
     // Handle website/profile data updates (Employers table)
     if (section === "website") {
-      const updatedEmployer = await updateEmployer(user.employer_id, {
-        display_name: data.display_name,
-        sector: data.sector,
-        short_description: data.short_description,
-        video_url: data.video_url,
-      });
+      // Build update object with only provided fields
+      const updateData: Record<string, any> = {};
+      
+      // Text fields
+      if (data.display_name !== undefined) updateData.display_name = data.display_name;
+      if (data.sector !== undefined) updateData.sector = data.sector;
+      if (data.short_description !== undefined) updateData.short_description = data.short_description;
+      if (data.video_url !== undefined) updateData.video_url = data.video_url;
+      
+      // Media fields (arrays of IDs)
+      if (data.logo !== undefined) updateData.logo = data.logo;
+      if (data.header_image !== undefined) updateData.header_image = data.header_image;
+      if (data.gallery !== undefined) updateData.gallery = data.gallery;
+
+      const updatedEmployer = await updateEmployer(user.employer_id, updateData);
 
       // Log event
       await logEvent({
@@ -314,6 +340,9 @@ export async function PATCH(request: Request) {
           sector: updatedEmployer.sector || "",
           short_description: updatedEmployer.short_description || "",
           video_url: updatedEmployer.video_url || "",
+          logo: updatedEmployer.logo || [],
+          header_image: updatedEmployer.header_image || [],
+          gallery: updatedEmployer.gallery || [],
         },
       });
     }

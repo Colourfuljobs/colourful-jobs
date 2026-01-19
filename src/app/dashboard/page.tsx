@@ -20,6 +20,7 @@ import { Button, ArrowIcon } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { DesktopHeader } from "@/components/dashboard"
 import {
   Table,
   TableBody,
@@ -43,11 +44,11 @@ import {
 } from "@/components/ui/empty"
 import { VacancyStatus } from "@/components/dashboard/VacancyCard"
 
-// Mock data - will be replaced with real API calls
-const mockCredits = {
-  total: 50,
-  used: 30,
-  available: 20,
+// Types for account data
+interface CreditsData {
+  available: number
+  total_purchased: number
+  total_spent: number
 }
 
 const mockVacancies = [
@@ -88,7 +89,6 @@ const mockVacancies = [
   },
 ]
 
-const mockTeamMembers = 4
 const mockPublishedCount = 1
 const mockPendingCount = 1
 
@@ -170,21 +170,67 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   ],
 }
 
+// Types for team data
+interface TeamMember {
+  id: string
+  status: "active" | "invited"
+}
+
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [credits, setCredits] = useState<CreditsData>({
+    available: 0,
+    total_purchased: 0,
+    total_spent: 0,
+  })
+  const [teamCount, setTeamCount] = useState(0)
+  const [invitedCount, setInvitedCount] = useState(0)
 
   // Set page title
   useEffect(() => {
     document.title = "Dashboard | Colourful jobs"
   }, [])
 
-  // Simulate loading
+  // Fetch account data including credits and team data
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
-    return () => clearTimeout(timer)
+    const fetchData = async () => {
+      try {
+        // Fetch account data and team data in parallel
+        const [accountResponse, teamResponse] = await Promise.all([
+          fetch("/api/account"),
+          fetch("/api/team"),
+        ])
+
+        if (!accountResponse.ok) {
+          throw new Error("Failed to fetch account data")
+        }
+        const accountData = await accountResponse.json()
+        
+        if (accountData.credits) {
+          setCredits(accountData.credits)
+        }
+
+        // Process team data
+        if (teamResponse.ok) {
+          const teamData = await teamResponse.json()
+          if (teamData.team) {
+            const activeMembers = teamData.team.filter((m: TeamMember) => m.status === "active")
+            const invitedMembers = teamData.team.filter((m: TeamMember) => m.status === "invited")
+            setTeamCount(activeMembers.length)
+            setInvitedCount(invitedMembers.length)
+          }
+        }
+
+        setIsLoading(false)
+      } catch (err) {
+        console.error("Error fetching data:", err)
+        setError("Er ging iets mis bij het laden van je gegevens")
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
   }, [])
 
   const handleVacancyAction = (action: string, vacancyId: string) => {
@@ -208,27 +254,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page title */}
-      <h1 className="contempora-large text-[#1F2D58]">Dashboard</h1>
-
-      {/* Low credits warning */}
-      {!isLoading && mockCredits.available < 10 && (
-        <Alert className="bg-[#193DAB]/[0.12] border-none">
-          <AlertDescription className="text-[#1F2D58]">
-            <div className="flex flex-col sm:flex-row items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-[#F86600]" />
-              </div>
-              <div className="flex-1">
-                <strong className="block mb-1">Bijna op – koop credits</strong>
-                <p className="text-sm">
-                  Je hebt nog maar {mockCredits.available} credits over. Koop credits bij om nieuwe vacatures te kunnen plaatsen.
-                </p>
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Page header with title, credits and actions */}
+      <DesktopHeader title="Dashboard" />
 
       {/* Stats cards - 3 columns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
@@ -237,7 +264,7 @@ export default function DashboardPage() {
           <div className="bg-white/50 px-4 pt-4 pb-4">
             <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58] flex items-center gap-2">
               <Coins className="h-5 w-5" />
-              Credit wallet
+              Credits
             </h2>
           </div>
           <div className="bg-white p-6 flex-1 flex flex-col">
@@ -253,7 +280,7 @@ export default function DashboardPage() {
                 <div>
                   <div className="space-y-1">
                     <p className="text-3xl font-bold text-[#1F2D58]">
-                      {mockCredits.available}
+                      {credits.available}
                     </p>
                     <p className="text-sm text-[#1F2D58]/70">beschikbare credits</p>
                   </div>
@@ -262,16 +289,16 @@ export default function DashboardPage() {
                     <div className="h-3 w-full bg-[#E8EEF2] rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-slate-400 rounded-full transition-all duration-500"
-                        style={{ width: `${(mockCredits.used / mockCredits.total) * 100}%` }}
+                        style={{ width: credits.total_purchased > 0 ? `${(credits.total_spent / credits.total_purchased) * 100}%` : '0%' }}
                       />
                     </div>
                     {/* Labels */}
                     <div className="flex justify-between text-sm">
                       <span className="font-medium text-[#1F2D58]">
-                        {mockCredits.used} <span className="font-normal text-[#1F2D58]/70">gebruikt</span>
+                        {credits.total_spent} <span className="font-normal text-[#1F2D58]/70">gebruikt</span>
                       </span>
                       <span className="font-medium text-[#1F2D58]">
-                        {mockCredits.total} <span className="font-normal text-[#1F2D58]/70">totaal</span>
+                        {credits.total_purchased} <span className="font-normal text-[#1F2D58]/70">totaal</span>
                       </span>
                     </div>
                   </div>
@@ -351,10 +378,20 @@ export default function DashboardPage() {
                 <div>
                   <div className="space-y-1">
                     <p className="text-3xl font-bold text-[#1F2D58]">
-                      {mockTeamMembers}
+                      {teamCount}
                     </p>
-                    <p className="text-sm text-[#1F2D58]/70">teamleden</p>
+                    <p className="text-sm text-[#1F2D58]/70">
+                      {teamCount === 1 ? "teamlid" : "teamleden"}
+                    </p>
                   </div>
+                  {invitedCount > 0 && (
+                    <div className="mt-3 pt-3 border-t border-[#E8EEF2]">
+                      <div className="flex items-center gap-2 text-sm text-[#1F2D58]/70">
+                        <Clock className="h-4 w-4" />
+                        <span>{invitedCount} uitgenodigd</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-auto pt-4">
                   <Link href="/dashboard/team">

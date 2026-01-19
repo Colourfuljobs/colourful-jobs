@@ -5,14 +5,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
-import { AppSidebar, MobileHeader, MobileNav, DesktopHeader } from "@/components/dashboard"
-
-// Mock credits - will be replaced with real API calls
-const mockCredits = {
-  total: 50,
-  used: 30,
-  available: 20,
-}
+import { AppSidebar, MobileHeader, MobileNav } from "@/components/dashboard"
 
 export default function DashboardLayout({
   children,
@@ -21,7 +14,7 @@ export default function DashboardLayout({
 }) {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
+  const [credits, setCredits] = useState<{ available: number } | null>(null)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -37,13 +30,23 @@ export default function DashboardLayout({
     }
   }, [status, session, router])
 
-  // Simulate loading for credits
+  // Fetch credits from account API
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [])
+    async function fetchCredits() {
+      try {
+        const response = await fetch("/api/account")
+        if (response.ok) {
+          const data = await response.json()
+          setCredits({ available: data.credits?.available ?? 0 })
+        }
+      } catch (error) {
+        console.error("Failed to fetch credits:", error)
+      }
+    }
+    if (status === "authenticated") {
+      fetchCredits()
+    }
+  }, [status])
 
   // Show loading state while checking session
   if (status === "loading") {
@@ -73,7 +76,7 @@ export default function DashboardLayout({
       {/* Mobile Header - Row 1: Logo left, actions right */}
       <MobileHeader 
         user={user}
-        credits={isLoading ? undefined : mockCredits}
+        credits={credits ?? undefined}
       />
       
       {/* Mobile Navigation - Row 2: Horizontal scrollable menu */}
@@ -89,12 +92,6 @@ export default function DashboardLayout({
         {/* Main content */}
         <main className="flex-1 w-full sm:ml-[var(--sidebar-width)] mt-4 sm:mt-6 mb-10">
           <div className="max-w-[62.5rem] mx-auto px-4 sm:p-6">
-            {/* Desktop Header - only visible on desktop */}
-            <DesktopHeader 
-              credits={mockCredits} 
-              isLoading={isLoading}
-            />
-            
             {children}
           </div>
         </main>

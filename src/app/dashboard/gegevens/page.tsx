@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
-import { Pencil } from "lucide-react"
+import { Pencil, Image as ImageIcon, RefreshCw, Plus } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
+import { MediaPickerDialog } from "@/components/MediaPickerDialog"
+import { SortableGallery } from "@/components/SortableGallery"
+import { DesktopHeader } from "@/components/dashboard"
 import { countries } from "@/lib/countries"
 
 // Types for form data
@@ -230,6 +234,10 @@ export default function GegevensPage() {
           sector: editWebsiteData.sector,
           short_description: editWebsiteData.short_description,
           video_url: editWebsiteData.video_url,
+          // Include media selections - send as arrays of IDs
+          logo: editWebsiteData.logo_id ? [editWebsiteData.logo_id] : [],
+          header_image: editWebsiteData.header_image_id ? [editWebsiteData.header_image_id] : [],
+          gallery: editWebsiteData.gallery_images.map((img) => img.id),
         }
         sectionName = "Bedrijfsprofiel"
       }
@@ -349,7 +357,7 @@ export default function GegevensPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="contempora-large text-[#1F2D58]">Gegevens</h1>
+        <DesktopHeader title="Gegevens" />
         <CardSkeleton title="Persoonlijke gegevens" fieldCount={4} />
         <CardSkeleton title="Bedrijfsgegevens" fieldCount={4} />
         <CardSkeleton title="Factuurgegevens" fieldCount={4} />
@@ -361,7 +369,7 @@ export default function GegevensPage() {
   if (loadError) {
     return (
       <div className="space-y-6">
-        <h1 className="contempora-large text-[#1F2D58]">Gegevens</h1>
+        <DesktopHeader title="Gegevens" />
         <div className="rounded-t-[0.75rem] rounded-b-[2rem] bg-white p-6">
           <p className="text-red-600">{loadError}</p>
           <Button
@@ -379,8 +387,8 @@ export default function GegevensPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page title */}
-      <h1 className="contempora-large text-[#1F2D58]">Gegevens</h1>
+      {/* Page header with title, credits and actions */}
+      <DesktopHeader title="Gegevens" />
 
       {/* Personal Data Section */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
@@ -939,6 +947,106 @@ function WebsiteDataForm({
   onCancel,
   isSaving,
 }: WebsiteDataFormProps) {
+  // Dialog states for media pickers
+  const [headerPickerOpen, setHeaderPickerOpen] = useState(false)
+  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
+  
+  // Logo upload state
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  // Handle logo upload
+  const handleLogoUpload = async (file: File) => {
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"]
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Ongeldig bestandstype", {
+        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
+      })
+      return
+    }
+
+    // Validate file size (5MB for logo)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Bestand te groot", {
+        description: "Logo mag maximaal 5MB zijn",
+      })
+      return
+    }
+
+    setIsUploadingLogo(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", "logo")
+
+      const response = await fetch("/api/media", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Upload failed")
+      }
+
+      const result = await response.json()
+      
+      // Update form data with new logo
+      onChange({ ...data, logo: result.asset.url, logo_id: result.asset.id })
+      
+      toast.success("Logo geüpload", {
+        description: "Je logo is succesvol bijgewerkt.",
+      })
+    } catch (error) {
+      console.error("Error uploading logo:", error)
+      toast.error("Upload mislukt", {
+        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
+      })
+    } finally {
+      setIsUploadingLogo(false)
+      if (logoInputRef.current) {
+        logoInputRef.current.value = ""
+      }
+    }
+  }
+
+  const handleLogoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) handleLogoUpload(file)
+  }
+
+  // Handle header selection from picker
+  const handleHeaderSelect = (selectedAssets: { id: string; url: string }[]) => {
+    if (selectedAssets.length > 0) {
+      const selected = selectedAssets[0]
+      onChange({ ...data, header_image: selected.url, header_image_id: selected.id })
+    } else {
+      onChange({ ...data, header_image: null, header_image_id: null })
+    }
+  }
+
+  // Handle gallery selection from picker
+  const handleGallerySelect = (selectedAssets: { id: string; url: string }[]) => {
+    // Update gallery with selected assets (preserving order from selection)
+    onChange({ ...data, gallery_images: selectedAssets })
+  }
+
+  // Handle gallery reorder (drag & drop)
+  const handleGalleryReorder = (newImages: { id: string; url: string }[]) => {
+    onChange({ ...data, gallery_images: newImages })
+  }
+
+  // Handle remove from gallery
+  const handleGalleryRemove = (id: string) => {
+    onChange({
+      ...data,
+      gallery_images: data.gallery_images.filter((img) => img.id !== id),
+      // Also clear header if it was the removed image
+      ...(data.header_image_id === id && { header_image: null, header_image_id: null }),
+    })
+  }
+
   return (
     <div className="space-y-6">
       {/* Basic info */}
@@ -977,51 +1085,130 @@ function WebsiteDataForm({
 
       <hr className="border-[#E8EEF2]" />
 
-      {/* Image uploads - read-only preview, editing via Media Library */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+      {/* Logo and Header with pickers */}
+      <div className="grid gap-6 sm:grid-cols-2">
+        {/* Logo */}
+        <div className="space-y-3">
           <Label>Logo</Label>
-          <div className="flex items-center gap-1.5">
+          {/* Hidden file input for logo upload */}
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"
+            onChange={handleLogoInputChange}
+            className="hidden"
+          />
+          <div className="flex items-center gap-3">
             {data.logo ? (
-              <img src={data.logo} alt="Logo" className="h-12 w-12 rounded object-cover" />
+              <div className="h-16 w-16 rounded-lg bg-[#193DAB]/12 flex items-center justify-center overflow-hidden">
+                <img src={data.logo} alt="Logo" className="h-full w-full object-contain p-1" />
+              </div>
             ) : (
-              <p className="text-[#1F2D58]/40 italic text-sm">Geen logo</p>
+              <div className="h-16 w-16 rounded-lg bg-[#193DAB]/12 flex items-center justify-center">
+                <ImageIcon className="h-6 w-6 text-[#1F2D58]/40" />
+              </div>
             )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              showArrow={false}
+              onClick={() => logoInputRef.current?.click()}
+              disabled={isSaving || isUploadingLogo}
+            >
+              {isUploadingLogo ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-1" />
+                  Uploaden...
+                </>
+              ) : data.logo ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Vervangen
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Uploaden
+                </>
+              )}
+            </Button>
           </div>
         </div>
-        <div className="space-y-2">
+
+        {/* Header */}
+        <div className="space-y-3">
           <Label>Headerbeeld</Label>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-3">
             {data.header_image ? (
-              <img src={data.header_image} alt="Header" className="h-12 w-32 rounded object-cover" />
+              <div className="h-16 w-28 rounded-lg bg-[#193DAB]/12 overflow-hidden">
+                <img src={data.header_image} alt="Header" className="h-full w-full object-cover" />
+              </div>
             ) : (
-              <p className="text-[#1F2D58]/40 italic text-sm">Geen headerbeeld</p>
+              <div className="h-16 w-28 rounded-lg bg-[#193DAB]/12 flex items-center justify-center">
+                <ImageIcon className="h-6 w-6 text-[#1F2D58]/40" />
+              </div>
             )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              showArrow={false}
+              onClick={() => setHeaderPickerOpen(true)}
+              disabled={isSaving}
+            >
+              {data.header_image ? "Wijzigen" : "Kiezen"}
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Gallery - read-only preview */}
-      <div className="space-y-2">
-        <Label>Afbeeldingen gallery</Label>
+      <hr className="border-[#E8EEF2]" />
+
+      {/* Gallery with drag & drop */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Afbeeldingen gallery</Label>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            showArrow={false}
+            onClick={() => setGalleryPickerOpen(true)}
+            disabled={isSaving}
+          >
+            Selectie aanpassen
+          </Button>
+        </div>
+        
         {data.gallery_images.length > 0 ? (
-          <div className="flex items-end gap-1.5 flex-wrap">
-            {data.gallery_images.map((img) => (
-              <img key={img.id} src={img.url} alt="Gallery" className="h-12 max-w-24 rounded object-contain" />
-            ))}
+          <div className="space-y-2">
+            <p className="text-xs text-[#1F2D58]/50">Sleep om de volgorde te wijzigen</p>
+            <SortableGallery
+              images={data.gallery_images}
+              onReorder={handleGalleryReorder}
+              onRemove={handleGalleryRemove}
+              disabled={isSaving}
+            />
           </div>
         ) : (
-          <p className="text-[#1F2D58]/40 italic text-sm">Geen afbeeldingen</p>
+          <div className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-[#1F2D58]/20">
+            <ImageIcon className="h-8 w-8 text-[#1F2D58]/30 mb-2" />
+            <p className="text-sm text-[#1F2D58]/50">Geen afbeeldingen geselecteerd</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              showArrow={false}
+              className="mt-3"
+              onClick={() => setGalleryPickerOpen(true)}
+              disabled={isSaving}
+            >
+              Afbeeldingen kiezen
+            </Button>
+          </div>
         )}
       </div>
-
-      {/* Media Library link */}
-      <p className="text-sm text-[#1F2D58]/60">
-        Beheer via{" "}
-        <Link href="/dashboard/media-library" className="text-[#193DAB] underline hover:text-[#1F2D58]">
-          Media Library
-        </Link>
-      </p>
 
       <hr className="border-[#E8EEF2]" />
 
@@ -1056,6 +1243,29 @@ function WebsiteDataForm({
       </div>
 
       <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
+
+      {/* Media Picker Dialogs */}
+      <MediaPickerDialog
+        open={headerPickerOpen}
+        onOpenChange={setHeaderPickerOpen}
+        title="Headerbeeld kiezen"
+        description="Selecteer een afbeelding als header voor je bedrijfsprofiel."
+        selectedIds={data.header_image_id ? [data.header_image_id] : []}
+        onSelect={handleHeaderSelect}
+        singleSelect
+        filter="gallery"
+      />
+
+      <MediaPickerDialog
+        open={galleryPickerOpen}
+        onOpenChange={setGalleryPickerOpen}
+        title="Gallery afbeeldingen kiezen"
+        description="Selecteer welke afbeeldingen op je bedrijfsprofiel worden getoond."
+        selectedIds={data.gallery_images.map((img) => img.id)}
+        onSelect={handleGallerySelect}
+        maxSelection={10}
+        filter="gallery"
+      />
     </div>
   )
 }
