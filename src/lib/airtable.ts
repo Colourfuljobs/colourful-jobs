@@ -1191,7 +1191,7 @@ export async function unlinkUserFromEmployer(userId: string): Promise<UserRecord
   }
 
   const record = await base(USERS_TABLE).update(userId, {
-    employer_id: null,
+    employer_id: [],
     "updated-at": new Date().toISOString(),
   });
 
