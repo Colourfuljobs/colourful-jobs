@@ -66,11 +66,8 @@ export async function GET() {
           invoice_contact_name: employer.invoice_contact_name || "",
           invoice_email: employer.invoice_email || "",
           invoice_street: employer.invoice_street || "",
-          "invoice_house-nr": employer["invoice_house-nr"] || "",
-          "invoice_house-nr-add": employer["invoice_house-nr-add"] || "",
           "invoice_postal-code": employer["invoice_postal-code"] || "",
           invoice_city: employer.invoice_city || "",
-          invoice_country: employer.invoice_country || "",
         };
 
         response.website = {
@@ -266,11 +263,8 @@ export async function PATCH(request: Request) {
         invoice_contact_name: data.invoice_contact_name,
         invoice_email: data.invoice_email,
         invoice_street: data.invoice_street,
-        "invoice_house-nr": data["invoice_house-nr"],
-        "invoice_house-nr-add": data["invoice_house-nr-add"],
         "invoice_postal-code": data["invoice_postal-code"],
         invoice_city: data.invoice_city,
-        invoice_country: data.invoice_country,
       });
 
       // Log event
@@ -293,11 +287,8 @@ export async function PATCH(request: Request) {
           invoice_contact_name: updatedEmployer.invoice_contact_name || "",
           invoice_email: updatedEmployer.invoice_email || "",
           invoice_street: updatedEmployer.invoice_street || "",
-          "invoice_house-nr": updatedEmployer["invoice_house-nr"] || "",
-          "invoice_house-nr-add": updatedEmployer["invoice_house-nr-add"] || "",
           "invoice_postal-code": updatedEmployer["invoice_postal-code"] || "",
           invoice_city: updatedEmployer.invoice_city || "",
-          invoice_country: updatedEmployer.invoice_country || "",
         },
       });
     }

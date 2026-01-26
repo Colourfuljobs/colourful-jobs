@@ -345,6 +345,24 @@ export async function GET(request: Request) {
   try {
     const existingEmployer = await getEmployerByKVK(kvkNumber);
     
+    // If an employer exists with this KVK, check if it's the current user's own employer
+    if (existingEmployer) {
+      const session = await getServerSession(authOptions);
+      
+      if (session?.user?.email) {
+        const currentUser = await getUserByEmail(session.user.email);
+        
+        // If the found employer is the current user's own employer, don't treat it as a duplicate
+        if (currentUser?.employer_id === existingEmployer.id) {
+          return NextResponse.json({
+            exists: false,
+            isOwnEmployer: true,
+            employer: null,
+          });
+        }
+      }
+    }
+    
     return NextResponse.json({
       exists: !!existingEmployer,
       employer: existingEmployer ? {

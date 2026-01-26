@@ -1,13 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KVKSearch } from "@/components/KVKSearch";
-import { countries } from "@/lib/countries";
 import type { Step2Props, EmployerInfo } from "./types";
 import type { KVKSearchResult } from "@/lib/kvk";
 
@@ -26,7 +25,9 @@ export function Step2Company({
   showKVKSearch,
   setShowKVKSearch,
   kvkSelected,
+  setKvkSelected,
   kvkCheckResult,
+  setKvkCheckResult,
   checkingKvk,
   duplicateEmployer,
   duplicateDialogOpen,
@@ -37,19 +38,42 @@ export function Step2Company({
   onKVKSelect,
   onKvkManualChange,
 }: Step2CompanyProps) {
-  // KVK Search screen
-  if (showKVKSearch) {
+  // Local state for editing mode
+  const [isEditingKvk, setIsEditingKvk] = useState(false);
+
+  // Get current form values to check if KVK is already filled
+  const currentKvk = watch("kvk");
+  const currentCompanyName = watch("company_name");
+  const currentCity = watch("invoice_city");
+  const currentPostalCode = watch("invoice_postal-code");
+  const currentStreet = watch("invoice_street");
+
+  // Check if we have existing KVK data (user already selected a company)
+  const hasExistingKvkData = currentKvk && currentKvk.length === 8 && currentCompanyName;
+
+  // Handler for selecting a new KVK (wraps onKVKSelect to also exit editing mode)
+  const handleKvkSelectWithEdit = async (result: KVKSearchResult) => {
+    await onKVKSelect(result);
+    setIsEditingKvk(false);
+  };
+
+  // KVK Edit screen - shown when user clicks "Wijzigen" on existing KVK
+  if (showKVKSearch && hasExistingKvkData && isEditingKvk) {
     return (
       <div className="space-y-8">
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <h4>Bedrijfsgegevens ophalen</h4>
+              <h4>Ander bedrijf zoeken</h4>
               <p className="p-regular text-slate-600">
-                Vul je bedrijfsnaam of KVK-nummer in, zodat wij in de volgende stap je bedrijfsgegevens automatisch kunnen invullen.
+                Zoek een ander bedrijf of annuleer om terug te gaan naar je huidige selectie.
               </p>
             </div>
-            <KVKSearch onSelect={onKVKSelect} onSkip={() => setShowKVKSearch(false)} />
+            <KVKSearch 
+              onSelect={handleKvkSelectWithEdit} 
+              onSkip={() => setShowKVKSearch(false)} 
+              onSearchStart={() => setKvkCheckResult(null)}
+            />
             
             {/* Inline alert for KVK duplicate */}
             {kvkCheckResult?.exists && (
@@ -81,13 +105,154 @@ export function Step2Company({
           </div>
         </div>
 
-        <div className="flex justify-start">
+        <div className="flex justify-between items-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsEditingKvk(false);
+              setKvkCheckResult(null);
+            }}
+            className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+          >
+            Annuleren
+          </button>
+        </div>
+
+        {/* Duplicate Dialog */}
+        <DuplicateDialog
+          open={duplicateDialogOpen}
+          onOpenChange={setDuplicateDialogOpen}
+          employer={duplicateEmployer}
+          onJoin={onStartJoinFlow}
+        />
+      </div>
+    );
+  }
+
+  // KVK Summary screen - shown when user clicks "Vorige" but already has KVK data
+  if (showKVKSearch && hasExistingKvkData) {
+    const addressParts = [
+      currentStreet,
+      currentPostalCode,
+      currentCity,
+    ].filter(Boolean);
+
+    return (
+      <div className="space-y-8">
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h4>Geselecteerd bedrijf</h4>
+              <p className="p-regular text-slate-600">
+                Je hebt al een bedrijf geselecteerd voor dit account.
+              </p>
+            </div>
+            
+            {/* Selected company card with edit button */}
+            <div className="p-4 rounded-[0.75rem] bg-white border border-slate-200">
+              <div className="flex justify-between items-start gap-4">
+                <div className="space-y-1 flex-1">
+                  <div className="font-semibold text-lg text-[#1F2D58]">{currentCompanyName}</div>
+                  <div className="p-small text-slate-600">
+                    KVK: {currentKvk}
+                    {addressParts.length > 0 && (
+                      <> • {addressParts.join(", ")}</>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingKvk(true);
+                    setKvkCheckResult(null);
+                  }}
+                  className="p-small text-[#1F2D58] underline hover:no-underline cursor-pointer flex-shrink-0"
+                >
+                  Wijzigen
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
           <button
             type="button"
             onClick={onPrevious}
             className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
           >
             Vorige
+          </button>
+          <Button onClick={() => setShowKVKSearch(false)}>
+            Volgende stap
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // KVK Search screen - shown when no KVK data exists yet
+  if (showKVKSearch) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h4>Bedrijfsgegevens ophalen</h4>
+              <p className="p-regular text-slate-600">
+                Vul je bedrijfsnaam of KVK-nummer in, zodat wij in de volgende stap je bedrijfsgegevens automatisch kunnen invullen.
+              </p>
+            </div>
+            <KVKSearch 
+              onSelect={onKVKSelect} 
+              onSkip={() => setShowKVKSearch(false)} 
+              onSearchStart={() => setKvkCheckResult(null)}
+            />
+            
+            {/* Inline alert for KVK duplicate */}
+            {kvkCheckResult?.exists && (
+              <Alert className="bg-[#193DAB]/[0.12] border-none">
+                <AlertDescription className="text-[#1F2D58]">
+                  <div className="flex flex-col sm:flex-row items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                        <path fill="#1F2D58" fillRule="evenodd" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm1 15h-2v-2h2v2Zm0-4h-2V7h2v6Z" clipRule="evenodd"/>
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <strong className="block mb-1">Bedrijf bestaat al</strong>
+                      <p className="mb-2 text-sm">
+                        Voor dit KVK-nummer bestaat al een account: <strong>{kvkCheckResult.employer?.company_name || kvkCheckResult.employer?.display_name}</strong>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => kvkCheckResult.employer && onStartJoinFlow(kvkCheckResult.employer)}
+                        className="text-sm underline hover:no-underline text-left"
+                      >
+                        Voeg jezelf toe aan dit werkgeversaccount
+                      </button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <button
+            type="button"
+            onClick={onPrevious}
+            className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+          >
+            Vorige
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowKVKSearch(false)}
+            className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+          >
+            Overslaan en handmatig invullen
           </button>
         </div>
 
@@ -107,10 +272,10 @@ export function Step2Company({
     <div className="space-y-8">
       {/* Company Data Section */}
       <div className="space-y-4">
-        <h4>Bedrijfsgegevens</h4>
+        <h4>Algemene gegevens</h4>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="company_name">Juridische bedrijfsnaam *</Label>
+            <Label htmlFor="company_name">Naam organisatie *</Label>
             <Input
               id="company_name"
               {...register("company_name")}
@@ -203,12 +368,8 @@ export function Step2Company({
       <div className="space-y-4">
         <h4>Factuurgegevens</h4>
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-          {/* Rij 1: Ref (1) | Contact (2) | Email (2) */}
-          <div className="space-y-2 sm:col-span-1">
-            <Label htmlFor="reference-nr">Ref.nr.</Label>
-            <Input id="reference-nr" {...register("reference-nr")} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
+          {/* Rij 1: Contact (volle breedte op mobiel, 2.5 cols op desktop) | Email (2.5 cols) */}
+          <div className="space-y-2 sm:col-span-5 md:col-span-2">
             <Label htmlFor="invoice_contact_name">Contactpersoon facturatie *</Label>
             <Input
               id="invoice_contact_name"
@@ -219,8 +380,8 @@ export function Step2Company({
               <p className="text-sm text-red-500">{formErrors.invoice_contact_name}</p>
             )}
           </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="invoice_email">E-mail facturatie *</Label>
+          <div className="space-y-2 sm:col-span-5 md:col-span-3">
+            <Label htmlFor="invoice_email">Facturatie e-mailadres *</Label>
             <Input
               id="invoice_email"
               type="email"
@@ -232,11 +393,12 @@ export function Step2Company({
             )}
           </div>
 
-          {/* Rij 2: Straat (3) | Nr + Toev (2) */}
-          <div className="space-y-2 sm:col-span-3">
-            <Label htmlFor="invoice_street">Straat *</Label>
+          {/* Rij 2: Straat (40% = 2 cols) | Postcode (20% = 1 col) | Plaats (40% = 2 cols) */}
+          <div className="space-y-2 sm:col-span-5 md:col-span-2">
+            <Label htmlFor="invoice_street">Straat en huisnummer *</Label>
             <Input
               id="invoice_street"
+              placeholder="Voorbeeldstraat 123"
               {...register("invoice_street")}
               className={formErrors.invoice_street ? "border-red-500" : ""}
             />
@@ -244,30 +406,11 @@ export function Step2Company({
               <p className="text-sm text-red-500">{formErrors.invoice_street}</p>
             )}
           </div>
-          {/* Nr en Toev naast elkaar, ook op mobiel */}
-          <div className="sm:col-span-2 grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoice_house-nr">Nr. *</Label>
-              <Input
-                id="invoice_house-nr"
-                {...register("invoice_house-nr")}
-                className={formErrors["invoice_house-nr"] ? "border-red-500" : ""}
-              />
-              {formErrors["invoice_house-nr"] && (
-                <p className="p-small text-red-500">{formErrors["invoice_house-nr"]}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="invoice_house-nr-add">Toev.</Label>
-              <Input id="invoice_house-nr-add" {...register("invoice_house-nr-add")} />
-            </div>
-          </div>
-
-          {/* Rij 3: Postcode (1) | Plaats (2) | Land (2) */}
-          <div className="space-y-2 sm:col-span-1">
+          <div className="space-y-2 sm:col-span-2 md:col-span-1">
             <Label htmlFor="invoice_postal-code">Postcode *</Label>
             <Input
               id="invoice_postal-code"
+              placeholder="1234 AB"
               {...register("invoice_postal-code")}
               className={formErrors["invoice_postal-code"] ? "border-red-500" : ""}
             />
@@ -275,7 +418,7 @@ export function Step2Company({
               <p className="p-small text-red-500">{formErrors["invoice_postal-code"]}</p>
             )}
           </div>
-          <div className="space-y-2 sm:col-span-2">
+          <div className="space-y-2 sm:col-span-3 md:col-span-2">
             <Label htmlFor="invoice_city">Plaats *</Label>
             <Input
               id="invoice_city"
@@ -284,24 +427,6 @@ export function Step2Company({
             />
             {formErrors.invoice_city && (
               <p className="text-sm text-red-500">{formErrors.invoice_city}</p>
-            )}
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="invoice_country">Land *</Label>
-            <Select
-              id="invoice_country"
-              {...register("invoice_country")}
-              className={formErrors.invoice_country ? "border-red-500" : ""}
-            >
-              <option value="">Selecteer een land</option>
-              {countries.map((country) => (
-                <option key={country} value={country}>
-                  {country}
-                </option>
-              ))}
-            </Select>
-            {formErrors.invoice_country && (
-              <p className="text-sm text-red-500">{formErrors.invoice_country}</p>
             )}
           </div>
         </div>

@@ -47,11 +47,8 @@ export const employerRecordSchema = z.object({
   invoice_contact_name: z.string().optional(),
   invoice_email: z.string().optional(),
   invoice_street: z.string().optional(),
-  "invoice_house-nr": z.string().optional(),
-  "invoice_house-nr-add": z.string().optional(),
   "invoice_postal-code": z.string().optional(),
   invoice_city: z.string().optional(),
-  invoice_country: z.string().optional(),
   sector: z.string().optional(),
   location: z.string().optional(),
   short_description: z.string().optional(),
@@ -299,11 +296,8 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
   if (fields.invoice_contact_name !== undefined) airtableFields.invoice_contact_name = fields.invoice_contact_name;
   if (fields.invoice_email !== undefined) airtableFields.invoice_email = fields.invoice_email;
   if (fields.invoice_street !== undefined) airtableFields.invoice_street = fields.invoice_street;
-  if (fields["invoice_house-nr"] !== undefined) airtableFields["invoice_house-nr"] = fields["invoice_house-nr"];
-  if (fields["invoice_house-nr-add"] !== undefined) airtableFields["invoice_house-nr-add"] = fields["invoice_house-nr-add"];
   if (fields["invoice_postal-code"] !== undefined) airtableFields["invoice_postal-code"] = fields["invoice_postal-code"];
   if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
-  if (fields.invoice_country !== undefined) airtableFields.invoice_country = fields.invoice_country;
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
   if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
@@ -357,11 +351,8 @@ export async function updateEmployer(
   if (fields.invoice_contact_name !== undefined) airtableFields.invoice_contact_name = fields.invoice_contact_name;
   if (fields.invoice_email !== undefined) airtableFields.invoice_email = fields.invoice_email;
   if (fields.invoice_street !== undefined) airtableFields.invoice_street = fields.invoice_street;
-  if (fields["invoice_house-nr"] !== undefined) airtableFields["invoice_house-nr"] = fields["invoice_house-nr"];
-  if (fields["invoice_house-nr-add"] !== undefined) airtableFields["invoice_house-nr-add"] = fields["invoice_house-nr-add"];
   if (fields["invoice_postal-code"] !== undefined) airtableFields["invoice_postal-code"] = fields["invoice_postal-code"];
   if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
-  if (fields.invoice_country !== undefined) airtableFields.invoice_country = fields.invoice_country;
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
   if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;

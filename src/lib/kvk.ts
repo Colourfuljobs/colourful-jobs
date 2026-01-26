@@ -1,6 +1,7 @@
-// TODO: Replace mock implementation with real KVK API when API key is available
-// KVK API: https://api.kvk.nl/api/v1
-// Environment variable: KVK_API_KEY
+// KVK API Integration
+// Zoeken API v2: https://api.kvk.nl/api/v2/zoeken
+// Basisprofiel API v1: https://api.kvk.nl/api/v1/basisprofielen
+// Documentation: https://developers.kvk.nl/nl/documentation/zoeken-api
 
 export interface KVKSearchResult {
   kvkNumber: string;
@@ -8,6 +9,8 @@ export interface KVKSearchResult {
   address: string;
   city: string;
   postalCode: string;
+  type: "hoofdvestiging" | "nevenvestiging" | "rechtspersoon" | string;
+  typeLabel: string;
 }
 
 export interface KVKDetails {
@@ -15,12 +18,9 @@ export interface KVKDetails {
   companyName: string;
   tradeNames: string[];
   address: {
-    street: string;
-    houseNumber: string;
-    houseNumberAddition?: string;
+    street: string; // Combined street + house number + addition
     postalCode: string;
     city: string;
-    country: string;
   };
   email?: string;
   phone?: string;
@@ -28,164 +28,262 @@ export interface KVKDetails {
   vatNumber?: string;
 }
 
-// Mock data for testing
-const MOCK_COMPANIES: KVKDetails[] = [
-  {
-    kvkNumber: "12345678",
-    companyName: "Tech Solutions B.V.",
-    tradeNames: ["Tech Solutions"],
-    address: {
-      street: "Hoofdstraat",
-      houseNumber: "123",
-      houseNumberAddition: "A",
-      postalCode: "1000 AA",
-      city: "Amsterdam",
-      country: "Nederland",
-    },
-    email: "info@techsolutions.nl",
-    phone: "+31 20 1234567",
-    website: "https://www.techsolutions.nl",
-    vatNumber: "NL123456789B01",
-  },
-  {
-    kvkNumber: "87654321",
-    companyName: "Design Studio Amsterdam B.V.",
-    tradeNames: ["Design Studio"],
-    address: {
-      street: "Keizersgracht",
-      houseNumber: "456",
-      postalCode: "1016 GD",
-      city: "Amsterdam",
-      country: "Nederland",
-    },
-    email: "hello@designstudio.nl",
-    phone: "+31 20 7654321",
-    website: "https://www.designstudio.nl",
-  },
-  {
-    kvkNumber: "11223344",
-    companyName: "Marketing Experts B.V.",
-    tradeNames: ["Marketing Experts", "ME"],
-    address: {
-      street: "Kalverstraat",
-      houseNumber: "789",
-      postalCode: "1012 NX",
-      city: "Amsterdam",
-      country: "Nederland",
-    },
-    email: "contact@marketingexperts.nl",
-    phone: "+31 20 1122334",
-  },
-];
+// KVK API Response types
+interface KVKZoekenResponse {
+  resultaten: Array<{
+    kvkNummer: string;
+    naam: string;
+    adres?: {
+      binnenlandsAdres?: {
+        straatnaam?: string;
+        huisnummer?: number;
+        huisletter?: string;
+        huisnummerToevoeging?: string;
+        postcode?: string;
+        plaats?: string;
+      };
+      buitenlandsAdres?: {
+        straatHuisnummer?: string;
+        postcodeWoonplaats?: string;
+        land?: string;
+      };
+    };
+    type?: string;
+    actief?: string;
+  }>;
+  pagina: number;
+  resultatenPerPagina: number;
+  totaal: number;
+}
+
+interface KVKBasisprofielResponse {
+  kvkNummer: string;
+  naam: string;
+  handelsnamen?: Array<{ naam: string; volgorde?: number }>;
+  _embedded?: {
+    hoofdvestiging?: {
+      vestigingsnummer: string;
+      eersteHandelsnaam?: string;
+      handelsnamen?: Array<{ naam: string; volgorde?: number }>;
+      adressen?: Array<{
+        type: string;
+        straatnaam?: string;
+        huisnummer?: number;
+        huisnummerToevoeging?: string;
+        huisletter?: string;
+        postcode?: string;
+        plaats?: string;
+        land?: string;
+      }>;
+      websites?: string[];
+    };
+    eigenaar?: {
+      rechtsvorm?: string;
+      adressen?: Array<{
+        type: string;
+        straatnaam?: string;
+        huisnummer?: number;
+        huisnummerToevoeging?: string;
+        huisletter?: string;
+        postcode?: string;
+        plaats?: string;
+        land?: string;
+      }>;
+      websites?: string[];
+    };
+  };
+}
 
 /**
- * Search for companies by name or KVK number (MOCK IMPLEMENTATION)
- * TODO: Replace with real KVK API call when API key is available
+ * Get the KVK API key from environment
+ */
+function getApiKey(): string {
+  const apiKey = process.env.KVK_API_KEY;
+  if (!apiKey) {
+    throw new Error("KVK_API_KEY is not configured");
+  }
+  return apiKey;
+}
+
+/**
+ * Search for companies by name or KVK number using KVK Zoeken API v2
+ * @see https://developers.kvk.nl/nl/documentation/zoeken-api
  */
 export async function searchKVK(
   query: string,
   type: "name" | "number" = "name"
 ): Promise<KVKSearchResult[]> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
   if (!query || query.trim().length === 0) {
     return [];
   }
 
-  const searchTerm = query.toLowerCase().trim();
+  const apiKey = getApiKey();
+  const cleanQuery = query.trim();
 
+  // Build URL based on search type
+  const baseUrl = "https://api.kvk.nl/api/v2/zoeken";
+  const params = new URLSearchParams();
+  
   if (type === "number") {
-    // Search by KVK number
-    const company = MOCK_COMPANIES.find(
-      (c) => c.kvkNumber === searchTerm.replace(/\D/g, "")
-    );
-    if (company) {
-      return [
-        {
-          kvkNumber: company.kvkNumber,
-          name: company.companyName,
-          address: `${company.address.street} ${company.address.houseNumber}${company.address.houseNumberAddition || ""}`,
-          city: company.address.city,
-          postalCode: company.address.postalCode,
-        },
-      ];
+    // Search by KVK number (only digits)
+    const kvkNumber = cleanQuery.replace(/\D/g, "");
+    if (kvkNumber.length !== 8) {
+      return [];
     }
-    return [];
+    params.set("kvkNummer", kvkNumber);
+  } else {
+    // Search by name
+    params.set("naam", cleanQuery);
   }
 
-  // Search by name
-  const results = MOCK_COMPANIES
-    .filter((company) => {
-      const nameMatch = company.companyName.toLowerCase().includes(searchTerm);
-      const tradeNameMatch = company.tradeNames.some((tn) =>
-        tn.toLowerCase().includes(searchTerm)
-      );
-      return nameMatch || tradeNameMatch;
-    })
-    .map((company) => ({
-      kvkNumber: company.kvkNumber,
-      name: company.companyName,
-      address: `${company.address.street} ${company.address.houseNumber}${company.address.houseNumberAddition || ""}`,
-      city: company.address.city,
-      postalCode: company.address.postalCode,
-    }));
+  // Only search active registrations
+  params.set("resultatenPerPagina", "10");
 
-  return results;
+  const url = `${baseUrl}?${params.toString()}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "apikey": apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return [];
+      }
+      console.error(`KVK API error: ${response.status} ${response.statusText}`);
+      throw new Error(`KVK API error: ${response.statusText}`);
+    }
+
+    const data: KVKZoekenResponse = await response.json();
+
+    if (!data.resultaten || data.resultaten.length === 0) {
+      return [];
+    }
+
+    // Transform API response to KVKSearchResult[]
+    return data.resultaten.map((item) => {
+      const binnenlands = item.adres?.binnenlandsAdres;
+      const buitenlands = item.adres?.buitenlandsAdres;
+
+      let address = "";
+      let city = "";
+      let postalCode = "";
+
+      if (binnenlands) {
+        // Build address string from binnenlands adres
+        const huisnummerStr = binnenlands.huisnummer?.toString() || "";
+        const toevoeging = binnenlands.huisnummerToevoeging || binnenlands.huisletter || "";
+        address = binnenlands.straatnaam
+          ? `${binnenlands.straatnaam} ${huisnummerStr}${toevoeging}`.trim()
+          : "";
+        city = binnenlands.plaats || "";
+        postalCode = binnenlands.postcode || "";
+      } else if (buitenlands) {
+        // Handle foreign addresses
+        address = buitenlands.straatHuisnummer || "";
+        city = buitenlands.postcodeWoonplaats || "";
+        postalCode = "";
+      }
+
+      // Map type to Dutch label
+      const typeLabels: Record<string, string> = {
+        hoofdvestiging: "Hoofdvestiging",
+        nevenvestiging: "Nevenvestiging",
+        rechtspersoon: "Rechtspersoon",
+      };
+      const itemType = item.type || "onbekend";
+      const typeLabel = typeLabels[itemType] || itemType;
+
+      return {
+        kvkNumber: item.kvkNummer,
+        name: item.naam,
+        address,
+        city,
+        postalCode,
+        type: itemType,
+        typeLabel,
+      };
+    });
+  } catch (error) {
+    console.error("Error searching KVK:", error);
+    throw error;
+  }
 }
 
 /**
- * Get full company details by KVK number (MOCK IMPLEMENTATION)
- * TODO: Replace with real KVK API call when API key is available
+ * Get full company details by KVK number using KVK Basisprofiel API v1
+ * @see https://developers.kvk.nl/nl/documentation/basisprofiel-api
  */
 export async function getKVKDetails(kvkNumber: string): Promise<KVKDetails | null> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 200));
-
   const cleanKvk = kvkNumber.replace(/\D/g, "");
-  const company = MOCK_COMPANIES.find((c) => c.kvkNumber === cleanKvk);
+  
+  if (cleanKvk.length !== 8) {
+    return null;
+  }
 
-  return company || null;
+  const apiKey = getApiKey();
+  const url = `https://api.kvk.nl/api/v1/basisprofielen/${cleanKvk}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "apikey": apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      console.error(`KVK API error: ${response.status} ${response.statusText}`);
+      throw new Error(`KVK API error: ${response.statusText}`);
+    }
+
+    const data: KVKBasisprofielResponse = await response.json();
+    
+    // Get address from hoofdvestiging or eigenaar
+    const hoofdvestiging = data._embedded?.hoofdvestiging;
+    const eigenaar = data._embedded?.eigenaar;
+    
+    // Prefer bezoekadres, fallback to first address
+    const adressen = hoofdvestiging?.adressen || eigenaar?.adressen || [];
+    const adres = adressen.find((a) => a.type === "bezoekadres") || adressen[0];
+
+    // Get trade names
+    const handelsnamen = hoofdvestiging?.handelsnamen || data.handelsnamen || [];
+    const tradeNames = handelsnamen.map((h) => h.naam);
+
+    // Get website
+    const websites = hoofdvestiging?.websites || eigenaar?.websites || [];
+    const website = websites.length > 0 ? websites[0] : undefined;
+
+    // Get company name
+    const companyName = hoofdvestiging?.eersteHandelsnaam || data.naam;
+
+    // Build combined street address (street + house number + addition)
+    const streetParts = [
+      adres?.straatnaam,
+      adres?.huisnummer?.toString(),
+      adres?.huisnummerToevoeging || adres?.huisletter,
+    ].filter(Boolean);
+    const combinedStreet = streetParts.join(" ");
+
+    return {
+      kvkNumber: data.kvkNummer,
+      companyName,
+      tradeNames,
+      address: {
+        street: combinedStreet,
+        postalCode: adres?.postcode || "",
+        city: adres?.plaats || "",
+      },
+      website,
+      // Note: email and phone are not available in the Basisprofiel API
+    };
+  } catch (error) {
+    console.error("Error getting KVK details:", error);
+    throw error;
+  }
 }
-
-/**
- * Real KVK API implementation (to be used when API key is available)
- * 
- * Example implementation:
- * 
- * export async function searchKVK(
- *   query: string,
- *   type: "name" | "number" = "name"
- * ): Promise<KVKSearchResult[]> {
- *   const apiKey = process.env.KVK_API_KEY;
- *   if (!apiKey) {
- *     throw new Error("KVK API key not configured");
- *   }
- * 
- *   const baseUrl = process.env.KVK_API_URL || "https://api.kvk.nl/api/v1";
- *   const url = type === "number"
- *     ? `${baseUrl}/zoeken?kvkNummer=${encodeURIComponent(query)}`
- *     : `${baseUrl}/zoeken?naam=${encodeURIComponent(query)}`;
- * 
- *   const response = await fetch(url, {
- *     headers: {
- *       "apikey": apiKey,
- *     },
- *   });
- * 
- *   if (!response.ok) {
- *     throw new Error(`KVK API error: ${response.statusText}`);
- *   }
- * 
- *   const data = await response.json();
- *   // Transform API response to KVKSearchResult[]
- *   return data.resultaten?.map((item: any) => ({
- *     kvkNumber: item.kvkNummer,
- *     name: item.handelsnaam || item.naam,
- *     address: item.adres?.straat || "",
- *     city: item.adres?.plaats || "",
- *     postalCode: item.adres?.postcode || "",
- *   })) || [];
- * }
- */
-

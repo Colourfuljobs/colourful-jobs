@@ -10,7 +10,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { getKVKDetails, type KVKSearchResult } from "@/lib/kvk";
+import type { KVKSearchResult, KVKDetails } from "@/lib/kvk";
 import { 
   companyDataSchema, 
   billingDataSchema, 
@@ -18,6 +18,7 @@ import {
   type OnboardingFormData 
 } from "@/lib/validation";
 import { toast } from "sonner";
+import { normalizeUrl } from "@/lib/utils";
 
 // Import new components
 import {
@@ -111,11 +112,8 @@ export default function OnboardingPage() {
       invoice_contact_name: "",
       invoice_email: "",
       invoice_street: "",
-      "invoice_house-nr": "",
-      "invoice_house-nr-add": "",
       "invoice_postal-code": "",
       invoice_city: "",
-      invoice_country: "Nederland",
       display_name: "",
       sector: "",
       short_description: "",
@@ -504,6 +502,7 @@ export default function OnboardingPage() {
 
   // Step 2 handlers
   const handleKVKSelect = async (result: KVKSearchResult) => {
+    // First check if this KVK number already exists
     const checkResponse = await fetch(`/api/onboarding?kvk=${result.kvkNumber}`);
     if (checkResponse.ok) {
       const checkData = await checkResponse.json();
@@ -515,22 +514,46 @@ export default function OnboardingPage() {
       }
     }
 
-    const details = await getKVKDetails(result.kvkNumber);
-    if (details) {
-      setValue("kvk", details.kvkNumber, { shouldValidate: false });
-      setValue("company_name", details.companyName, { shouldValidate: false });
-      setValue("display_name", details.companyName, { shouldValidate: false });
-      if (details.address) {
-        setValue("invoice_street", details.address.street, { shouldValidate: false });
-        setValue("invoice_house-nr", details.address.houseNumber, { shouldValidate: false });
-        setValue("invoice_house-nr-add", details.address.houseNumberAddition || "", { shouldValidate: false });
-        setValue("invoice_postal-code", details.address.postalCode, { shouldValidate: false });
-        setValue("invoice_city", details.address.city, { shouldValidate: false });
-        setValue("invoice_country", details.address.country, { shouldValidate: false });
+    // Fetch detailed company info via API route
+    try {
+      const detailsResponse = await fetch(`/api/kvk/details?kvk=${result.kvkNumber}`);
+      const detailsData = await detailsResponse.json();
+      
+      if (detailsResponse.ok && detailsData.details) {
+        const details: KVKDetails = detailsData.details;
+        setValue("kvk", details.kvkNumber, { shouldValidate: false });
+        setValue("company_name", details.companyName, { shouldValidate: false });
+        setValue("display_name", details.companyName, { shouldValidate: false });
+        if (details.address) {
+          setValue("invoice_street", details.address.street, { shouldValidate: false });
+          setValue("invoice_postal-code", details.address.postalCode, { shouldValidate: false });
+          setValue("invoice_city", details.address.city, { shouldValidate: false });
+        }
+        if (details.phone) setValue("phone", details.phone, { shouldValidate: false });
+        if (details.website) setValue("website_url", details.website, { shouldValidate: false });
+      } else {
+        // Fallback: use data from search result if details API fails
+        setValue("kvk", result.kvkNumber, { shouldValidate: false });
+        setValue("company_name", result.name, { shouldValidate: false });
+        setValue("display_name", result.name, { shouldValidate: false });
+        if (result.address || result.city) {
+          setValue("invoice_city", result.city, { shouldValidate: false });
+          setValue("invoice_postal-code", result.postalCode, { shouldValidate: false });
+        }
+        console.warn("Could not fetch KVK details, using search result data");
       }
-      if (details.phone) setValue("phone", details.phone, { shouldValidate: false });
-      if (details.website) setValue("website_url", details.website, { shouldValidate: false });
+    } catch (error) {
+      // Fallback: use data from search result if fetch fails
+      console.error("Error fetching KVK details:", error);
+      setValue("kvk", result.kvkNumber, { shouldValidate: false });
+      setValue("company_name", result.name, { shouldValidate: false });
+      setValue("display_name", result.name, { shouldValidate: false });
+      if (result.address || result.city) {
+        setValue("invoice_city", result.city, { shouldValidate: false });
+        setValue("invoice_postal-code", result.postalCode, { shouldValidate: false });
+      }
     }
+
     setKvkSelected(true);
     setKvkCheckResult(null);
     setShowKVKSearch(false);
@@ -628,16 +651,12 @@ export default function OnboardingPage() {
           company_name: formData.company_name,
           kvk: formData.kvk,
           phone: formData.phone,
-          website_url: formData.website_url,
-          "reference-nr": formData["reference-nr"],
+          website_url: normalizeUrl(formData.website_url),
           invoice_contact_name: formData.invoice_contact_name,
           invoice_email: formData.invoice_email,
           invoice_street: formData.invoice_street,
-          "invoice_house-nr": formData["invoice_house-nr"],
-          "invoice_house-nr-add": formData["invoice_house-nr-add"],
           "invoice_postal-code": formData["invoice_postal-code"],
           invoice_city: formData.invoice_city,
-          invoice_country: formData.invoice_country,
         }),
       });
 

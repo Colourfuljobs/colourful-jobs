@@ -158,147 +158,177 @@ export default function LoginPage() {
   // Show loading state while signing out or redirecting active users
   if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding") || (sessionStatus === "authenticated" && session?.user?.status === "active")) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
-          <Link href="https://www.colourfuljobs.nl/">
-            <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-          </Link>
+      <div className="min-h-screen flex">
+        {/* Left side - Loading state */}
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <div className="flex justify-center mb-8">
+              <Link href="https://www.colourfuljobs.nl/">
+                <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+              </Link>
+            </div>
+            <Card className="p-6 sm:p-8">
+              <CardContent className="p-0 flex flex-col items-center justify-center py-12">
+                <Spinner className="size-8 text-[#F86600] mb-4" />
+                <p className="p-regular text-[#1F2D58]">Even geduld...</p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-        <Card className="p-6 sm:p-8">
-          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-            <Spinner className="size-8 text-[#F86600] mb-4" />
-            <p className="p-regular text-[#1F2D58]">Even geduld...</p>
-          </CardContent>
-        </Card>
+        
+        {/* Right side - Screenshot (hidden on mobile) */}
+        <div className="hidden lg:flex flex-shrink-0 items-center">
+          <Image
+            src="/onboarding-screenshot.png"
+            alt="Colourful jobs dashboard"
+            width={800}
+            height={900}
+            className="h-[80vh] w-auto"
+            priority
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-      <div className="flex justify-center mb-8">
-        <Link href="https://www.colourfuljobs.nl/">
-          <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-        </Link>
-      </div>
-      <Card className="p-0 overflow-hidden">
-        {/* Intro section with title - 50% opacity background */}
-        <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">
-          <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
-          <CardDescription className="p-regular text-[#1F2D58]/70">
-            Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen.
-          </CardDescription>
-        </div>
-        
-        {/* Form content - 100% white background */}
-        <CardContent className="p-6 sm:p-8 bg-white">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mailadres</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                required
-                className={emailError ? "border-red-500" : ""}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (emailError) setEmailError(null);
-                  // Clear browser validation error when user types
-                  e.target.setCustomValidity("");
-                }}
-                onInvalid={(e) => {
-                  e.preventDefault();
-                  const target = e.target as HTMLInputElement;
-                  const errorMessage = target.validity.valueMissing
-                    ? "E-mailadres is verplicht"
-                    : target.validity.typeMismatch
-                    ? "Voer een geldig e-mailadres in"
-                    : "Ongeldig e-mailadres";
-                  
-                  setEmailError(errorMessage);
-                  toast.error("Ongeldig e-mailadres", {
-                    description: errorMessage,
-                  });
-                  
-                  // Prevent default browser validation message
-                  target.setCustomValidity(errorMessage);
-                }}
-                placeholder="jouw@email.nl"
-              />
-              {emailError && (
-                <p className="text-sm text-red-500">
-                  {emailError.includes("bestaat") ? (
-                    <>
-                      {emailError}{" "}
-                      <Link href="/onboarding" className="underline hover:text-red-700">
-                        Maak een account aan
-                      </Link>
-                      .
-                    </>
-                  ) : emailError.includes("niet geactiveerd") ? (
-                    <>
-                      Dit account is nog niet geactiveerd. Voltooi eerst de{" "}
-                      <Link href="/onboarding" className="underline hover:text-red-700">
-                        onboarding
-                      </Link>
-                      .
-                    </>
-                  ) : (
-                    emailError
-                  )}
-                </p>
-              )}
+    <div className="min-h-screen flex">
+      {/* Left side - Login form */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <div className="flex justify-center mb-8">
+            <Link href="https://www.colourfuljobs.nl/">
+              <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+            </Link>
+          </div>
+          <Card className="p-0 overflow-hidden">
+            {/* Intro section with title - 50% opacity background */}
+            <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">
+              <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
+              <CardDescription className="p-regular text-[#1F2D58]/70">
+                Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen.
+              </CardDescription>
             </div>
-            <Button type="submit" disabled={!email || loading}>
-              {loading ? "Versturen..." : "Stuur e-mail link"}
-            </Button>
-          </form>
-          {sent && (
-            <Alert className="mt-4 bg-[#193DAB]/[0.12] border-none">
-              <AlertDescription className="text-[#1F2D58]">
-                <div className="flex flex-col sm:flex-row items-start gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-                      <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <strong className="block mb-1">Check je e-mail</strong>
-                    <p className="mb-2 text-sm">We hebben je een e-mail gestuurd met een link om veilig in te loggen.</p>
-                    <p className="text-xs">
-                      Geen mail gezien? Check je spam of{" "}
-                      <button
-                        type="button"
-                        onClick={handleResend}
-                        disabled={isResending}
-                        className="underline hover:text-[#193DAB] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isResending ? "versturen..." : "verstuur 'm opnieuw"}
-                      </button>
-                      .
+            
+            {/* Form content - 100% white background */}
+            <CardContent className="p-6 sm:p-8 bg-white">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mailadres</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    required
+                    className={emailError ? "border-red-500" : ""}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailError) setEmailError(null);
+                      // Clear browser validation error when user types
+                      e.target.setCustomValidity("");
+                    }}
+                    onInvalid={(e) => {
+                      e.preventDefault();
+                      const target = e.target as HTMLInputElement;
+                      const errorMessage = target.validity.valueMissing
+                        ? "E-mailadres is verplicht"
+                        : target.validity.typeMismatch
+                        ? "Voer een geldig e-mailadres in"
+                        : "Ongeldig e-mailadres";
+                      
+                      setEmailError(errorMessage);
+                      toast.error("Ongeldig e-mailadres", {
+                        description: errorMessage,
+                      });
+                      
+                      // Prevent default browser validation message
+                      target.setCustomValidity(errorMessage);
+                    }}
+                    placeholder="jouw@email.nl"
+                  />
+                  {emailError && (
+                    <p className="text-sm text-red-500">
+                      {emailError.includes("bestaat") ? (
+                        <>
+                          {emailError}{" "}
+                          <Link href="/onboarding" className="underline hover:text-red-700">
+                            Maak een account aan
+                          </Link>
+                          .
+                        </>
+                      ) : emailError.includes("niet geactiveerd") ? (
+                        <>
+                          Dit account is nog niet geactiveerd. Voltooi eerst de{" "}
+                          <Link href="/onboarding" className="underline hover:text-red-700">
+                            onboarding
+                          </Link>
+                          .
+                        </>
+                      ) : (
+                        emailError
+                      )}
                     </p>
-                  </div>
+                  )}
                 </div>
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-      <div className="mt-4 text-center">
-        <p className="p-small text-[#1F2D58]">
-          Nog geen account?{" "}
-          <Link 
-            href="/onboarding" 
-            className="underline hover:text-[#193DAB]"
-          >
-            Maak een account aan
-          </Link>
-        </p>
+                <Button type="submit" disabled={!email || loading}>
+                  {loading ? "Versturen..." : "Stuur e-mail link"}
+                </Button>
+              </form>
+              {sent && (
+                <Alert className="mt-4 bg-[#193DAB]/[0.12] border-none">
+                  <AlertDescription className="text-[#1F2D58]">
+                    <div className="flex flex-col sm:flex-row items-start gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
+                          <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <strong className="block mb-1">Check je e-mail</strong>
+                        <p className="mb-2 text-sm">We hebben je een e-mail gestuurd met een link om veilig in te loggen.</p>
+                        <p className="text-xs">
+                          Geen mail gezien? Check je spam of{" "}
+                          <button
+                            type="button"
+                            onClick={handleResend}
+                            disabled={isResending}
+                            className="underline hover:text-[#193DAB] disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isResending ? "versturen..." : "verstuur 'm opnieuw"}
+                          </button>
+                          .
+                        </p>
+                      </div>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+          <div className="mt-4 text-center">
+            <p className="p-small text-[#1F2D58]">
+              Nog geen account?{" "}
+              <Link 
+                href="/onboarding" 
+                className="underline hover:text-[#193DAB]"
+              >
+                Maak een account aan
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
+      
+      {/* Right side - Screenshot (hidden on mobile) */}
+      <div className="hidden lg:flex flex-shrink-0 items-center">
+        <Image
+          src="/onboarding-screenshot.png"
+          alt="Colourful jobs dashboard"
+          width={800}
+          height={900}
+          className="h-[80vh] w-auto"
+          priority
+        />
       </div>
     </div>
   );

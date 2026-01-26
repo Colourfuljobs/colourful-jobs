@@ -29,3 +29,27 @@ export function hasStatusCode(error: unknown): error is { statusCode: number } {
   return error !== null && typeof error === "object" && "statusCode" in error && typeof error.statusCode === "number";
 }
 
+/**
+ * Normalize a URL by adding https:// if no protocol is specified
+ * - "www.example.com" → "https://www.example.com"
+ * - "example.com" → "https://example.com"
+ * - "http://example.com" → "http://example.com" (keeps existing protocol)
+ * - "https://example.com" → "https://example.com" (unchanged)
+ * - "" → "" (empty string unchanged)
+ */
+export function normalizeUrl(url: string): string {
+  if (!url || url.trim() === "") {
+    return "";
+  }
+  
+  const trimmedUrl = url.trim();
+  
+  // If URL already has a protocol, return as-is
+  if (trimmedUrl.match(/^https?:\/\//i)) {
+    return trimmedUrl;
+  }
+  
+  // Add https:// prefix
+  return `https://${trimmedUrl}`;
+}
+

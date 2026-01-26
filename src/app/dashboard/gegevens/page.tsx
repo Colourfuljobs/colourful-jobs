@@ -8,14 +8,12 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { MediaPickerDialog } from "@/components/MediaPickerDialog"
 import { SortableGallery } from "@/components/SortableGallery"
 import { DesktopHeader } from "@/components/dashboard"
-import { countries } from "@/lib/countries"
 
 // Types for form data
 interface PersonalData {
@@ -37,11 +35,8 @@ interface BillingData {
   invoice_contact_name: string
   invoice_email: string
   invoice_street: string
-  "invoice_house-nr": string
-  "invoice_house-nr-add": string
   "invoice_postal-code": string
   invoice_city: string
-  invoice_country: string
 }
 
 interface GalleryImage {
@@ -89,11 +84,8 @@ const emptyBillingData: BillingData = {
   invoice_contact_name: "",
   invoice_email: "",
   invoice_street: "",
-  "invoice_house-nr": "",
-  "invoice_house-nr-add": "",
   "invoice_postal-code": "",
   invoice_city: "",
-  invoice_country: "",
 }
 
 const emptyWebsiteData: WebsiteData = {
@@ -566,12 +558,7 @@ function CompanyDataView({ data }: { data: CompanyData }) {
 }
 
 function BillingDataView({ data }: { data: BillingData }) {
-  const address = [
-    data.invoice_street,
-    data["invoice_house-nr"],
-    data["invoice_house-nr-add"],
-  ].filter(Boolean).join(" ")
-  
+  const address = data.invoice_street
   const cityPostal = [data["invoice_postal-code"], data.invoice_city].filter(Boolean).join(" ")
 
   return (
@@ -584,7 +571,6 @@ function BillingDataView({ data }: { data: BillingData }) {
         <div className="text-[#1F2D58] font-medium">
           <p>{address}</p>
           <p>{cityPostal}</p>
-          <p>{data.invoice_country}</p>
         </div>
       </div>
     </div>
@@ -860,42 +846,22 @@ function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: Billing
           />
         </div>
 
-        {/* Row 2: Street (3) | Nr + Add (2) */}
-        <div className="space-y-2 sm:col-span-3">
-          <Label htmlFor="invoice_street">Straat *</Label>
+        {/* Row 2: Street (40% = 2 cols) | Postal (20% = 1 col) | City (40% = 2 cols) */}
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor="invoice_street">Straat en huisnummer *</Label>
           <Input
             id="invoice_street"
+            placeholder="Voorbeeldstraat 123"
             value={data.invoice_street}
             onChange={(e) => onChange({ ...data, invoice_street: e.target.value })}
             disabled={isSaving}
           />
         </div>
-        <div className="sm:col-span-2 grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="invoice_house-nr">Nr. *</Label>
-            <Input
-              id="invoice_house-nr"
-              value={data["invoice_house-nr"]}
-              onChange={(e) => onChange({ ...data, "invoice_house-nr": e.target.value })}
-              disabled={isSaving}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="invoice_house-nr-add">Toev.</Label>
-            <Input
-              id="invoice_house-nr-add"
-              value={data["invoice_house-nr-add"]}
-              onChange={(e) => onChange({ ...data, "invoice_house-nr-add": e.target.value })}
-              disabled={isSaving}
-            />
-          </div>
-        </div>
-
-        {/* Row 3: Postal (1) | City (2) | Country (2) */}
         <div className="space-y-2 sm:col-span-1">
           <Label htmlFor="invoice_postal-code">Postcode *</Label>
           <Input
             id="invoice_postal-code"
+            placeholder="1234 AB"
             value={data["invoice_postal-code"]}
             onChange={(e) => onChange({ ...data, "invoice_postal-code": e.target.value })}
             disabled={isSaving}
@@ -909,22 +875,6 @@ function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: Billing
             onChange={(e) => onChange({ ...data, invoice_city: e.target.value })}
             disabled={isSaving}
           />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="invoice_country">Land *</Label>
-          <Select
-            id="invoice_country"
-            value={data.invoice_country}
-            onChange={(e) => onChange({ ...data, invoice_country: e.target.value })}
-            disabled={isSaving}
-          >
-            <option value="">Selecteer een land</option>
-            {countries.map((country) => (
-              <option key={country} value={country}>
-                {country}
-              </option>
-            ))}
-          </Select>
         </div>
       </div>
       <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />

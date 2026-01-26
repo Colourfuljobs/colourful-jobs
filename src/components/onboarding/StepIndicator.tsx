@@ -4,7 +4,7 @@ import type { StepIndicatorProps, Step } from "./types";
 
 const stepLabels = [
   "Persoonlijke gegevens",
-  "Bedrijfs- & Factuurgegevens",
+  "Bedrijfsgegevens",
   "Bedrijfsprofiel",
 ];
 
