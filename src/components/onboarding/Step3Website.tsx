@@ -33,7 +33,7 @@ export function Step3Website({
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="display_name">Weergavenaam bedrijf *</Label>
+            <Label htmlFor="display_name">Weergavenaam bedrijf <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="display_name"
               {...register("display_name")}
@@ -44,7 +44,7 @@ export function Step3Website({
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sector">Sector *</Label>
+            <Label htmlFor="sector">Sector <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="sector"
               {...register("sector")}
@@ -55,7 +55,7 @@ export function Step3Website({
             )}
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="short_description">Omschrijving bedrijf *</Label>
+            <Label htmlFor="short_description">Omschrijving bedrijf <span className="text-slate-400 text-sm">*</span></Label>
             <Textarea
               id="short_description"
               rows={4}

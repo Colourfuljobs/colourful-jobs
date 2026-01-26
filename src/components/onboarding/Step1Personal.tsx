@@ -29,7 +29,7 @@ export function Step1Personal({
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-3">
-            <Label htmlFor="firstName">Voornaam *</Label>
+            <Label htmlFor="firstName">Voornaam <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="firstName"
               value={contact.firstName}
@@ -39,7 +39,7 @@ export function Step1Personal({
             />
           </div>
           <div className="space-y-3">
-            <Label htmlFor="lastName">Achternaam *</Label>
+            <Label htmlFor="lastName">Achternaam <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="lastName"
               value={contact.lastName}
@@ -50,7 +50,7 @@ export function Step1Personal({
           </div>
         </div>
         <div className="space-y-3">
-          <Label htmlFor="email-step1">E-mailadres *</Label>
+          <Label htmlFor="email-step1">E-mailadres <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="email-step1"
             type="email"
@@ -89,7 +89,7 @@ export function Step1Personal({
             onClick={onSubmit}
             disabled={!contact.firstName || !contact.lastName || !contact.email || loading}
           >
-            {loading ? "Bezig..." : "Email link sturen"}
+            {loading ? "Bezig..." : "Verstuur email link"}
           </Button>
         </div>
       </div>
@@ -144,7 +144,7 @@ export function Step1Personal({
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-3">
-          <Label htmlFor="firstName">Voornaam *</Label>
+          <Label htmlFor="firstName">Voornaam <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="firstName"
             value={contact.firstName}
@@ -154,7 +154,7 @@ export function Step1Personal({
           />
         </div>
         <div className="space-y-3">
-          <Label htmlFor="lastName">Achternaam *</Label>
+          <Label htmlFor="lastName">Achternaam <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="lastName"
             value={contact.lastName}
@@ -165,7 +165,7 @@ export function Step1Personal({
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="email-verified">E-mailadres *</Label>
+        <Label htmlFor="email-verified">E-mailadres <span className="text-slate-400 text-sm">*</span></Label>
         <Input
           id="email-verified"
           type="email"
@@ -174,15 +174,17 @@ export function Step1Personal({
           className="bg-slate-100 text-slate-600"
         />
         <p className="p-small text-slate-500">
-          E-mail kan niet meer gewijzigd worden. Wil je dit toch?{" "}
+          E-mail kan niet meer gewijzigd worden, omdat deze al gevalideerd is.
+          <br />
+          Wil je toch wijzigen?{" "}
           <button
             type="button"
             onClick={onOpenRestartDialog}
             className="underline hover:no-underline text-[#1F2D58]"
           >
-            Start opnieuw
+            Start dan opnieuw
           </button>
-          {" "}(alle huidige gegevens gaan verloren)
+          .
         </p>
       </div>
       <div className="space-y-3">

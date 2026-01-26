@@ -35,7 +35,7 @@ export function JoinEmployerFlow({
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-3">
-              <Label htmlFor="join-firstName">Voornaam *</Label>
+              <Label htmlFor="join-firstName">Voornaam <span className="text-slate-400 text-sm">*</span></Label>
               <Input
                 id="join-firstName"
                 value={joinContact.firstName}
@@ -43,7 +43,7 @@ export function JoinEmployerFlow({
               />
             </div>
             <div className="space-y-3">
-              <Label htmlFor="join-lastName">Achternaam *</Label>
+              <Label htmlFor="join-lastName">Achternaam <span className="text-slate-400 text-sm">*</span></Label>
               <Input
                 id="join-lastName"
                 value={joinContact.lastName}
@@ -52,7 +52,7 @@ export function JoinEmployerFlow({
             </div>
           </div>
           <div className="space-y-3">
-            <Label htmlFor="join-email">Zakelijk e-mailadres *</Label>
+            <Label htmlFor="join-email">Zakelijk e-mailadres <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="join-email"
               type="email"

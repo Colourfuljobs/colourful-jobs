@@ -1002,7 +1002,7 @@ export default function OnboardingPage() {
   if (joinCompleting || isJoinCallback) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-3xl">
+        <div className="w-full max-w-[600px]">
         <div className="flex justify-center mb-8">
           <Link href="https://www.colourfuljobs.nl/">
             <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
@@ -1023,7 +1023,7 @@ export default function OnboardingPage() {
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-3xl">
+        <div className="w-full max-w-[600px]">
           <div className="flex justify-center mb-8">
             <Link href="https://www.colourfuljobs.nl/">
               <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
@@ -1039,7 +1039,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-3xl">
+      <div className="w-full max-w-[600px]">
       <div className="flex justify-center mb-8">
         <Link href="https://www.colourfuljobs.nl/">
           <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
@@ -1049,7 +1049,12 @@ export default function OnboardingPage() {
         {/* Header with stepper */}
         {!joinMode && (
           <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-8 sm:pb-10">
-            <CardTitle className="mb-6 contempora-small">Account aanmaken</CardTitle>
+            <CardTitle className="mb-3 contempora-small">Bouw aan je werkgeversmerk</CardTitle>
+            {step === 1 && (
+              <p className="p-regular text-slate-600 mb-6">
+                Maak een account aan en bereik geschikte kandidaten die passen bij jouw organisatie.
+              </p>
+            )}
             <div className="pb-2">
               <StepIndicator
                 currentStep={step}

@@ -275,7 +275,7 @@ export function Step2Company({
         <h4>Algemene gegevens</h4>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="company_name">Naam organisatie *</Label>
+            <Label htmlFor="company_name">Naam organisatie <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="company_name"
               {...register("company_name")}
@@ -286,7 +286,7 @@ export function Step2Company({
             )}
           </div>
           <div className="space-y-3">
-            <Label htmlFor="phone">Telefoonnummer *</Label>
+            <Label htmlFor="phone">Telefoonnummer <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="phone"
               type="tel"
@@ -301,7 +301,7 @@ export function Step2Company({
           <div className="md:col-span-2 space-y-3">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="space-y-2 sm:w-1/2">
-                <Label htmlFor="kvk">KVK-nummer *</Label>
+                <Label htmlFor="kvk">KVK-nummer <span className="text-slate-400 text-sm">*</span></Label>
                 <Input
                   id="kvk"
                   inputMode="numeric"
@@ -320,7 +320,7 @@ export function Step2Company({
                 )}
               </div>
               <div className="space-y-2 sm:w-1/2">
-                <Label htmlFor="website_url">Website-URL *</Label>
+                <Label htmlFor="website_url">Website-URL <span className="text-slate-400 text-sm">*</span></Label>
                 <Input 
                   id="website_url" 
                   type="url" 
@@ -370,7 +370,7 @@ export function Step2Company({
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           {/* Rij 1: Contact (volle breedte op mobiel, 2.5 cols op desktop) | Email (2.5 cols) */}
           <div className="space-y-2 sm:col-span-5 md:col-span-2">
-            <Label htmlFor="invoice_contact_name">Contactpersoon facturatie *</Label>
+            <Label htmlFor="invoice_contact_name">Contactpersoon facturatie <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="invoice_contact_name"
               {...register("invoice_contact_name")}
@@ -381,7 +381,7 @@ export function Step2Company({
             )}
           </div>
           <div className="space-y-2 sm:col-span-5 md:col-span-3">
-            <Label htmlFor="invoice_email">Facturatie e-mailadres *</Label>
+            <Label htmlFor="invoice_email">Facturatie e-mailadres <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="invoice_email"
               type="email"
@@ -395,7 +395,7 @@ export function Step2Company({
 
           {/* Rij 2: Straat (40% = 2 cols) | Postcode (20% = 1 col) | Plaats (40% = 2 cols) */}
           <div className="space-y-2 sm:col-span-5 md:col-span-2">
-            <Label htmlFor="invoice_street">Straat en huisnummer *</Label>
+            <Label htmlFor="invoice_street">Straat en huisnummer <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="invoice_street"
               placeholder="Voorbeeldstraat 123"
@@ -407,7 +407,7 @@ export function Step2Company({
             )}
           </div>
           <div className="space-y-2 sm:col-span-2 md:col-span-1">
-            <Label htmlFor="invoice_postal-code">Postcode *</Label>
+            <Label htmlFor="invoice_postal-code">Postcode <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="invoice_postal-code"
               placeholder="1234 AB"
@@ -419,7 +419,7 @@ export function Step2Company({
             )}
           </div>
           <div className="space-y-2 sm:col-span-3 md:col-span-2">
-            <Label htmlFor="invoice_city">Plaats *</Label>
+            <Label htmlFor="invoice_city">Plaats <span className="text-slate-400 text-sm">*</span></Label>
             <Input
               id="invoice_city"
               {...register("invoice_city")}
