@@ -15,6 +15,7 @@ export default function DashboardLayout({
   const { data: session, status } = useSession()
   const router = useRouter()
   const [credits, setCredits] = useState<{ available: number } | null>(null)
+  const [userData, setUserData] = useState<{ first_name: string; last_name: string; email: string } | null>(null)
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -30,23 +31,28 @@ export default function DashboardLayout({
     }
   }, [status, session, router])
 
-  // Fetch credits from account API
+  // Fetch user data and credits from account API
   useEffect(() => {
-    async function fetchCredits() {
+    async function fetchAccountData() {
       try {
         const response = await fetch("/api/account")
         if (response.ok) {
           const data = await response.json()
           setCredits({ available: data.credits?.available ?? 0 })
+          setUserData({
+            first_name: data.personal?.first_name || "",
+            last_name: data.personal?.last_name || "",
+            email: data.personal?.email || session?.user?.email || "",
+          })
         }
       } catch (error) {
-        console.error("Failed to fetch credits:", error)
+        console.error("Failed to fetch account data:", error)
       }
     }
     if (status === "authenticated") {
-      fetchCredits()
+      fetchAccountData()
     }
-  }, [status])
+  }, [status, session?.user?.email])
 
   // Show loading state while checking session
   if (status === "loading") {
@@ -66,9 +72,18 @@ export default function DashboardLayout({
     )
   }
 
+  // Show loading state while fetching user data
+  if (!userData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Spinner className="size-12 text-[#1F2D58]" />
+      </div>
+    )
+  }
+
   const user = {
-    name: session?.user?.email?.split("@")[0] || "Gebruiker",
-    email: session?.user?.email,
+    name: userData.first_name || "Gebruiker",
+    email: userData.email,
   }
 
   return (

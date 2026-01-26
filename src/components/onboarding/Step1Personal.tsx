@@ -99,43 +99,41 @@ export function Step1Personal({
   // Email sent but not verified yet - show waiting message
   if (emailSent && !emailVerified) {
     return (
-      <Alert className="bg-[#193DAB]/[0.12] border-none">
-        <AlertDescription className="text-[#1F2D58]">
-          <div className="flex flex-col sm:flex-row items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-                <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
-              </svg>
-            </div>
-            <div className="flex-1">
-              <strong className="block mb-1">Check je e-mail</strong>
-              <p className="mb-2 text-sm">
-                We hebben een e-mail gestuurd naar <strong>{contact.email}</strong> met een link om je email te verifiëren.
-              </p>
-              <p className="text-xs">
-                Geen mail gezien? Check je spam of{" "}
-                <button
-                  onClick={onResendEmail}
-                  disabled={isResending}
-                  className="underline disabled:opacity-50"
-                >
-                  {isResending ? "Bezig..." : "verstuur 'm opnieuw"}
-                </button>
-                .
-              </p>
-              <p className="text-xs mt-2">
-                Verkeerd e-mailadres?{" "}
-                <button
-                  onClick={onClearState}
-                  className="underline"
-                >
-                  Vul andere gegevens in
-                </button>
-              </p>
-            </div>
-          </div>
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col items-center justify-center py-8 px-6 text-center bg-[#193DAB]/[0.12] rounded-lg">
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24">
+            <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
+          </svg>
+        </div>
+        <div className="max-w-md space-y-3">
+          <h3 className="text-lg font-semibold text-[#1F2D58]">
+            Bevestig je e-mailadres<br />om verder te gaan
+          </h3>
+          <p className="p-regular text-slate-600">
+            We hebben een activatielink gestuurd naar <strong className="text-[#1F2D58]">{contact.email}</strong>.
+          </p>
+          <p className="p-small text-slate-500 !mt-7">
+            Geen mail gezien? Check je spam of{" "}
+            <button
+              onClick={onResendEmail}
+              disabled={isResending}
+              className="underline hover:no-underline disabled:opacity-50"
+            >
+              {isResending ? "Bezig..." : "verstuur 'm opnieuw"}
+            </button>
+            .
+          </p>
+          <p className="p-small text-slate-500 !mt-0.5">
+            Verkeerd e-mailadres?{" "}
+            <button
+              onClick={onClearState}
+              className="underline hover:no-underline"
+            >
+              Vul andere gegevens in
+            </button>
+          </p>
+        </div>
+      </div>
     );
   }
 
