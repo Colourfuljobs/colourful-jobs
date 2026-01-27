@@ -25,6 +25,17 @@
 - Font familie: Sofia Pro (weights: 400 Regular, 500 Medium, 700 Bold)
 - Contempora alleen gebruiken indien specifiek aangegeven in designs
 
+## Verplichte Velden (Asterisk)
+- Bij verplichte velden, voeg een asterisk toe in de label met de volgende opmaak:
+  ```jsx
+  <Label htmlFor="fieldName">Veldnaam <span className="text-slate-400 text-sm">*</span></Label>
+  ```
+- De asterisk moet ALTIJD:
+  - Binnen een `<span>` staan
+  - De class `text-slate-400 text-sm` hebben (lichtgrijs, klein)
+  - Met een spatie gescheiden zijn van de labeltekst
+- Gebruik dit consistent in alle formulieren (onboarding, vacatures, gegevens, etc.)
+
 ## Kleuren & Design Tokens
 - **Achtergrondkleur**: `#E8EEF2` (altijd, overal)
 - **Standaard tekstkleur**: `#1F2D58` (tenzij anders aangegeven, zoals warnings)

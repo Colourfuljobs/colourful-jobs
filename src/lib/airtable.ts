@@ -108,15 +108,160 @@ export const transactionRecordSchema = z.object({
   wallet_id: z.string().nullable().optional(), // Linked record to Wallets
   vacancy_id: z.string().nullable().optional(), // Linked record to Vacancies
   user_id: z.string().nullable().optional(), // Linked record to Users
+  product_id: z.string().nullable().optional(), // Linked record to Products
   type: z.enum(["purchase", "spend", "refund", "adjustment"]),
   reference_type: z.enum(["vacancy", "order", "admin", "system"]).nullable().optional(),
+  context: z.enum(["dashboard", "vacancy", "boost", "renew", "transactions"]).nullable().optional(),
   status: z.enum(["paid", "failed", "refunded", "open"]),
   money_amount: z.number().nullable().optional(),
   credits_amount: z.number().int(),
   vacancy_name: z.string().nullable().optional(), // Lookup field from Vacancies
   invoice: z.array(airtableAttachmentSchema).nullable().optional(), // Attachment field
+  invoice_details_snapshot: z.string().nullable().optional(), // JSON string with invoice details at time of purchase
   "created-at": z.string().optional(),
 });
+
+export const productRecordSchema = z.object({
+  id: z.string(),
+  display_name: z.string(),
+  type: z.enum(["vacancy_package", "credit_bundle", "upsell"]),
+  credits: z.number().int(),
+  base_price: z.number().nullable().optional(), // Reference price (for showing discount)
+  price: z.number(), // Actual selling price excl. VAT
+  discount_percentage: z.number().nullable().optional(), // Calculated formula field
+  is_active: z.boolean().default(true),
+  sort_order: z.number().int().default(0),
+  features: z.array(z.string()).optional(), // Linked records to Features
+});
+
+export const featurePackageCategoryEnum = z.enum([
+  "always_included",
+  "extra_boost",
+  "spotlight",
+]);
+
+export const featureActionTagEnum = z.enum([
+  "cj_daily_alert",
+  "cj_social_post",
+  "cj_google_campaigns",
+  "cj_same_day_online",
+]);
+
+export const featureRecordSchema = z.object({
+  id: z.string(),
+  display_name: z.string(),
+  is_active: z.boolean().default(true),
+  action_tags: z.string().nullable().optional(), // More permissive - accept any string
+  sort_order: z.number().int().default(0),
+  products: z.array(z.string()).optional(), // Linked to Products
+  duration_days: z.number().nullable().optional(),
+  package_category: z.string().nullable().optional(), // More permissive - accept any string
+});
+
+// ============================================
+// VACANCY SCHEMAS
+// ============================================
+
+export const vacancyStatusEnum = z.enum([
+  "concept",
+  "awaiting_approval",
+  "published",
+  "expired",
+  "unpublished",
+  "needs_adjustment",
+]);
+
+export const vacancyInputTypeEnum = z.enum(["self_service", "we_do_it_for_you"]);
+
+export const vacancyEmploymentTypeEnum = z.enum([
+  "Full-time",
+  "Part-time",
+  "Contract",
+  "Temporary",
+  "Internship",
+  "Other",
+]);
+
+export const vacancyRecordSchema = z.object({
+  id: z.string(),
+  employer_id: z.string().nullable().optional(), // Linked to Employers
+  title: z.string().optional(),
+  status: vacancyStatusEnum.default("concept"),
+  input_type: vacancyInputTypeEnum.default("self_service"),
+  
+  // Content
+  intro_txt: z.string().optional(),
+  description: z.string().optional(), // Rich text (HTML)
+  
+  // Location & job details
+  location: z.string().optional(),
+  employment_type: vacancyEmploymentTypeEnum.optional(),
+  hrs_per_week: z.number().int().optional(),
+  salary: z.string().optional(),
+  
+  // Linked lookup tables (sorted alphabetically)
+  education_level_id: z.string().nullable().optional(), // Linked to EducationLevels
+  field_id: z.string().nullable().optional(), // Linked to Fields (vakgebied)
+  function_type_id: z.string().nullable().optional(), // Linked to FunctionTypes
+  region_id: z.string().nullable().optional(), // Linked to Regions
+  sector_id: z.string().nullable().optional(), // Linked to Sectors
+  
+  // Package & upsells
+  package_id: z.string().nullable().optional(), // Linked to Products
+  selected_upsells: z.array(z.string()).optional(), // Linked to Products (multiple)
+  
+  // Application
+  apply_url: z.string().optional(),
+  application_email: z.string().optional(),
+  show_apply_form: z.boolean().default(false),
+  
+  // Contact person
+  contact_name: z.string().optional(),
+  contact_role: z.string().optional(),
+  contact_company: z.string().optional(),
+  contact_email: z.string().optional(),
+  contact_phone: z.string().optional(),
+  contact_photo_id: z.string().nullable().optional(), // Linked to Media Assets
+  
+  // Social proof
+  recommendations: z.string().optional(), // JSON string array
+  
+  // Media
+  media_assets: z.array(z.string()).optional(), // Linked to Media Assets
+  
+  // Credits & transactions
+  credits_spent: z.number().int().optional(), // Lookup field
+  credit_transactions: z.array(z.string()).optional(), // Linked to Transactions
+  
+  // Users & events
+  users: z.array(z.string()).optional(), // Linked to Users (creator)
+  events: z.array(z.string()).optional(), // Linked to Events
+  
+  // Timestamps
+  "created-at": z.string().optional(),
+  "updated-at": z.string().optional(),
+  "submitted-at": z.string().optional(),
+  "last-published-at": z.string().optional(),
+  "depublished-at": z.string().optional(),
+  "last-status_changed-at": z.string().optional(),
+  closing_date: z.string().optional(),
+});
+
+// ============================================
+// LOOKUP TABLE SCHEMAS
+// ============================================
+
+export const lookupRecordSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+// Type aliases for clarity
+export const educationLevelRecordSchema = lookupRecordSchema;
+export const fieldRecordSchema = lookupRecordSchema; // Vakgebied
+export const functionTypeRecordSchema = lookupRecordSchema;
+export const regionRecordSchema = lookupRecordSchema;
+export const sectorRecordSchema = lookupRecordSchema;
 
 export type UserRecord = z.infer<typeof userRecordSchema>;
 type EmployerRecord = z.infer<typeof employerRecordSchema>;
@@ -124,6 +269,14 @@ type WalletRecord = z.infer<typeof walletRecordSchema>;
 export type TransactionRecord = z.infer<typeof transactionRecordSchema>;
 export type MediaAssetRecord = z.infer<typeof mediaAssetRecordSchema>;
 export type FAQRecord = z.infer<typeof faqRecordSchema>;
+export type ProductRecord = z.infer<typeof productRecordSchema>;
+export type FeatureRecord = z.infer<typeof featureRecordSchema>;
+export type FeaturePackageCategory = z.infer<typeof featurePackageCategoryEnum>;
+export type VacancyRecord = z.infer<typeof vacancyRecordSchema>;
+export type VacancyStatus = z.infer<typeof vacancyStatusEnum>;
+export type VacancyInputType = z.infer<typeof vacancyInputTypeEnum>;
+export type VacancyEmploymentType = z.infer<typeof vacancyEmploymentTypeEnum>;
+export type LookupRecord = z.infer<typeof lookupRecordSchema>;
 
 const USERS_TABLE = process.env.AIRTABLE_USERS_TABLE || "Users";
 const EMPLOYERS_TABLE = process.env.AIRTABLE_EMPLOYERS_TABLE || "Employers";
@@ -132,6 +285,15 @@ const ROLES_TABLE = process.env.AIRTABLE_ROLES_TABLE || "Roles";
 const TRANSACTIONS_TABLE = process.env.AIRTABLE_TRANSACTIONS_TABLE || "Transactions";
 const MEDIA_ASSETS_TABLE = process.env.AIRTABLE_MEDIA_ASSETS_TABLE || "Media Assets";
 const FAQ_TABLE = process.env.AIRTABLE_FAQ_TABLE || "FAQ";
+const PRODUCTS_TABLE = process.env.AIRTABLE_PRODUCTS_TABLE || "Products";
+const FEATURES_TABLE = process.env.AIRTABLE_FEATURES_TABLE || "Features";
+const VACANCIES_TABLE = process.env.AIRTABLE_VACANCIES_TABLE || "Vacancies";
+// Lookup tables (sorted alphabetically by name)
+const EDUCATION_LEVELS_TABLE = process.env.AIRTABLE_EDUCATION_LEVELS_TABLE || "EducationLevels";
+const FIELDS_TABLE = process.env.AIRTABLE_FIELDS_TABLE || "Fields";
+const FUNCTION_TYPES_TABLE = process.env.AIRTABLE_FUNCTION_TYPES_TABLE || "FunctionTypes";
+const REGIONS_TABLE = process.env.AIRTABLE_REGIONS_TABLE || "Regions";
+const SECTORS_TABLE = process.env.AIRTABLE_SECTORS_TABLE || "Sectors";
 
 // Cache for the employer role ID (so we don't query Airtable every time)
 let cachedEmployerRoleId: string | null = null;
@@ -1200,4 +1362,806 @@ export async function unlinkUserFromEmployer(userId: string): Promise<UserRecord
     employer_id,
     invited_by,
   });
+}
+
+// ============================================
+// PRODUCTS FUNCTIONS
+// ============================================
+
+/**
+ * Get active products by type
+ * Returns products sorted by sort_order
+ */
+export async function getActiveProductsByType(
+  type: ProductRecord["type"]
+): Promise<ProductRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const records = await base(PRODUCTS_TABLE)
+      .select({
+        filterByFormula: `AND({type} = '${type}', {is_active} = TRUE())`,
+        sort: [{ field: "sort_order", direction: "asc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      
+      // Extract linked record IDs from array (features)
+      const features = Array.isArray(fields.features) ? fields.features : [];
+
+      return productRecordSchema.parse({
+        id: record.id,
+        display_name: fields.display_name || "",
+        type: fields.type,
+        credits: fields.credits || 0,
+        base_price: fields.base_price || null,
+        price: fields.price || 0,
+        discount_percentage: fields.discount_percentage || null,
+        is_active: fields.is_active || false,
+        sort_order: fields.sort_order || 0,
+        features,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting products by type:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Get a product by ID
+ */
+export async function getProductById(id: string): Promise<ProductRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const record = await base(PRODUCTS_TABLE).find(id);
+
+    if (!record) return null;
+
+    const fields = record.fields;
+    const features = Array.isArray(fields.features) ? fields.features : [];
+
+    return productRecordSchema.parse({
+      id: record.id,
+      display_name: fields.display_name || "",
+      type: fields.type,
+      credits: fields.credits || 0,
+      base_price: fields.base_price || null,
+      price: fields.price || 0,
+      discount_percentage: fields.discount_percentage || null,
+      is_active: fields.is_active || false,
+      sort_order: fields.sort_order || 0,
+      features,
+    });
+  } catch (error: unknown) {
+    console.error("Error getting product by ID:", getErrorMessage(error));
+    return null;
+  }
+}
+
+// ============================================
+// FEATURES FUNCTIONS
+// ============================================
+
+/**
+ * Get features by their IDs
+ * Returns features sorted by package_category then sort_order
+ */
+export async function getFeaturesByIds(ids: string[]): Promise<FeatureRecord[]> {
+  if (!baseId || !apiKey || ids.length === 0) {
+    return [];
+  }
+
+  try {
+    // Build OR formula for multiple IDs
+    const idFormulas = ids.map((id) => `RECORD_ID() = '${id}'`);
+    const filterFormula = `AND(OR(${idFormulas.join(",")}), {is_active} = TRUE())`;
+
+    const records = await base(FEATURES_TABLE)
+      .select({
+        filterByFormula: filterFormula,
+        sort: [
+          { field: "sort_order", direction: "asc" },
+        ],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      const products = Array.isArray(fields.products) ? fields.products : [];
+
+      return featureRecordSchema.parse({
+        id: record.id,
+        display_name: fields.display_name || "",
+        is_active: fields.is_active ?? true,
+        action_tags: fields.action_tags || null,
+        sort_order: fields.sort_order || 0,
+        products,
+        duration_days: fields.duration_days || null,
+        package_category: fields.package_category || null,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting features by IDs:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Get all active features
+ * Returns features sorted by package_category then sort_order
+ */
+export async function getAllActiveFeatures(): Promise<FeatureRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const records = await base(FEATURES_TABLE)
+      .select({
+        filterByFormula: `{is_active} = TRUE()`,
+        sort: [
+          { field: "sort_order", direction: "asc" },
+        ],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      const products = Array.isArray(fields.products) ? fields.products : [];
+
+      return featureRecordSchema.parse({
+        id: record.id,
+        display_name: fields.display_name || "",
+        is_active: fields.is_active ?? true,
+        action_tags: fields.action_tags || null,
+        sort_order: fields.sort_order || 0,
+        products,
+        duration_days: fields.duration_days || null,
+        package_category: fields.package_category || null,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting all features:", getErrorMessage(error));
+    return [];
+  }
+}
+
+// ============================================
+// WALLET UPDATE FUNCTIONS
+// ============================================
+
+/**
+ * Update wallet balance after a credit purchase
+ * Adds credits to balance and total_purchased
+ */
+export async function addCreditsToWallet(
+  walletId: string,
+  creditsAmount: number
+): Promise<WalletRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  // First get current wallet to calculate new balance
+  const currentWallet = await base(WALLETS_TABLE).find(walletId);
+  if (!currentWallet) {
+    throw new Error("Wallet not found");
+  }
+
+  const currentBalance = (currentWallet.fields.balance as number) || 0;
+  const currentTotalPurchased = (currentWallet.fields.total_purchased as number) || 0;
+
+  const record = await base(WALLETS_TABLE).update(walletId, {
+    balance: currentBalance + creditsAmount,
+    total_purchased: currentTotalPurchased + creditsAmount,
+    "last-updated": new Date().toISOString(),
+  });
+
+  const fields = record.fields;
+  const owner_employer = Array.isArray(fields.owner_employer)
+    ? fields.owner_employer[0] || null
+    : fields.owner_employer || null;
+  const owner_user = Array.isArray(fields.owner_user)
+    ? fields.owner_user[0] || null
+    : fields.owner_user || null;
+
+  return walletRecordSchema.parse({
+    id: record.id,
+    ...fields,
+    owner_employer,
+    owner_user,
+  });
+}
+
+// ============================================
+// TRANSACTION CREATE FUNCTION
+// ============================================
+
+/**
+ * Create a new transaction for credit purchase
+ */
+export async function createPurchaseTransaction(fields: {
+  employer_id: string;
+  wallet_id: string;
+  user_id: string;
+  product_id: string;
+  credits_amount: number;
+  money_amount: number;
+  context: TransactionRecord["context"];
+  invoice_details_snapshot: string; // JSON string
+}): Promise<TransactionRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    employer: [fields.employer_id], // Linked record requires array
+    wallet: [fields.wallet_id], // Linked record requires array
+    product_id: [fields.product_id], // Linked record to Products - requires array
+    type: "purchase",
+    status: "open",
+    credits_amount: fields.credits_amount,
+    money_amount: fields.money_amount,
+    context: fields.context,
+    invoice_details_snapshot: fields.invoice_details_snapshot,
+    reference_type: "order",
+    "created-at": new Date().toISOString(),
+  };
+
+  try {
+    const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
+
+    const recordFields = record.fields;
+    const employer_id = Array.isArray(recordFields.employer)
+      ? recordFields.employer[0] || null
+      : recordFields.employer || null;
+    const wallet_id = Array.isArray(recordFields.wallet)
+      ? recordFields.wallet[0] || null
+      : recordFields.wallet || null;
+    const product_id = Array.isArray(recordFields.product_id)
+      ? recordFields.product_id[0] || null
+      : recordFields.product_id || null;
+
+    return transactionRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      wallet_id,
+      user_id: null,
+      product_id,
+      vacancy_id: null,
+      type: recordFields.type,
+      reference_type: recordFields.reference_type || null,
+      context: (recordFields.context as string) || null,
+      status: recordFields.status,
+      money_amount: recordFields.money_amount || null,
+      credits_amount: recordFields.credits_amount || 0,
+      vacancy_name: null,
+      invoice: recordFields.invoice || null,
+      invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
+      "created-at": recordFields["created-at"] as string | undefined,
+    });
+  } catch (error: unknown) {
+    console.error("Error creating purchase transaction:", getErrorMessage(error));
+    throw new Error(`Failed to create transaction: ${getErrorMessage(error)}`);
+  }
+}
+
+// ============================================
+// VACANCY FUNCTIONS
+// ============================================
+
+/**
+ * Helper to extract linked record fields from Airtable vacancy record
+ */
+function parseVacancyFields(record: any): VacancyRecord {
+  const fields = record.fields;
+  
+  // Extract linked record IDs (Airtable returns arrays)
+  const employer_id = Array.isArray(fields.employer)
+    ? fields.employer[0] || null
+    : fields.employer || null;
+  const education_level_id = Array.isArray(fields.education_level)
+    ? fields.education_level[0] || null
+    : fields.education_level || null;
+  const field_id = Array.isArray(fields.field)
+    ? fields.field[0] || null
+    : fields.field || null;
+  const function_type_id = Array.isArray(fields.function_type)
+    ? fields.function_type[0] || null
+    : fields.function_type || null;
+  const region_id = Array.isArray(fields.region)
+    ? fields.region[0] || null
+    : fields.region || null;
+  const sector_id = Array.isArray(fields.sector)
+    ? fields.sector[0] || null
+    : fields.sector || null;
+  const package_id = Array.isArray(fields.package)
+    ? fields.package[0] || null
+    : fields.package || null;
+  const contact_photo_id = Array.isArray(fields.contact_photo)
+    ? fields.contact_photo[0] || null
+    : fields.contact_photo || null;
+  const selected_upsells = Array.isArray(fields.selected_upsells) 
+    ? fields.selected_upsells 
+    : [];
+  const media_assets = Array.isArray(fields.media_assets) 
+    ? fields.media_assets 
+    : [];
+  const credit_transactions = Array.isArray(fields.credit_transactions) 
+    ? fields.credit_transactions 
+    : [];
+  const users = Array.isArray(fields.users) 
+    ? fields.users 
+    : [];
+  const events = Array.isArray(fields.events) 
+    ? fields.events 
+    : [];
+
+  return vacancyRecordSchema.parse({
+    id: record.id,
+    employer_id,
+    title: fields.title || "",
+    status: fields.status || "concept",
+    input_type: fields.input_type || "self_service",
+    intro_txt: fields.intro_txt || "",
+    description: fields.description || "",
+    location: fields.location || "",
+    employment_type: fields.employment_type || undefined,
+    hrs_per_week: fields.hrs_per_week || undefined,
+    salary: fields.salary || "",
+    education_level_id,
+    field_id,
+    function_type_id,
+    region_id,
+    sector_id,
+    package_id,
+    selected_upsells,
+    apply_url: fields.apply_url || "",
+    application_email: fields.application_email || "",
+    show_apply_form: fields.show_apply_form || false,
+    contact_name: fields.contact_name || "",
+    contact_role: fields.contact_role || "",
+    contact_company: fields.contact_company || "",
+    contact_email: fields.contact_email || "",
+    contact_phone: fields.contact_phone || "",
+    contact_photo_id,
+    recommendations: fields.recommendations || "",
+    media_assets,
+    credits_spent: fields.credits_spent || 0,
+    credit_transactions,
+    users,
+    events,
+    "created-at": fields["created-at"] as string | undefined,
+    "updated-at": fields["updated-at"] as string | undefined,
+    "submitted-at": fields["submitted-at"] as string | undefined,
+    "last-published-at": fields["last-published-at"] as string | undefined,
+    "depublished-at": fields["depublished-at"] as string | undefined,
+    "last-status_changed-at": fields["last-status_changed-at"] as string | undefined,
+    closing_date: fields.closing_date as string | undefined,
+  });
+}
+
+/**
+ * Get a vacancy by ID
+ */
+export async function getVacancyById(id: string): Promise<VacancyRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const record = await base(VACANCIES_TABLE).find(id);
+    if (!record) return null;
+    return parseVacancyFields(record);
+  } catch (error: unknown) {
+    console.error("Error getting vacancy by ID:", getErrorMessage(error));
+    return null;
+  }
+}
+
+/**
+ * Get all vacancies for an employer
+ * Returns vacancies sorted by created-at (newest first)
+ */
+export async function getVacanciesByEmployerId(
+  employerId: string,
+  options?: { status?: VacancyStatus | VacancyStatus[] }
+): Promise<VacancyRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    let filterFormula = `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`;
+    
+    // Add status filter if specified
+    if (options?.status) {
+      if (Array.isArray(options.status)) {
+        const statusFilters = options.status.map(s => `{status} = '${s}'`).join(", ");
+        filterFormula = `AND(${filterFormula}, OR(${statusFilters}))`;
+      } else {
+        filterFormula = `AND(${filterFormula}, {status} = '${options.status}')`;
+      }
+    }
+
+    const records = await base(VACANCIES_TABLE)
+      .select({
+        filterByFormula: filterFormula,
+        sort: [{ field: "created-at", direction: "desc" }],
+      })
+      .all();
+
+    return records.map(parseVacancyFields);
+  } catch (error: unknown) {
+    console.error("Error getting vacancies by employer ID:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Create a new vacancy (as concept)
+ */
+export async function createVacancy(fields: {
+  employer_id: string;
+  user_id: string;
+  title?: string;
+  input_type?: VacancyInputType;
+  package_id?: string;
+}): Promise<VacancyRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    employer: [fields.employer_id], // Linked record requires array
+    users: [fields.user_id], // Linked record requires array
+    status: "concept",
+    input_type: fields.input_type || "self_service",
+    "created-at": new Date().toISOString(),
+    "updated-at": new Date().toISOString(),
+  };
+
+  if (fields.title) airtableFields.title = fields.title;
+  if (fields.package_id) airtableFields.package = [fields.package_id];
+
+  try {
+    const record = await base(VACANCIES_TABLE).create(airtableFields);
+    
+    // Update the record to set the id field to the Record ID
+    const updatedRecord = await base(VACANCIES_TABLE).update(record.id, {
+      id: record.id,
+    });
+    
+    return parseVacancyFields(updatedRecord);
+  } catch (error: unknown) {
+    console.error("Error creating vacancy:", getErrorMessage(error));
+    throw new Error(`Failed to create vacancy: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Update a vacancy
+ */
+export async function updateVacancy(
+  id: string,
+  fields: Partial<Omit<VacancyRecord, "id" | "employer_id" | "credits_spent" | "credit_transactions" | "events">>
+): Promise<VacancyRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    "updated-at": new Date().toISOString(),
+  };
+
+  // Map fields to Airtable field names
+  if (fields.title !== undefined) airtableFields.title = fields.title;
+  if (fields.status !== undefined) {
+    airtableFields.status = fields.status;
+    airtableFields["last-status_changed-at"] = new Date().toISOString();
+  }
+  if (fields.input_type !== undefined) airtableFields.input_type = fields.input_type;
+  if (fields.intro_txt !== undefined) airtableFields.intro_txt = fields.intro_txt;
+  if (fields.description !== undefined) airtableFields.description = fields.description;
+  if (fields.location !== undefined) airtableFields.location = fields.location;
+  if (fields.employment_type !== undefined) airtableFields.employment_type = fields.employment_type;
+  if (fields.hrs_per_week !== undefined) airtableFields.hrs_per_week = fields.hrs_per_week;
+  if (fields.salary !== undefined) airtableFields.salary = fields.salary;
+  if (fields.closing_date !== undefined) airtableFields.closing_date = fields.closing_date;
+  
+  // Linked lookup fields
+  if (fields.education_level_id !== undefined) {
+    airtableFields.education_level = fields.education_level_id ? [fields.education_level_id] : [];
+  }
+  if (fields.field_id !== undefined) {
+    airtableFields.field = fields.field_id ? [fields.field_id] : [];
+  }
+  if (fields.function_type_id !== undefined) {
+    airtableFields.function_type = fields.function_type_id ? [fields.function_type_id] : [];
+  }
+  if (fields.region_id !== undefined) {
+    airtableFields.region = fields.region_id ? [fields.region_id] : [];
+  }
+  if (fields.sector_id !== undefined) {
+    airtableFields.sector = fields.sector_id ? [fields.sector_id] : [];
+  }
+  
+  // Package & upsells
+  if (fields.package_id !== undefined) {
+    airtableFields.package = fields.package_id ? [fields.package_id] : [];
+  }
+  if (fields.selected_upsells !== undefined) {
+    airtableFields.selected_upsells = fields.selected_upsells || [];
+  }
+  
+  // Application
+  if (fields.apply_url !== undefined) airtableFields.apply_url = fields.apply_url;
+  if (fields.application_email !== undefined) airtableFields.application_email = fields.application_email;
+  if (fields.show_apply_form !== undefined) airtableFields.show_apply_form = fields.show_apply_form;
+  
+  // Contact
+  if (fields.contact_name !== undefined) airtableFields.contact_name = fields.contact_name;
+  if (fields.contact_role !== undefined) airtableFields.contact_role = fields.contact_role;
+  if (fields.contact_company !== undefined) airtableFields.contact_company = fields.contact_company;
+  if (fields.contact_email !== undefined) airtableFields.contact_email = fields.contact_email;
+  if (fields.contact_phone !== undefined) airtableFields.contact_phone = fields.contact_phone;
+  if (fields.contact_photo_id !== undefined) {
+    airtableFields.contact_photo = fields.contact_photo_id ? [fields.contact_photo_id] : [];
+  }
+  
+  // Social proof
+  if (fields.recommendations !== undefined) airtableFields.recommendations = fields.recommendations;
+  
+  // Media
+  if (fields.media_assets !== undefined) airtableFields.media_assets = fields.media_assets;
+  
+  // Users
+  if (fields.users !== undefined) airtableFields.users = fields.users;
+  
+  // Special timestamps
+  if (fields["submitted-at"] !== undefined) airtableFields["submitted-at"] = fields["submitted-at"];
+  if (fields["last-published-at"] !== undefined) airtableFields["last-published-at"] = fields["last-published-at"];
+  if (fields["depublished-at"] !== undefined) airtableFields["depublished-at"] = fields["depublished-at"];
+
+  try {
+    const record = await base(VACANCIES_TABLE).update(id, airtableFields);
+    return parseVacancyFields(record);
+  } catch (error: unknown) {
+    console.error("Error updating vacancy:", getErrorMessage(error));
+    throw new Error(`Failed to update vacancy: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Delete a vacancy permanently
+ */
+export async function deleteVacancy(id: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    await base(VACANCIES_TABLE).destroy(id);
+  } catch (error: unknown) {
+    console.error("Error deleting vacancy:", getErrorMessage(error));
+    throw new Error(`Failed to delete vacancy: ${getErrorMessage(error)}`);
+  }
+}
+
+// ============================================
+// LOOKUP TABLE FUNCTIONS
+// ============================================
+
+/**
+ * Generic function to get all records from a lookup table
+ * Returns records sorted alphabetically by name
+ */
+async function getLookupRecords(tableName: string): Promise<LookupRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const records = await base(tableName)
+      .select({
+        sort: [{ field: "name", direction: "asc" }],
+      })
+      .all();
+
+    return records.map((record) => 
+      lookupRecordSchema.parse({
+        id: record.id,
+        name: record.fields.name || "",
+      })
+    );
+  } catch (error: unknown) {
+    console.error(`Error getting records from ${tableName}:`, getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Get all education levels (sorted alphabetically)
+ */
+export async function getEducationLevels(): Promise<LookupRecord[]> {
+  return getLookupRecords(EDUCATION_LEVELS_TABLE);
+}
+
+/**
+ * Get all fields/vakgebieden (sorted alphabetically)
+ */
+export async function getFields(): Promise<LookupRecord[]> {
+  return getLookupRecords(FIELDS_TABLE);
+}
+
+/**
+ * Get all function types (sorted alphabetically)
+ */
+export async function getFunctionTypes(): Promise<LookupRecord[]> {
+  return getLookupRecords(FUNCTION_TYPES_TABLE);
+}
+
+/**
+ * Get all regions (sorted alphabetically)
+ */
+export async function getRegions(): Promise<LookupRecord[]> {
+  return getLookupRecords(REGIONS_TABLE);
+}
+
+/**
+ * Get all sectors (sorted alphabetically)
+ */
+export async function getSectors(): Promise<LookupRecord[]> {
+  return getLookupRecords(SECTORS_TABLE);
+}
+
+/**
+ * Get all lookup values at once
+ * Useful for forms that need all dropdowns
+ */
+export async function getAllLookups(): Promise<{
+  educationLevels: LookupRecord[];
+  fields: LookupRecord[];
+  functionTypes: LookupRecord[];
+  regions: LookupRecord[];
+  sectors: LookupRecord[];
+}> {
+  const [educationLevels, fields, functionTypes, regions, sectors] = await Promise.all([
+    getEducationLevels(),
+    getFields(),
+    getFunctionTypes(),
+    getRegions(),
+    getSectors(),
+  ]);
+
+  return {
+    educationLevels,
+    fields,
+    functionTypes,
+    regions,
+    sectors,
+  };
+}
+
+// ============================================
+// WALLET SPEND FUNCTION (for vacancy submission)
+// ============================================
+
+/**
+ * Deduct credits from wallet balance
+ * Used when submitting a vacancy
+ */
+export async function deductCreditsFromWallet(
+  walletId: string,
+  creditsAmount: number
+): Promise<WalletRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  // First get current wallet to calculate new balance
+  const currentWallet = await base(WALLETS_TABLE).find(walletId);
+  if (!currentWallet) {
+    throw new Error("Wallet not found");
+  }
+
+  const currentBalance = (currentWallet.fields.balance as number) || 0;
+  const currentTotalSpent = (currentWallet.fields.total_spent as number) || 0;
+
+  if (currentBalance < creditsAmount) {
+    throw new Error("Insufficient credits");
+  }
+
+  const record = await base(WALLETS_TABLE).update(walletId, {
+    balance: currentBalance - creditsAmount,
+    total_spent: currentTotalSpent + creditsAmount,
+    "last-updated": new Date().toISOString(),
+  });
+
+  const fields = record.fields;
+  const owner_employer = Array.isArray(fields.owner_employer)
+    ? fields.owner_employer[0] || null
+    : fields.owner_employer || null;
+  const owner_user = Array.isArray(fields.owner_user)
+    ? fields.owner_user[0] || null
+    : fields.owner_user || null;
+
+  return walletRecordSchema.parse({
+    id: record.id,
+    ...fields,
+    owner_employer,
+    owner_user,
+  });
+}
+
+/**
+ * Create a spend transaction for vacancy submission
+ */
+export async function createSpendTransaction(fields: {
+  employer_id: string;
+  wallet_id: string;
+  vacancy_id: string;
+  credits_amount: number;
+  context?: TransactionRecord["context"];
+}): Promise<TransactionRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    employer: [fields.employer_id],
+    wallet: [fields.wallet_id],
+    vacancy: [fields.vacancy_id],
+    type: "spend",
+    status: "paid",
+    credits_amount: fields.credits_amount,
+    reference_type: "vacancy",
+    context: fields.context || "vacancy",
+    "created-at": new Date().toISOString(),
+  };
+
+  try {
+    const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
+
+    const recordFields = record.fields;
+    const employer_id = Array.isArray(recordFields.employer)
+      ? recordFields.employer[0] || null
+      : recordFields.employer || null;
+    const wallet_id = Array.isArray(recordFields.wallet)
+      ? recordFields.wallet[0] || null
+      : recordFields.wallet || null;
+    const vacancy_id = Array.isArray(recordFields.vacancy)
+      ? recordFields.vacancy[0] || null
+      : recordFields.vacancy || null;
+
+    return transactionRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      wallet_id,
+      vacancy_id,
+      user_id: null,
+      product_id: null,
+      type: recordFields.type,
+      reference_type: recordFields.reference_type || null,
+      context: (recordFields.context as string) || null,
+      status: recordFields.status,
+      money_amount: null,
+      credits_amount: recordFields.credits_amount || 0,
+      vacancy_name: recordFields.vacancy_name || null,
+      invoice: null,
+      invoice_details_snapshot: null,
+      "created-at": recordFields["created-at"] as string | undefined,
+    });
+  } catch (error: unknown) {
+    console.error("Error creating spend transaction:", getErrorMessage(error));
+    throw new Error(`Failed to create spend transaction: ${getErrorMessage(error)}`);
+  }
 }

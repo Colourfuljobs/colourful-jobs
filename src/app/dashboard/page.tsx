@@ -43,6 +43,7 @@ import {
   EmptyContent,
 } from "@/components/ui/empty"
 import { VacancyStatus } from "@/components/dashboard/VacancyCard"
+import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
 
 // Types for account data
 interface CreditsData {
@@ -186,6 +187,7 @@ export default function DashboardPage() {
   })
   const [teamCount, setTeamCount] = useState(0)
   const [invitedCount, setInvitedCount] = useState(0)
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
 
   // Set page title
   useEffect(() => {
@@ -236,6 +238,15 @@ export default function DashboardPage() {
   const handleVacancyAction = (action: string, vacancyId: string) => {
     console.log(`Action: ${action}, Vacancy: ${vacancyId}`)
     // TODO: Implement actual actions
+  }
+
+  const handleCheckoutSuccess = (newBalance: number) => {
+    // Update credits with new balance
+    setCredits((prev) => ({
+      ...prev,
+      available: newBalance,
+      total_purchased: prev.total_purchased + (newBalance - prev.available),
+    }))
   }
 
   // Error state
@@ -304,7 +315,12 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="mt-auto pt-4">
-                  <Button className="w-full" variant="secondary" showArrow={false}>
+                  <Button 
+                    className="w-full" 
+                    variant="secondary" 
+                    showArrow={false}
+                    onClick={() => setCheckoutModalOpen(true)}
+                  >
                     <Plus className="h-4 w-4 mr-1" />
                     Credits bijkopen
                   </Button>
@@ -556,6 +572,15 @@ export default function DashboardPage() {
           </div>
         )}
       </section>
+
+      {/* Credits Checkout Modal */}
+      <CreditsCheckoutModal
+        open={checkoutModalOpen}
+        onOpenChange={setCheckoutModalOpen}
+        context="dashboard"
+        currentBalance={credits.available}
+        onSuccess={handleCheckoutSuccess}
+      />
     </div>
   )
 }

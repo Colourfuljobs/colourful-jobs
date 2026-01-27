@@ -23,6 +23,7 @@ export type EventType =
   | "employer_updated"
   | "employer_deleted"
   | "wallet_created"
+  | "credits_purchased"
   | "vacancy_created"
   | "vacancy_updated"
   | "vacancy_publish"

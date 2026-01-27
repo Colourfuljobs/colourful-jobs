@@ -6,6 +6,7 @@ import { Coins, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CreditsCheckoutModal } from "@/components/checkout"
 
 interface DesktopHeaderProps {
   title: string
@@ -14,6 +15,7 @@ interface DesktopHeaderProps {
 export function DesktopHeader({ title }: DesktopHeaderProps) {
   const [credits, setCredits] = useState<{ available: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
 
   // Fetch credits from account API on mount
   useEffect(() => {
@@ -50,12 +52,12 @@ export function DesktopHeader({ title }: DesktopHeaderProps) {
               <Coins className="h-4 w-4" />
               <span className="font-bold">{credits.available} credits</span>
             </div>
-            <Link 
-              href="/credits" 
+            <button 
+              onClick={() => setIsCheckoutOpen(true)}
               className="text-sm text-[#1F2D58]/70 hover:text-[#1F2D58] hover:underline"
             >
               + credits bijkopen
-            </Link>
+            </button>
           </div>
         ) : null}
         
@@ -67,6 +69,14 @@ export function DesktopHeader({ title }: DesktopHeaderProps) {
           </Link>
         </Button>
       </div>
+
+      {/* Credits checkout modal */}
+      <CreditsCheckoutModal 
+        open={isCheckoutOpen} 
+        onOpenChange={setIsCheckoutOpen}
+        context="dashboard"
+        currentBalance={credits?.available ?? 0}
+      />
     </div>
   )
 }

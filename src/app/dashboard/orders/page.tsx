@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DesktopHeader } from "@/components/dashboard"
+import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
 import type { TransactionRecord } from "@/lib/airtable"
 
 // UI Transaction types (mapped from Airtable)
@@ -305,6 +306,7 @@ export default function OrdersPage() {
   const [selectedTypes, setSelectedTypes] = useState<UITransactionType[]>(
     filterTypes.map((t) => t.value)
   )
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
 
   // Set page title
   useEffect(() => {
@@ -357,6 +359,12 @@ export default function OrdersPage() {
   const handleDownload = (url: string) => {
     // Open in new tab for download
     window.open(url, "_blank")
+  }
+
+  // Handle checkout success
+  const handleCheckoutSuccess = () => {
+    // Refresh the orders data to show the new transaction
+    fetchOrders()
   }
 
   // Error state
@@ -445,7 +453,7 @@ export default function OrdersPage() {
 
               {/* Buy credits button */}
               <div className="mt-6">
-                <Button showArrow={false}>
+                <Button showArrow={false} onClick={() => setCheckoutModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Koop credits
                 </Button>
@@ -482,7 +490,7 @@ export default function OrdersPage() {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button showArrow={false}>
+                <Button showArrow={false} onClick={() => setCheckoutModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Koop credits
                 </Button>
@@ -603,6 +611,15 @@ export default function OrdersPage() {
           </div>
         )}
       </section>
+
+      {/* Credits Checkout Modal */}
+      <CreditsCheckoutModal
+        open={checkoutModalOpen}
+        onOpenChange={setCheckoutModalOpen}
+        context="transactions"
+        currentBalance={credits.available}
+        onSuccess={handleCheckoutSuccess}
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
 import { toast } from "sonner"
@@ -14,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { CreditsCheckoutModal } from "@/components/checkout"
 
 interface MobileHeaderProps {
   user?: {
@@ -26,6 +28,7 @@ interface MobileHeaderProps {
 }
 
 export function MobileHeader({ user, credits }: MobileHeaderProps) {
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const handleSignOut = async () => {
     await signOut({ redirect: true, callbackUrl: "/login" })
     toast.success("Je bent succesvol uitgelogd")
@@ -54,12 +57,12 @@ export function MobileHeader({ user, credits }: MobileHeaderProps) {
                 <Coins className="h-4 w-4" />
                 <span className="text-sm font-bold">{credits.available} credits</span>
               </div>
-              <Link 
-                href="/credits" 
+              <button 
+                onClick={() => setIsCheckoutOpen(true)}
                 className="text-xs text-[#1F2D58]/70 hover:text-[#1F2D58] hover:underline"
               >
                 + credits bijkopen
-              </Link>
+              </button>
             </div>
           )}
 
@@ -125,6 +128,14 @@ export function MobileHeader({ user, credits }: MobileHeaderProps) {
           </Button>
         </div>
       </div>
+
+      {/* Credits checkout modal */}
+      <CreditsCheckoutModal 
+        open={isCheckoutOpen} 
+        onOpenChange={setIsCheckoutOpen}
+        context="dashboard"
+        currentBalance={credits?.available ?? 0}
+      />
     </header>
   )
 }

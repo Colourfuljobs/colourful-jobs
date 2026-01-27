@@ -60,7 +60,7 @@ export function MediaPickerDialog({
   const [isDragging, setIsDragging] = useState(false)
   const [logo, setLogo] = useState<MediaAsset | null>(null)
   const [images, setImages] = useState<MediaAsset[]>([])
-  const [localSelection, setLocalSelection] = useState<string[]>(selectedIds)
+  const [localSelection, setLocalSelection] = useState<string[]>(selectedIds || [])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Whether to show upload option (not for logo filter)
@@ -214,7 +214,7 @@ export function MediaPickerDialog({
   // Reset local selection when dialog opens
   useEffect(() => {
     if (open) {
-      setLocalSelection(selectedIds)
+      setLocalSelection(selectedIds || [])
       fetchMedia()
     }
   }, [open, selectedIds, fetchMedia])
@@ -267,7 +267,7 @@ export function MediaPickerDialog({
 
   // Handle cancel
   const handleCancel = () => {
-    setLocalSelection(selectedIds) // Reset to original
+    setLocalSelection(selectedIds || []) // Reset to original
     onOpenChange(false)
   }
 
