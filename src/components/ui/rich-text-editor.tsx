@@ -127,7 +127,7 @@ export function RichTextEditor({
   if (!editor) {
     return (
       <div className={cn(
-        "min-h-[200px] rounded-lg border border-[#1F2D58]/20 bg-white p-4",
+        "h-[600px] rounded-lg border border-[#1F2D58]/20 bg-[#E8EEF2] p-4",
         className
       )}>
         <span className="text-[#1F2D58]/50">Editor laden...</span>
@@ -313,10 +313,10 @@ export function RichTextEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          "min-h-[200px] max-h-[400px] overflow-y-auto bg-white p-4 flex-1",
+          "h-[600px] overflow-y-auto bg-[#E8EEF2] p-4 flex-1",
           "prose prose-sm max-w-none",
           "focus-within:outline-none",
-          "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[180px]",
+          "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[568px]",
           // Placeholder styling
           "[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
           "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-[#1F2D58]/40",

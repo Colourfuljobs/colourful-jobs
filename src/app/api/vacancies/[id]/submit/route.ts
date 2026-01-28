@@ -12,15 +12,25 @@ import {
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
-import { checkSufficientCredits } from "@/lib/credits";
+
+// Invoice details type matching frontend
+interface InvoiceDetails {
+  contact_name: string;
+  email: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  reference_nr: string;
+}
 
 /**
  * POST /api/vacancies/[id]/submit
  * Submits a vacancy for approval
  * - Validates all required fields
  * - Checks credit balance
- * - Deducts credits
- * - Updates vacancy status to "awaiting_approval"
+ * - If sufficient credits: deducts credits and creates spend transaction
+ * - If insufficient credits: deducts available credits + creates invoice transaction for the rest
+ * - Updates vacancy status to "wacht_op_goedkeuring"
  */
 export async function POST(
   request: Request,
@@ -28,6 +38,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    
+    // Parse request body for invoice details
+    const body = await request.json().catch(() => ({}));
+    const invoiceDetails: InvoiceDetails | null = body.invoice_details || null;
 
     // Verify user is authenticated
     const session = await getServerSession(authOptions);
@@ -80,14 +94,16 @@ export async function POST(
       );
     }
 
-    // Calculate total credits needed (package + upsells)
+    // Calculate total credits and price needed (package + upsells)
     let totalCredits = packageProduct.credits;
+    let totalPrice = packageProduct.price;
     const upsellIds = vacancy.selected_upsells || [];
     
     for (const upsellId of upsellIds) {
       const upsell = await getProductById(upsellId);
       if (upsell) {
         totalCredits += upsell.credits;
+        totalPrice += upsell.price;
       }
     }
 
@@ -100,17 +116,35 @@ export async function POST(
       );
     }
 
-    const creditCheck = checkSufficientCredits(totalCredits, wallet.balance);
-    if (!creditCheck.sufficient) {
+    const availableCredits = wallet.balance;
+    const shortage = Math.max(0, totalCredits - availableCredits);
+    const hasEnoughCredits = shortage === 0;
+
+    console.log("[Submit] Credit calculation:", {
+      totalCredits,
+      totalPrice,
+      availableCredits,
+      shortage,
+      hasEnoughCredits,
+    });
+
+    // If not enough credits, invoice details are required
+    if (!hasEnoughCredits && !invoiceDetails) {
       return NextResponse.json(
-        {
-          error: "Onvoldoende credits",
-          required: creditCheck.required,
-          available: creditCheck.available,
-          shortage: creditCheck.shortage,
-        },
+        { error: "Factuurgegevens zijn verplicht bij onvoldoende credits" },
         { status: 400 }
       );
+    }
+
+    // Validate invoice details if provided
+    if (!hasEnoughCredits && invoiceDetails) {
+      if (!invoiceDetails.contact_name || !invoiceDetails.email || 
+          !invoiceDetails.street || !invoiceDetails.postal_code || !invoiceDetails.city) {
+        return NextResponse.json(
+          { error: "Vul alle factuurgegevens in" },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate required fields based on input_type
@@ -122,21 +156,44 @@ export async function POST(
       );
     }
 
-    // Deduct credits from wallet
-    await deductCreditsFromWallet(wallet.id, totalCredits);
+    // Calculate credits to deduct and invoice amount
+    const creditsToDeduct = Math.min(availableCredits, totalCredits);
+    const creditsForInvoice = shortage;
+    
+    // Calculate invoice amount proportionally
+    const invoiceAmount = totalCredits > 0 
+      ? Math.round((creditsForInvoice / totalCredits) * totalPrice)
+      : 0;
 
-    // Create spend transaction
+    // Collect all product IDs (package + upsells)
+    const allProductIds = [vacancy.package_id, ...upsellIds];
+
+    // Deduct available credits from wallet (if any)
+    if (creditsToDeduct > 0) {
+      await deductCreditsFromWallet(wallet.id, creditsToDeduct);
+    }
+
+    // Create a single spend transaction (with optional invoice details for partial payment)
     await createSpendTransaction({
       employer_id: user.employer_id,
       wallet_id: wallet.id,
       vacancy_id: vacancy.id,
-      credits_amount: totalCredits,
+      total_credits: totalCredits, // Total credits the vacancy costs
+      total_cost: totalPrice, // Total price in euros
+      credits_shortage: shortage, // Credits short (0 if enough)
+      invoice_amount: invoiceAmount, // Euro amount to be invoiced
+      product_ids: allProductIds,
       context: "vacancy",
+      // Include invoice details if there's a shortage
+      ...(shortage > 0 && invoiceDetails ? {
+        invoice_details_snapshot: JSON.stringify(invoiceDetails),
+        invoice_trigger: "on_vacancy_publish" as const,
+      } : {}),
     });
 
     // Update vacancy status
     const updatedVacancy = await updateVacancy(id, {
-      status: "awaiting_approval",
+      status: "wacht_op_goedkeuring",
       "submitted-at": new Date().toISOString(),
     });
 
@@ -154,15 +211,21 @@ export async function POST(
         package_name: packageProduct.display_name,
         upsell_ids: upsellIds,
         total_credits: totalCredits,
+        credits_deducted: creditsToDeduct,
+        credits_invoiced: creditsForInvoice,
+        invoice_amount: invoiceAmount,
         input_type: vacancy.input_type,
+        payment_method: hasEnoughCredits ? "credits" : "partial_invoice",
       },
     });
 
     return NextResponse.json({
       success: true,
       vacancy: updatedVacancy,
-      credits_spent: totalCredits,
-      new_balance: wallet.balance - totalCredits,
+      credits_spent: creditsToDeduct,
+      credits_invoiced: creditsForInvoice,
+      invoice_amount: invoiceAmount,
+      new_balance: availableCredits - creditsToDeduct,
     });
   } catch (error: unknown) {
     console.error("Error submitting vacancy:", getErrorMessage(error));

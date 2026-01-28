@@ -108,22 +108,30 @@ export const transactionRecordSchema = z.object({
   wallet_id: z.string().nullable().optional(), // Linked record to Wallets
   vacancy_id: z.string().nullable().optional(), // Linked record to Vacancies
   user_id: z.string().nullable().optional(), // Linked record to Users
-  product_id: z.string().nullable().optional(), // Linked record to Products
+  product_ids: z.array(z.string()).optional(), // Linked records to Products (package + upsells)
   type: z.enum(["purchase", "spend", "refund", "adjustment"]),
   reference_type: z.enum(["vacancy", "order", "admin", "system"]).nullable().optional(),
   context: z.enum(["dashboard", "vacancy", "boost", "renew", "transactions"]).nullable().optional(),
   status: z.enum(["paid", "failed", "refunded", "open"]),
+  // Legacy field for purchases - total price in euros
   money_amount: z.number().nullable().optional(),
-  credits_amount: z.number().int(),
+  // New spend transaction fields
+  total_cost: z.number().nullable().optional(), // Total price in euros
+  total_credits: z.number().int().nullable().optional(), // Total credits the vacancy costs
+  credits_shortage: z.number().int().nullable().optional(), // Credits short (0 if enough)
+  credits_invoiced: z.number().nullable().optional(), // Euro amount being invoiced for shortage
+  credits_amount: z.number().int(), // For purchases: credits purchased, for legacy spend: credits deducted
   vacancy_name: z.string().nullable().optional(), // Lookup field from Vacancies
   invoice: z.array(airtableAttachmentSchema).nullable().optional(), // Attachment field
   invoice_details_snapshot: z.string().nullable().optional(), // JSON string with invoice details at time of purchase
+  invoice_trigger: z.enum(["on_vacancy_publish"]).nullable().optional(), // When to send invoice (null = no invoice needed)
   "created-at": z.string().optional(),
 });
 
 export const productRecordSchema = z.object({
   id: z.string(),
   display_name: z.string(),
+  description: z.string().nullable().optional(), // Long text description
   type: z.enum(["vacancy_package", "credit_bundle", "upsell"]),
   credits: z.number().int(),
   base_price: z.number().nullable().optional(), // Reference price (for showing discount)
@@ -164,12 +172,46 @@ export const featureRecordSchema = z.object({
 
 export const vacancyStatusEnum = z.enum([
   "concept",
-  "awaiting_approval",
-  "published",
-  "expired",
-  "unpublished",
-  "needs_adjustment",
+  "incompleet",
+  "wacht_op_goedkeuring",
+  "gepubliceerd",
+  "verlopen",
+  "gedepubliceerd",
 ]);
+
+// Map Airtable status values to application status values
+// Airtable stores status as lowercase snake_case (concept, awaiting_approval, published, etc.)
+// but the application uses Dutch snake_case values
+const airtableToAppStatusMap: Record<string, string> = {
+  // Airtable values → App values
+  "concept": "concept",
+  "awaiting_approval": "wacht_op_goedkeuring",
+  "published": "gepubliceerd",
+  "expired": "verlopen",
+  "unpublished": "gedepubliceerd",
+  "needs_adjustment": "incompleet",
+};
+
+// Reverse map: application status (Dutch) to Airtable status (English)
+const appToAirtableStatusMap: Record<string, string> = {
+  "concept": "concept",
+  "incompleet": "needs_adjustment",
+  "wacht_op_goedkeuring": "awaiting_approval",
+  "gepubliceerd": "published",
+  "verlopen": "expired",
+  "gedepubliceerd": "unpublished",
+};
+
+function mapVacancyStatusFromAirtable(status: string | undefined): string {
+  if (!status) return "concept";
+  const normalizedStatus = status.toLowerCase().replace(/[\s-]/g, "_");
+  return airtableToAppStatusMap[normalizedStatus] || airtableToAppStatusMap[status.toLowerCase()] || "concept";
+}
+
+function mapVacancyStatusToAirtable(status: string | undefined): string {
+  if (!status) return "concept";
+  return appToAirtableStatusMap[status] || status;
+}
 
 export const vacancyInputTypeEnum = z.enum(["self_service", "we_do_it_for_you"]);
 
@@ -196,7 +238,7 @@ export const vacancyRecordSchema = z.object({
   // Location & job details
   location: z.string().optional(),
   employment_type: vacancyEmploymentTypeEnum.optional(),
-  hrs_per_week: z.number().int().optional(),
+  hrs_per_week: z.string().optional(),
   salary: z.string().optional(),
   
   // Linked lookup tables (sorted alphabetically)
@@ -227,10 +269,12 @@ export const vacancyRecordSchema = z.object({
   recommendations: z.string().optional(), // JSON string array
   
   // Media
-  media_assets: z.array(z.string()).optional(), // Linked to Media Assets
+  header_image: z.string().nullable().optional(), // Linked to Media Assets (single)
+  gallery: z.array(z.string()).optional(), // Linked to Media Assets (multiple)
   
   // Credits & transactions
-  credits_spent: z.number().int().optional(), // Lookup field
+  credits_spent: z.number().int().optional(), // Rollup field - actual credits deducted from wallet
+  money_invoiced: z.number().optional(), // Rollup field - euro amount to be invoiced
   credit_transactions: z.array(z.string()).optional(), // Linked to Transactions
   
   // Users & events
@@ -810,6 +854,13 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
       const vacancy_id = Array.isArray(fields.vacancy)
         ? fields.vacancy[0] || null
         : fields.vacancy || null;
+      const product_ids = Array.isArray(fields.product_id)
+        ? fields.product_id
+        : [];
+      // vacancy_name is a lookup field, so it comes back as an array
+      const vacancy_name = Array.isArray(fields.vacancy_name)
+        ? fields.vacancy_name[0] || null
+        : fields.vacancy_name || null;
 
       return transactionRecordSchema.parse({
         id: record.id,
@@ -817,13 +868,21 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
         wallet_id,
         vacancy_id,
         user_id: null, // Not used in this table
+        product_ids,
         type: fields.type,
         reference_type: fields.reference_type || null,
         status: fields.status,
         money_amount: fields.money_amount || null,
-        credits_amount: fields.credits_amount || 0,
-        vacancy_name: fields.vacancy_name || null,
+        total_cost: fields.total_cost || null,
+        total_credits: fields.total_credits || null,
+        credits_shortage: fields.credits_shortage || null,
+        credits_invoiced: fields.credits_invoiced || null,
+        // For spend transactions use total_credits, for purchases use credits_amount (legacy)
+        credits_amount: fields.total_credits || fields.credits_amount || 0,
+        vacancy_name,
         invoice: fields.invoice || null,
+        invoice_details_snapshot: (fields.invoice_details_snapshot as string) || null,
+        invoice_trigger: (fields.invoice_trigger as "on_vacancy_publish") || null,
         "created-at": fields["created-at"] as string | undefined,
       });
     });
@@ -1396,6 +1455,7 @@ export async function getActiveProductsByType(
       return productRecordSchema.parse({
         id: record.id,
         display_name: fields.display_name || "",
+        description: fields.description || null,
         type: fields.type,
         credits: fields.credits || 0,
         base_price: fields.base_price || null,
@@ -1431,6 +1491,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
     return productRecordSchema.parse({
       id: record.id,
       display_name: fields.display_name || "",
+      description: fields.description || null,
       type: fields.type,
       credits: fields.credits || 0,
       base_price: fields.base_price || null,
@@ -1608,8 +1669,8 @@ export async function createPurchaseTransaction(fields: {
     product_id: [fields.product_id], // Linked record to Products - requires array
     type: "purchase",
     status: "open",
-    credits_amount: fields.credits_amount,
-    money_amount: fields.money_amount,
+    total_credits: fields.credits_amount, // Use total_credits field (credits_amount doesn't exist in Airtable)
+    total_cost: fields.money_amount, // Use total_cost field (money_amount doesn't exist in Airtable)
     context: fields.context,
     invoice_details_snapshot: fields.invoice_details_snapshot,
     reference_type: "order",
@@ -1618,6 +1679,9 @@ export async function createPurchaseTransaction(fields: {
 
   try {
     const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
+    
+    // Update the record to set the id field with the record ID
+    await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
 
     const recordFields = record.fields;
     const employer_id = Array.isArray(recordFields.employer)
@@ -1626,26 +1690,31 @@ export async function createPurchaseTransaction(fields: {
     const wallet_id = Array.isArray(recordFields.wallet)
       ? recordFields.wallet[0] || null
       : recordFields.wallet || null;
-    const product_id = Array.isArray(recordFields.product_id)
-      ? recordFields.product_id[0] || null
-      : recordFields.product_id || null;
+    const product_ids = Array.isArray(recordFields.product_id)
+      ? recordFields.product_id
+      : [];
 
     return transactionRecordSchema.parse({
       id: record.id,
       employer_id,
       wallet_id,
       user_id: null,
-      product_id,
+      product_ids,
       vacancy_id: null,
       type: recordFields.type,
       reference_type: recordFields.reference_type || null,
       context: (recordFields.context as string) || null,
       status: recordFields.status,
-      money_amount: recordFields.money_amount || null,
-      credits_amount: recordFields.credits_amount || 0,
+      money_amount: recordFields.total_cost || null, // Read from total_cost field
+      total_cost: recordFields.total_cost || null,
+      total_credits: recordFields.total_credits || null,
+      credits_shortage: null,
+      credits_invoiced: null,
+      credits_amount: recordFields.total_credits || 0, // Read from total_credits field
       vacancy_name: null,
       invoice: recordFields.invoice || null,
       invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
+      invoice_trigger: null, // Purchase transactions don't need invoice trigger
       "created-at": recordFields["created-at"] as string | undefined,
     });
   } catch (error: unknown) {
@@ -1692,8 +1761,11 @@ function parseVacancyFields(record: any): VacancyRecord {
   const selected_upsells = Array.isArray(fields.selected_upsells) 
     ? fields.selected_upsells 
     : [];
-  const media_assets = Array.isArray(fields.media_assets) 
-    ? fields.media_assets 
+  const header_image = Array.isArray(fields.header_image) 
+    ? fields.header_image[0] || null 
+    : null;
+  const gallery = Array.isArray(fields.gallery) 
+    ? fields.gallery 
     : [];
   const credit_transactions = Array.isArray(fields.credit_transactions) 
     ? fields.credit_transactions 
@@ -1704,12 +1776,41 @@ function parseVacancyFields(record: any): VacancyRecord {
   const events = Array.isArray(fields.events) 
     ? fields.events 
     : [];
+  // credits_spent is a Rollup field - actual credits deducted from wallet
+  // With the new single-transaction model, this should be a single value
+  // But we still handle array/string formats for backwards compatibility
+  let credits_spent: number = 0;
+  if (Array.isArray(fields.credits_spent)) {
+    credits_spent = Number(fields.credits_spent[0]) || 0;
+  } else if (typeof fields.credits_spent === 'string' && fields.credits_spent.includes(',')) {
+    const firstValue = fields.credits_spent.split(',')[0];
+    credits_spent = Number(firstValue.trim()) || 0;
+  } else if (typeof fields.credits_spent === 'string') {
+    credits_spent = Number(fields.credits_spent) || 0;
+  } else if (typeof fields.credits_spent === 'number') {
+    credits_spent = fields.credits_spent;
+  }
+
+  // money_invoiced is a Rollup field - euro amount to be invoiced
+  // Can come as number, string with euro symbol "€425,00", or array
+  let money_invoiced: number = 0;
+  if (Array.isArray(fields.money_invoiced)) {
+    money_invoiced = Number(fields.money_invoiced[0]) || 0;
+  } else if (typeof fields.money_invoiced === 'string') {
+    // Remove euro symbol, spaces, and convert comma to dot for parsing
+    const cleanedValue = fields.money_invoiced
+      .replace(/[€\s]/g, '')
+      .replace(',', '.');
+    money_invoiced = Number(cleanedValue) || 0;
+  } else if (typeof fields.money_invoiced === 'number') {
+    money_invoiced = fields.money_invoiced;
+  }
 
   return vacancyRecordSchema.parse({
     id: record.id,
     employer_id,
     title: fields.title || "",
-    status: fields.status || "concept",
+    status: mapVacancyStatusFromAirtable(fields.status as string),
     input_type: fields.input_type || "self_service",
     intro_txt: fields.intro_txt || "",
     description: fields.description || "",
@@ -1734,8 +1835,10 @@ function parseVacancyFields(record: any): VacancyRecord {
     contact_phone: fields.contact_phone || "",
     contact_photo_id,
     recommendations: fields.recommendations || "",
-    media_assets,
-    credits_spent: fields.credits_spent || 0,
+    header_image,
+    gallery,
+    credits_spent,
+    money_invoiced,
     credit_transactions,
     users,
     events,
@@ -1823,7 +1926,7 @@ export async function createVacancy(fields: {
   const airtableFields: Record<string, any> = {
     employer: [fields.employer_id], // Linked record requires array
     users: [fields.user_id], // Linked record requires array
-    status: "concept",
+    status: mapVacancyStatusToAirtable("concept"),
     input_type: fields.input_type || "self_service",
     "created-at": new Date().toISOString(),
     "updated-at": new Date().toISOString(),
@@ -1865,7 +1968,7 @@ export async function updateVacancy(
   // Map fields to Airtable field names
   if (fields.title !== undefined) airtableFields.title = fields.title;
   if (fields.status !== undefined) {
-    airtableFields.status = fields.status;
+    airtableFields.status = mapVacancyStatusToAirtable(fields.status);
     airtableFields["last-status_changed-at"] = new Date().toISOString();
   }
   if (fields.input_type !== undefined) airtableFields.input_type = fields.input_type;
@@ -1921,7 +2024,10 @@ export async function updateVacancy(
   if (fields.recommendations !== undefined) airtableFields.recommendations = fields.recommendations;
   
   // Media
-  if (fields.media_assets !== undefined) airtableFields.media_assets = fields.media_assets;
+  if (fields.header_image !== undefined) {
+    airtableFields.header_image = fields.header_image ? [fields.header_image] : [];
+  }
+  if (fields.gallery !== undefined) airtableFields.gallery = fields.gallery;
   
   // Users
   if (fields.users !== undefined) airtableFields.users = fields.users;
@@ -2104,32 +2210,57 @@ export async function deductCreditsFromWallet(
 
 /**
  * Create a spend transaction for vacancy submission
+ * Can include invoice details for partial payment (credits + invoice)
  */
 export async function createSpendTransaction(fields: {
   employer_id: string;
   wallet_id: string;
   vacancy_id: string;
-  credits_amount: number;
+  total_credits: number; // Total credits the vacancy costs
+  total_cost: number; // Total price in euros
+  credits_shortage: number; // Credits short (0 if enough)
+  invoice_amount: number; // Euro amount to be invoiced (0 if enough credits)
+  product_ids: string[]; // Package ID + upsell IDs
   context?: TransactionRecord["context"];
+  // Optional invoice fields for partial payment (when credits are insufficient)
+  invoice_details_snapshot?: string;
+  invoice_trigger?: "on_vacancy_publish";
 }): Promise<TransactionRecord> {
   if (!baseId || !apiKey) {
     throw new Error("Airtable not configured");
   }
 
+  // Determine status: "paid" if fully paid with credits, "open" if invoice needed
+  const hasInvoice = fields.credits_shortage > 0;
+  const status = hasInvoice ? "open" : "paid";
+
   const airtableFields: Record<string, any> = {
     employer: [fields.employer_id],
     wallet: [fields.wallet_id],
     vacancy: [fields.vacancy_id],
+    product_id: fields.product_ids, // Linked record to Products
     type: "spend",
-    status: "paid",
-    credits_amount: fields.credits_amount,
+    status,
+    total_credits: fields.total_credits,
+    total_cost: fields.total_cost,
+    credits_shortage: fields.credits_shortage,
+    credits_invoiced: hasInvoice ? fields.invoice_amount : null, // Euro amount being invoiced
     reference_type: "vacancy",
     context: fields.context || "vacancy",
     "created-at": new Date().toISOString(),
   };
 
+  // Add invoice fields if partial payment (credits insufficient)
+  if (hasInvoice) {
+    airtableFields.invoice_details_snapshot = fields.invoice_details_snapshot;
+    airtableFields.invoice_trigger = fields.invoice_trigger || "on_vacancy_publish";
+  }
+
   try {
     const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
+    
+    // Update the record to set the id field with the record ID
+    await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
 
     const recordFields = record.fields;
     const employer_id = Array.isArray(recordFields.employer)
@@ -2141,6 +2272,10 @@ export async function createSpendTransaction(fields: {
     const vacancy_id = Array.isArray(recordFields.vacancy)
       ? recordFields.vacancy[0] || null
       : recordFields.vacancy || null;
+    // vacancy_name is a lookup field, so it comes back as an array
+    const vacancy_name = Array.isArray(recordFields.vacancy_name)
+      ? recordFields.vacancy_name[0] || null
+      : recordFields.vacancy_name || null;
 
     return transactionRecordSchema.parse({
       id: record.id,
@@ -2148,20 +2283,113 @@ export async function createSpendTransaction(fields: {
       wallet_id,
       vacancy_id,
       user_id: null,
-      product_id: null,
+      product_ids: fields.product_ids,
       type: recordFields.type,
       reference_type: recordFields.reference_type || null,
       context: (recordFields.context as string) || null,
       status: recordFields.status,
       money_amount: null,
-      credits_amount: recordFields.credits_amount || 0,
-      vacancy_name: recordFields.vacancy_name || null,
+      total_cost: recordFields.total_cost || null,
+      total_credits: recordFields.total_credits || null,
+      credits_shortage: recordFields.credits_shortage || null,
+      credits_invoiced: recordFields.credits_invoiced || null,
+      credits_amount: recordFields.total_credits || 0, // Use total_credits as credits_amount for schema compatibility
+      vacancy_name,
       invoice: null,
-      invoice_details_snapshot: null,
+      invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
+      invoice_trigger: (recordFields.invoice_trigger as "on_vacancy_publish") || null,
       "created-at": recordFields["created-at"] as string | undefined,
     });
   } catch (error: unknown) {
     console.error("Error creating spend transaction:", getErrorMessage(error));
     throw new Error(`Failed to create spend transaction: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * @deprecated Use createSpendTransaction with money_amount and invoice_details_snapshot instead.
+ * This function creates a separate invoice transaction, but the new approach combines
+ * spend and invoice into a single transaction for cleaner data.
+ * 
+ * Create an invoice transaction for vacancy submission when credits are insufficient
+ * This transaction will trigger an invoice to be sent when the vacancy is published
+ */
+export async function createInvoiceTransaction(fields: {
+  employer_id: string;
+  wallet_id: string;
+  vacancy_id: string;
+  credits_amount: number;
+  money_amount: number;
+  product_ids: string[]; // Package ID + upsell IDs
+  invoice_details_snapshot: string;
+  context?: TransactionRecord["context"];
+}): Promise<TransactionRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  const airtableFields: Record<string, any> = {
+    employer: [fields.employer_id],
+    wallet: [fields.wallet_id],
+    vacancy: [fields.vacancy_id],
+    product_id: fields.product_ids, // Linked record to Products
+    type: "spend",
+    status: "open", // Open = not yet paid, invoice needs to be sent
+    credits_amount: fields.credits_amount,
+    money_amount: fields.money_amount,
+    reference_type: "vacancy",
+    context: fields.context || "vacancy",
+    invoice_details_snapshot: fields.invoice_details_snapshot,
+    invoice_trigger: "on_vacancy_publish",
+    "created-at": new Date().toISOString(),
+  };
+
+  try {
+    const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
+    
+    // Update the record to set the id field with the record ID
+    await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
+
+    const recordFields = record.fields;
+    const employer_id = Array.isArray(recordFields.employer)
+      ? recordFields.employer[0] || null
+      : recordFields.employer || null;
+    const wallet_id = Array.isArray(recordFields.wallet)
+      ? recordFields.wallet[0] || null
+      : recordFields.wallet || null;
+    const vacancy_id = Array.isArray(recordFields.vacancy)
+      ? recordFields.vacancy[0] || null
+      : recordFields.vacancy || null;
+    // vacancy_name is a lookup field, so it comes back as an array
+    const vacancy_name = Array.isArray(recordFields.vacancy_name)
+      ? recordFields.vacancy_name[0] || null
+      : recordFields.vacancy_name || null;
+
+    return transactionRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      wallet_id,
+      vacancy_id,
+      user_id: null,
+      product_ids: fields.product_ids,
+      type: recordFields.type,
+      reference_type: recordFields.reference_type || null,
+      context: (recordFields.context as string) || null,
+      status: recordFields.status,
+      money_amount: recordFields.money_amount || null,
+      total_cost: null,
+      total_credits: recordFields.credits_amount || null,
+      credits_shortage: recordFields.credits_amount || null,
+      credits_invoiced: recordFields.credits_amount || null,
+      credits_amount: recordFields.credits_amount || 0,
+      vacancy_name,
+      invoice: null,
+      invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
+      invoice_trigger: (recordFields.invoice_trigger as "on_vacancy_publish") || null,
+      "created-at": recordFields["created-at"] as string | undefined,
+    });
+  } catch (error: unknown) {
+    console.error("Error creating invoice transaction:", getErrorMessage(error));
+    throw new Error(`Failed to create invoice transaction: ${getErrorMessage(error)}`);
   }
 }

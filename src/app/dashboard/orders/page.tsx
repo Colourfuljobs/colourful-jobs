@@ -42,6 +42,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { DesktopHeader } from "@/components/dashboard"
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
+import { useCredits } from "@/lib/credits-context"
 import type { TransactionRecord } from "@/lib/airtable"
 
 // UI Transaction types (mapped from Airtable)
@@ -173,23 +174,21 @@ function mapTransactionToUI(transaction: TransactionRecord): UITransaction {
       description = "Transactie"
   }
 
-  // Map status from Airtable to UI
+  // Map status from Airtable to UI for all transaction types
   let invoiceStatus: UIInvoiceStatus | undefined
-  if (transaction.type === "purchase") {
-    switch (transaction.status) {
-      case "paid":
-        invoiceStatus = "betaald"
-        break
-      case "open":
-        invoiceStatus = "open"
-        break
-      case "failed":
-        invoiceStatus = "mislukt"
-        break
-      case "refunded":
-        invoiceStatus = "terugbetaald"
-        break
-    }
+  switch (transaction.status) {
+    case "paid":
+      invoiceStatus = "betaald"
+      break
+    case "open":
+      invoiceStatus = "open"
+      break
+    case "failed":
+      invoiceStatus = "mislukt"
+      break
+    case "refunded":
+      invoiceStatus = "terugbetaald"
+      break
   }
 
   // Get invoice URL from attachment (first item in array)
@@ -295,6 +294,9 @@ function TableSkeleton() {
 }
 
 export default function OrdersPage() {
+  // Get refetch from context to sync header credits after purchase
+  const { refetch: refetchCreditsContext } = useCredits()
+  
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<UITransaction[]>([])
@@ -362,9 +364,11 @@ export default function OrdersPage() {
   }
 
   // Handle checkout success
-  const handleCheckoutSuccess = () => {
+  const handleCheckoutSuccess = async () => {
     // Refresh the orders data to show the new transaction
-    fetchOrders()
+    await fetchOrders()
+    // Also sync the global credits context so header updates
+    await refetchCreditsContext()
   }
 
   // Error state
@@ -541,7 +545,7 @@ export default function OrdersPage() {
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Datum</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Type</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Omschrijving</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]">Factuur</TableHead>
                 </TableRow>
@@ -574,7 +578,7 @@ export default function OrdersPage() {
 
                       {/* Credits - green for positive, default for negative */}
                       <TableCell className={`text-right font-medium whitespace-nowrap ${
-                        transaction.credits > 0 ? "text-green-600" : "text-[#1F2D58]"
+                        transaction.credits > 0 ? "text-[#488220]" : "text-[#1F2D58]"
                       }`}>
                         {transaction.credits > 0 ? "+" : ""}{transaction.credits}
                       </TableCell>
@@ -592,9 +596,9 @@ export default function OrdersPage() {
                       <TableCell>
                         {transaction.invoiceUrl && (
                           <Button
-                            variant="ghost"
+                            variant="tertiary"
                             size="icon"
-                            className="h-8 w-8 text-[#1F2D58]/70 hover:text-[#1F2D58] hover:bg-[#193DAB]/[0.08]"
+                            className="h-8 w-8"
                             onClick={() => handleDownload(transaction.invoiceUrl!)}
                             showArrow={false}
                           >

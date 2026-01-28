@@ -15,23 +15,28 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Spinner } from "@/components/ui/spinner"
 import { CreditsCheckoutModal } from "@/components/checkout"
+import { useCredits } from "@/lib/credits-context"
 
 interface MobileHeaderProps {
   user?: {
     name?: string | null
     email?: string | null
   }
-  credits?: {
-    available: number
-  }
 }
 
-export function MobileHeader({ user, credits }: MobileHeaderProps) {
+export function MobileHeader({ user }: MobileHeaderProps) {
+  const { credits, isLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  
   const handleSignOut = async () => {
     await signOut({ redirect: true, callbackUrl: "/login" })
     toast.success("Je bent succesvol uitgelogd")
+  }
+
+  const handleCheckoutSuccess = (newBalance: number, purchasedAmount?: number) => {
+    updateCredits(newBalance, purchasedAmount)
   }
 
   return (
@@ -51,11 +56,20 @@ export function MobileHeader({ user, credits }: MobileHeaderProps) {
         {/* Right side: Credits, User dropdown, New vacancy button */}
         <div className="flex items-center gap-2">
           {/* Credits info */}
-          {credits && (
+          {!isLoading && (
             <div className="flex flex-col items-end">
               <div className="flex items-center gap-1.5 text-[#1F2D58]">
-                <Coins className="h-4 w-4" />
-                <span className="text-sm font-bold">{credits.available} credits</span>
+                {isPendingUpdate ? (
+                  <>
+                    <Spinner className="h-3 w-3" />
+                    <span className="text-sm font-bold text-[#1F2D58]/70">...</span>
+                  </>
+                ) : (
+                  <>
+                    <Coins className="h-4 w-4" />
+                    <span className="text-sm font-bold">{credits.available} credits</span>
+                  </>
+                )}
               </div>
               <button 
                 onClick={() => setIsCheckoutOpen(true)}
@@ -134,7 +148,9 @@ export function MobileHeader({ user, credits }: MobileHeaderProps) {
         open={isCheckoutOpen} 
         onOpenChange={setIsCheckoutOpen}
         context="dashboard"
-        currentBalance={credits?.available ?? 0}
+        currentBalance={credits.available}
+        onSuccess={handleCheckoutSuccess}
+        onPendingChange={setOptimisticUpdate}
       />
     </header>
   )

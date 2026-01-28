@@ -47,16 +47,6 @@ export function PackageSelector({
   selectedPackage,
   onSelectPackage,
 }: PackageSelectorProps) {
-  // Format price
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat("nl-NL", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
-  };
-
   // Group features by category
   const groupFeaturesByCategory = (features: FeatureRecord[]) => {
     const grouped: Record<string, FeatureRecord[]> = {};
@@ -79,7 +69,7 @@ export function PackageSelector({
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="pt-6">
         <h2 className="text-xl font-bold text-[#1F2D58] mb-2">1. Kies je pakket</h2>
         <p className="text-[#1F2D58]/70">
           Selecteer het vacaturepakket dat het beste past bij jouw wensen
@@ -131,12 +121,12 @@ index !== 1 && "hover:shadow-md"
                   {pkg.display_name}
                 </h3>
 
-                {/* Short description based on package */}
-                <p className="text-sm text-[#1F2D58]/70 mb-4">
-                  {index === 0 && "Een solide basis voor snelle vacatures"}
-                  {index === 1 && "Extra bereik via socials en campagnes"}
-                  {index === 2 && "All-in pakket voor maximale zichtbaarheid"}
-                </p>
+                {/* Short description from database */}
+                {pkg.description && (
+                  <p className="text-sm text-[#1F2D58]/70 mb-4">
+                    {pkg.description}
+                  </p>
+                )}
 
                 {/* CTA Button */}
                 <Button
@@ -157,13 +147,10 @@ index !== 1 && "hover:shadow-md"
                   )}
                 </Button>
 
-                {/* Price */}
+                {/* Credits */}
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold text-[#1F2D58]">
-                    {formatPrice(pkg.price)}
-                  </span>
-                  <span className="text-sm text-[#1F2D58]/70">
-                    / {pkg.credits} credits
+                    {pkg.credits} credits
                   </span>
                 </div>
 

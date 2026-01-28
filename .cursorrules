@@ -39,19 +39,111 @@
 ## Kleuren & Design Tokens
 - **Achtergrondkleur**: `#E8EEF2` (altijd, overal)
 - **Standaard tekstkleur**: `#1F2D58` (tenzij anders aangegeven, zoals warnings)
-- **Primary button**: 
-  - BG: `#F86600`, hover BG: `#1F2D58`
-  - White text met text-shadow (20% zwart opacity)
-- **Secondary button**: 
-  - BG: `#193DAB` 12% opacity, hover: `#193DAB` 40% opacity
-  - Text kleur: `#1F2D58`
 - Gebruik deze design tokens, niet custom kleuren
 
 ## Buttons
-- Altijd Primary of Secondary variant gebruiken (niet custom styles)
-- Altijd arrow icon toevoegen vooraan in button (SVG icon zoals gedefinieerd)
-- Altijd focus states behouden voor toegankelijkheid (2px border `#1F2D58` bij focus)
-- Rounded (full border-radius)
+Import: `import { Button, ArrowIcon, BackArrowIcon } from "@/components/ui/button";`
+
+### Button Variants (4 officiële varianten)
+1. **Primary** (`variant="default"` of geen variant):
+   - Oranje achtergrond (`#F86600`), wit tekst, donkerblauw hover (`#1F2D58`)
+   - Gebruik voor: Primaire call-to-action (CTA), belangrijkste actie op een pagina
+   - `<Button>Vacature plaatsen</Button>`
+
+2. **Secondary** (`variant="secondary"`):
+   - Lichtblauwe achtergrond (`#193DAB/12`), donkerblauwe tekst, donkerder blauw hover (`#193DAB/40`)
+   - Gebruik voor: Secundaire acties, "Annuleren", alternatieven naast primary
+   - `<Button variant="secondary">Opslaan als concept</Button>`
+
+3. **Tertiary** (`variant="tertiary"`):
+   - Lichte achtergrond (`#F3EFEF/40`) met subtiele border (`#193DAB/12`), witte hover met sterkere border
+   - Gebruik voor: Minder prominente acties, tabel-acties, icon buttons in lijsten
+   - `<Button variant="tertiary">Bewerken</Button>`
+
+4. **Link** (`variant="link"`):
+   - Geen achtergrond, alleen tekst, underline on hover (`#193DAB/40`)
+   - Gebruik voor: Navigatie-links, "Terug naar..." buttons, inline text actions
+   - GEEN padding, zelfde hoogte als tekst
+   - `<Button variant="link"><BackArrowIcon />Dashboard</Button>`
+
+### Button Sizes
+- `size="default"`: Standaard button met padding
+- `size="sm"`: Kleinere button (30px hoogte)
+- `size="lg"`: Grotere button
+- `size="icon"`: Vierkante icon-only button (werkt met alle variants)
+
+### Icon Buttons
+Voor icon-only buttons (close, delete, download, etc.):
+```jsx
+// Tertiary icon button (meest gebruikt voor acties in lijsten/tabellen)
+<Button variant="tertiary" size="icon" className="w-[30px] h-[30px]">
+  <Download className="h-4 w-4" />
+</Button>
+
+// Primary icon button
+<Button size="icon">
+  <Plus className="h-4 w-4" />
+</Button>
+
+// Secondary icon button  
+<Button variant="secondary" size="icon">
+  <Edit className="h-4 w-4" />
+</Button>
+```
+
+### Back Navigation
+Voor "Terug naar..." links:
+```jsx
+import { Button, BackArrowIcon } from "@/components/ui/button";
+
+<Button variant="link">
+  <BackArrowIcon />
+  Dashboard
+</Button>
+```
+
+### Arrow Icon
+- Arrow wordt automatisch getoond voor `default`, `secondary`, `tertiary`, en `link` variants
+- NIET voor `size="icon"` (automatisch uitgeschakeld)
+- Handmatig uitschakelen: `showArrow={false}`
+- BackArrowIcon beschikbaar voor terug-navigatie
+
+### Speciale varianten (alleen voor specifieke cases)
+- `variant="ghost"`: Alleen voor speciale UI elementen (sidebar toggle, calendar days)
+- `variant="destructive"`: Alleen voor delete/danger acties met rode styling
+
+### DON'T ❌
+- Gebruik GEEN custom className voor button styling - gebruik de juiste variant
+- Gebruik GEEN `ghost` voor normale buttons - gebruik `tertiary` of `link`
+- Voeg GEEN border/bg classes toe aan buttons - de variant regelt dit
+
+## Checkboxes met Labels
+- Gebruik ALTIJD `Field` en `FieldLabel` componenten voor checkboxes met tekst ernaast
+- Import: `import { Field, FieldLabel } from "@/components/ui/field";`
+- Import: `import { Checkbox } from "@/components/ui/checkbox";`
+- Gebruik `orientation="horizontal"` voor checkbox + label naast elkaar
+- FieldLabel krijgt `!mb-0` om margin te resetten
+
+### Standaard checkbox met label:
+```jsx
+<Field orientation="horizontal" className="items-center">
+  <Checkbox
+    id="uniqueId"
+    checked={isChecked}
+    onCheckedChange={setIsChecked}
+  />
+  <FieldLabel
+    htmlFor="uniqueId"
+    className="text-sm text-[#1F2D58] cursor-pointer !mb-0 leading-none"
+  >
+    Label tekst hier
+  </FieldLabel>
+</Field>
+```
+
+### DON'T ❌
+- Gebruik GEEN losse `<label>` met checkbox - gebruik Field + FieldLabel
+- Gebruik GEEN `flex items-center gap-2` met handmatige styling - gebruik Field component
 
 ## Cards & Containers
 - Altijd custom border-radius gebruiken: `rounded-t-[0.75rem] rounded-b-[2rem]`

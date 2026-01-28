@@ -109,7 +109,8 @@ export async function PATCH(
     // Remove linked record fields if they're not valid arrays with record IDs
     // Airtable linked record fields must be arrays of valid record IDs
     const linkedRecordFields = [
-      'media_assets', 
+      'header_image',
+      'gallery',
       'package_id', 
       'region_id', 
       'function_type_id', 
@@ -118,6 +119,7 @@ export async function PATCH(
       'sector_id',
       'contact_photo_id',
       'selected_upsells',
+      'users',
     ];
     
     for (const field of linkedRecordFields) {
@@ -127,6 +129,16 @@ export async function PATCH(
           (Array.isArray(value) && value.length === 0)) {
         delete updates[field as keyof typeof updates];
       }
+    }
+    
+    // Also remove timestamp fields that are read-only or managed by the system
+    delete updates["created-at"];
+    delete updates["updated-at"];
+    delete updates["last-status_changed-at"];
+    
+    // Remove empty date fields (Airtable doesn't accept empty strings for date fields)
+    if (updates.closing_date === '' || updates.closing_date === null) {
+      delete updates.closing_date;
     }
 
     // Update vacancy
@@ -146,9 +158,12 @@ export async function PATCH(
 
     return NextResponse.json({ vacancy });
   } catch (error: unknown) {
-    console.error("Error updating vacancy:", getErrorMessage(error));
+    const errorMessage = getErrorMessage(error);
+    console.error("Error updating vacancy:", errorMessage);
+    // Log more details for debugging
+    console.error("Error details:", error);
     return NextResponse.json(
-      { error: "Er ging iets mis bij het updaten van de vacature" },
+      { error: `Er ging iets mis bij het updaten van de vacature: ${errorMessage}` },
       { status: 500 }
     );
   }

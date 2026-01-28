@@ -1,7 +1,6 @@
 "use client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { CheckCircle, MapPin, Clock, Briefcase, GraduationCap, Building2, Calendar } from "lucide-react";
 import type { VacancyPreviewProps } from "./types";
 
@@ -36,7 +35,15 @@ export function VacancyPreview({
     : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6">
+        <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Voorbeeld bekijken</h2>
+        <p className="text-[#1F2D58]/70 text-sm">
+          Bekijk hoe je vacature eruit zal zien voor kandidaten
+        </p>
+      </div>
+
       {/* Info alert */}
       <Alert className="bg-[#193DAB]/[0.12] border-none">
         <AlertDescription className="text-[#1F2D58]">
@@ -58,33 +65,16 @@ export function VacancyPreview({
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
         {/* Header section */}
         <div className="p-6 border-b border-[#E8EEF2]">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-[#1F2D58]">Vacature preview</h2>
-            <span className="text-sm text-[#1F2D58]/60">Gekozen pakket</span>
-          </div>
-          
           {/* Title and basic info */}
           <h3 className="text-2xl font-bold text-[#1F2D58] mb-2">
             {vacancy.title || "Vacaturetitel"}
           </h3>
           
-          <div className="flex flex-wrap items-center gap-2 text-sm text-[#1F2D58]/70 mb-4">
-            {vacancy.contact_company && <span>{vacancy.contact_company}</span>}
-            {vacancy.contact_company && vacancy.location && <span>•</span>}
-            {vacancy.location && <span>{vacancy.location}</span>}
-          </div>
-
-          {/* Badges */}
-          <div className="flex flex-wrap gap-2">
-            {selectedPackage && (
-              <Badge variant="info">{selectedPackage.display_name}</Badge>
-            )}
-            {selectedUpsells.map((upsell) => (
-              <Badge key={upsell.id} variant="muted">
-                {upsell.display_name}
-              </Badge>
-            ))}
-          </div>
+          {vacancy.closing_date && (
+            <p className="text-sm text-[#1F2D58]/70">
+              Solliciteer voor {formatDate(vacancy.closing_date)}
+            </p>
+          )}
         </div>
 
         {/* Intro text */}
@@ -97,9 +87,8 @@ export function VacancyPreview({
         {/* Description */}
         {vacancy.description && (
           <div className="p-6 border-b border-[#E8EEF2]">
-            <h4 className="text-lg font-bold text-[#1F2D58] mb-3">Functieomschrijving</h4>
             <div
-              className="prose prose-sm max-w-none text-[#1F2D58]"
+              className="prose prose-sm max-w-none text-[#1F2D58] [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#1F2D58] [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:first:mt-0 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#1F2D58] [&_h3]:mt-5 [&_h3]:mb-2 [&_h3]:first:mt-0 [&_h4]:text-base [&_h4]:font-bold [&_h4]:text-[#1F2D58] [&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:first:mt-0 [&_h5]:text-sm [&_h5]:font-bold [&_h5]:text-[#1F2D58] [&_h5]:mt-3 [&_h5]:mb-1 [&_h5]:first:mt-0 [&_p]:text-[#1F2D58] [&_p]:mb-3 [&_p]:last:mb-0 [&_p]:leading-relaxed [&_ul]:my-3 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-3 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:mb-1 [&_li]:text-[#1F2D58] [&_blockquote]:border-l-4 [&_blockquote]:border-[#1F2D58]/30 [&_blockquote]:pl-4 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-[#1F2D58]/80 [&_a]:text-[#193DAB] [&_a]:underline [&_a]:cursor-pointer hover:[&_a]:text-[#1F2D58]"
               dangerouslySetInnerHTML={{ __html: vacancy.description }}
             />
           </div>
@@ -107,7 +96,7 @@ export function VacancyPreview({
 
         {/* Job details grid */}
         <div className="p-6 border-b border-[#E8EEF2]">
-          <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Functie-informatie</h4>
+          <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Vacaturegegevens</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {vacancy.location && (
               <DetailItem icon={MapPin} label="Locatie" value={vacancy.location} />
@@ -126,7 +115,7 @@ export function VacancyPreview({
               <DetailItem
                 icon={Clock}
                 label="Uren per week"
-                value={`${vacancy.hrs_per_week} uur`}
+                value={`${vacancy.hrs_per_week} uur/week`}
               />
             )}
             {vacancy.function_type_id && (
@@ -206,7 +195,7 @@ export function VacancyPreview({
         {/* Recommendations */}
         {recommendations.length > 0 && (
           <div className="p-6 border-b border-[#E8EEF2]">
-            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Warm aanbevolen door</h4>
+            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Aanbevolen door collega's</h4>
             <div className="flex flex-wrap gap-3">
               {recommendations.map(
                 (rec: { firstName: string; lastName: string }, index: number) => (

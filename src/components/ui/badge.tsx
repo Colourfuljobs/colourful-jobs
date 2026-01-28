@@ -18,7 +18,7 @@ const badgeVariants = cva(
         outline: "text-foreground",
         // Project-specific variants
         success:
-          "border-transparent bg-green-100 text-green-700 hover:bg-green-100",
+          "border-transparent bg-[#D0E1CE] text-[#488220] hover:bg-[#D0E1CE]",
         warning:
           "border-transparent bg-orange-100 text-orange-700 hover:bg-orange-100",
         info:

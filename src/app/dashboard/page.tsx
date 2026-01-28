@@ -20,6 +20,7 @@ import { Button, ArrowIcon } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
+import { Spinner } from "@/components/ui/spinner"
 import { DesktopHeader } from "@/components/dashboard"
 import {
   Table,
@@ -44,54 +45,17 @@ import {
 } from "@/components/ui/empty"
 import { VacancyStatus } from "@/components/dashboard/VacancyCard"
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
+import { useCredits } from "@/lib/credits-context"
 
-// Types for account data
-interface CreditsData {
-  available: number
-  total_purchased: number
-  total_spent: number
+// Types for vacancy data from API
+interface Vacancy {
+  id: string
+  title?: string
+  status: VacancyStatus
+  credits_spent?: number
+  money_invoiced?: number
+  "created-at"?: string
 }
-
-const mockVacancies = [
-  {
-    id: "1",
-    title: "Senior Frontend Developer",
-    status: "gepubliceerd" as VacancyStatus,
-    creditsUsed: 10,
-    createdAt: new Date("2026-01-15"),
-  },
-  {
-    id: "2",
-    title: "UX Designer",
-    status: "wacht_op_goedkeuring" as VacancyStatus,
-    creditsUsed: 10,
-    createdAt: new Date("2026-01-14"),
-  },
-  {
-    id: "3",
-    title: "Marketing Manager",
-    status: "concept" as VacancyStatus,
-    creditsUsed: 0,
-    createdAt: new Date("2026-01-13"),
-  },
-  {
-    id: "4",
-    title: "Backend Developer",
-    status: "verlopen" as VacancyStatus,
-    creditsUsed: 10,
-    createdAt: new Date("2026-01-10"),
-  },
-  {
-    id: "5",
-    title: "Product Owner",
-    status: "gedepubliceerd" as VacancyStatus,
-    creditsUsed: 10,
-    createdAt: new Date("2026-01-08"),
-  },
-]
-
-const mockPublishedCount = 1
-const mockPendingCount = 1
 
 // Status configuration
 const statusConfig: Record<VacancyStatus, {
@@ -178,40 +142,30 @@ interface TeamMember {
 }
 
 export default function DashboardPage() {
+  const { credits, isLoading: isCreditsLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [credits, setCredits] = useState<CreditsData>({
-    available: 0,
-    total_purchased: 0,
-    total_spent: 0,
-  })
   const [teamCount, setTeamCount] = useState(0)
   const [invitedCount, setInvitedCount] = useState(0)
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
+  const [vacancies, setVacancies] = useState<Vacancy[]>([])
+  const [publishedCount, setPublishedCount] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
 
   // Set page title
   useEffect(() => {
     document.title = "Dashboard | Colourful jobs"
   }, [])
 
-  // Fetch account data including credits and team data
+  // Fetch team data and vacancies (credits are now handled by CreditsProvider)
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch account data and team data in parallel
-        const [accountResponse, teamResponse] = await Promise.all([
-          fetch("/api/account"),
+        // Fetch team data and vacancies in parallel
+        const [teamResponse, vacanciesResponse] = await Promise.all([
           fetch("/api/team"),
+          fetch("/api/vacancies"),
         ])
-
-        if (!accountResponse.ok) {
-          throw new Error("Failed to fetch account data")
-        }
-        const accountData = await accountResponse.json()
-        
-        if (accountData.credits) {
-          setCredits(accountData.credits)
-        }
 
         // Process team data
         if (teamResponse.ok) {
@@ -221,6 +175,32 @@ export default function DashboardPage() {
             const invitedMembers = teamData.team.filter((m: TeamMember) => m.status === "invited")
             setTeamCount(activeMembers.length)
             setInvitedCount(invitedMembers.length)
+          }
+        }
+
+        // Process vacancies data
+        if (vacanciesResponse.ok) {
+          const vacanciesData = await vacanciesResponse.json()
+          if (vacanciesData.vacancies) {
+            // Sort by created-at descending and take the first 5
+            const sortedVacancies = vacanciesData.vacancies.sort(
+              (a: Vacancy, b: Vacancy) => {
+                const dateA = a["created-at"] ? new Date(a["created-at"]).getTime() : 0
+                const dateB = b["created-at"] ? new Date(b["created-at"]).getTime() : 0
+                return dateB - dateA
+              }
+            )
+            setVacancies(sortedVacancies.slice(0, 5))
+            
+            // Count published and pending vacancies
+            const published = vacanciesData.vacancies.filter(
+              (v: Vacancy) => v.status === "gepubliceerd"
+            ).length
+            const pending = vacanciesData.vacancies.filter(
+              (v: Vacancy) => v.status === "wacht_op_goedkeuring"
+            ).length
+            setPublishedCount(published)
+            setPendingCount(pending)
           }
         }
 
@@ -240,13 +220,8 @@ export default function DashboardPage() {
     // TODO: Implement actual actions
   }
 
-  const handleCheckoutSuccess = (newBalance: number) => {
-    // Update credits with new balance
-    setCredits((prev) => ({
-      ...prev,
-      available: newBalance,
-      total_purchased: prev.total_purchased + (newBalance - prev.available),
-    }))
+  const handleCheckoutSuccess = (newBalance: number, purchasedAmount?: number) => {
+    updateCredits(newBalance, purchasedAmount)
   }
 
   // Error state
@@ -279,7 +254,7 @@ export default function DashboardPage() {
             </h2>
           </div>
           <div className="bg-white p-6 flex-1 flex flex-col">
-            {isLoading ? (
+            {isLoading || isCreditsLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-10 w-20" />
                 <Skeleton className="h-4 w-32" />
@@ -290,9 +265,16 @@ export default function DashboardPage() {
               <>
                 <div>
                   <div className="space-y-1">
-                    <p className="text-3xl font-bold text-[#1F2D58]">
-                      {credits.available}
-                    </p>
+                    {isPendingUpdate ? (
+                      <div className="flex items-center gap-2">
+                        <Spinner className="h-6 w-6" />
+                        <p className="text-xl font-bold text-[#1F2D58]/70">Bijwerken...</p>
+                      </div>
+                    ) : (
+                      <p className="text-3xl font-bold text-[#1F2D58]">
+                        {credits.available}
+                      </p>
+                    )}
                     <p className="text-sm text-[#1F2D58]/70">beschikbare credits</p>
                   </div>
                   <div className="mt-4 space-y-2">
@@ -350,24 +332,26 @@ export default function DashboardPage() {
                 <div>
                   <div className="space-y-1">
                     <p className="text-3xl font-bold text-[#1F2D58]">
-                      {mockPublishedCount}
+                      {publishedCount}
                     </p>
                     <p className="text-sm text-[#1F2D58]/70">gepubliceerd</p>
                   </div>
-                  {mockPendingCount > 0 && (
+                  {pendingCount > 0 && (
                     <div className="mt-3 pt-3 border-t border-[#E8EEF2]">
                       <div className="flex items-center gap-2 text-sm text-[#1F2D58]/70">
                         <Clock className="h-4 w-4" />
-                        <span>{mockPendingCount} wacht op goedkeuring</span>
+                        <span>{pendingCount} wacht op goedkeuring</span>
                       </div>
                     </div>
                   )}
                 </div>
                 <div className="mt-auto pt-4">
-                  <Button className="w-full" showArrow={false}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Nieuwe vacature
-                  </Button>
+                  <Link href="/dashboard/vacatures/nieuw">
+                    <Button className="w-full" showArrow={false}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Nieuwe vacature
+                    </Button>
+                  </Link>
                 </div>
               </>
             )}
@@ -440,7 +424,7 @@ export default function DashboardPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -456,7 +440,7 @@ export default function DashboardPage() {
               </TableBody>
             </Table>
           </div>
-        ) : mockVacancies.length === 0 ? (
+        ) : vacancies.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
             <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
               <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Laatste vacatures</h2>
@@ -478,10 +462,12 @@ export default function DashboardPage() {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button showArrow={false}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Nieuwe vacature
-                </Button>
+                <Link href="/dashboard/vacatures/nieuw">
+                  <Button showArrow={false}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Nieuwe vacature
+                  </Button>
+                </Link>
               </EmptyContent>
             </Empty>
           </div>
@@ -501,28 +487,28 @@ export default function DashboardPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockVacancies.slice(0, 5).map((vacancy) => {
+                {vacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
                   const actions = actionsPerStatus[vacancy.status]
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell>
-                        <span className="font-bold text-[#1F2D58]">{vacancy.title}</span>
+                        <span className="font-bold text-[#1F2D58]">{vacancy.title || "Naamloze vacature"}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant={config.variant}>{config.label}</Badge>
                       </TableCell>
                       <TableCell>
-                        {config.showCredits ? (
+                        {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
                           <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
-                            <Coins className="h-4 w-4" />
-                            <span>{vacancy.creditsUsed}</span>
+                            <Coins className="h-4 w-4 flex-shrink-0" />
+                            <span>{vacancy.credits_spent}</span>
                           </div>
                         ) : (
                           <span className="text-[#1F2D58]/40">-</span>
@@ -533,10 +519,10 @@ export default function DashboardPage() {
                           {actions.filter(action => !action.iconOnly).map((action) => (
                             <Button
                               key={action.action}
-                              variant="ghost"
+                              variant="tertiary"
                               size="sm"
                               onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                              className="gap-1.5 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                              className="gap-1.5"
                               showArrow={false}
                             >
                               <action.icon className="h-3.5 w-3.5" />
@@ -547,10 +533,10 @@ export default function DashboardPage() {
                             <Tooltip key={action.action}>
                               <TooltipTrigger asChild>
                                 <Button
-                                  variant="ghost"
-                                  size="sm"
+                                  variant="tertiary"
+                                  size="icon"
                                   onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                                  className="w-[30px] h-[30px] p-0 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                                  className="w-[30px] h-[30px]"
                                   showArrow={false}
                                 >
                                   <action.icon className="h-4 w-4" />
@@ -580,6 +566,7 @@ export default function DashboardPage() {
         context="dashboard"
         currentBalance={credits.available}
         onSuccess={handleCheckoutSuccess}
+        onPendingChange={setOptimisticUpdate}
       />
     </div>
   )

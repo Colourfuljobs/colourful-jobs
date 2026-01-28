@@ -48,7 +48,8 @@ interface CreditsCheckoutModalProps {
   onOpenChange: (open: boolean) => void;
   context: CheckoutContext;
   currentBalance: number;
-  onSuccess?: (newBalance: number) => void;
+  onSuccess?: (newBalance: number, purchasedAmount?: number) => void;
+  onPendingChange?: (isPending: boolean) => void;
 }
 
 export function CreditsCheckoutModal({
@@ -57,6 +58,7 @@ export function CreditsCheckoutModal({
   context,
   currentBalance,
   onSuccess,
+  onPendingChange,
 }: CreditsCheckoutModalProps) {
   const [products, setProducts] = React.useState<ProductRecord[]>([]);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductRecord | null>(null);
@@ -179,6 +181,10 @@ export function CreditsCheckoutModal({
     }
 
     setIsSubmitting(true);
+    
+    // Signal that an update is pending (optimistic UI)
+    onPendingChange?.(true);
+    
     try {
       const response = await fetch("/api/checkout", {
         method: "POST",
@@ -197,14 +203,20 @@ export function CreditsCheckoutModal({
 
       const data = await response.json();
 
-      toast.success("Credits gekocht", {
-        description: `${selectedProduct.credits} credits zijn toegevoegd aan je account`,
-      });
-
+      // Close modal first for snappy UX
       onOpenChange(false);
-      onSuccess?.(data.new_balance);
+      
+      // Update credits with new balance (includes purchased amount for accurate tracking)
+      onSuccess?.(data.new_balance, selectedProduct.credits);
+
+      // Show success toast with new balance
+      toast.success("Credits gekocht!", {
+        description: `${selectedProduct.credits} credits toegevoegd. Nieuw saldo: ${data.new_balance} credits`,
+      });
     } catch (error) {
       console.error("Checkout error:", error);
+      // Reset pending state on error
+      onPendingChange?.(false);
       toast.error("Fout", {
         description:
           error instanceof Error
@@ -339,6 +351,13 @@ export function CreditsCheckoutModal({
                         <h3 className="contempora-medium text-[#1F2D58] !text-[2rem] sm:!text-[2.5rem]">
                           {product.display_name}
                         </h3>
+
+                        {/* Description (if available) */}
+                        {product.description && (
+                          <p className="text-sm text-[#1F2D58]/70 mt-1">
+                            {product.description}
+                          </p>
+                        )}
 
                         {/* Credits */}
                         <p className="text-base font-bold text-[#1F2D58] mt-1">

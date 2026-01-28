@@ -1,11 +1,12 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
 import { AppSidebar, MobileHeader, MobileNav } from "@/components/dashboard"
+import { CreditsProvider } from "@/lib/credits-context"
 
 export default function DashboardLayout({
   children,
@@ -14,8 +15,11 @@ export default function DashboardLayout({
 }) {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [credits, setCredits] = useState<{ available: number } | null>(null)
+  const pathname = usePathname()
   const [userData, setUserData] = useState<{ first_name: string; last_name: string; email: string } | null>(null)
+  
+  // Check if we're on a focused page (no sidebar)
+  const isFocusedPage = pathname === "/dashboard/vacatures/nieuw"
 
   // Redirect unauthenticated users to login
   useEffect(() => {
@@ -31,14 +35,13 @@ export default function DashboardLayout({
     }
   }, [status, session, router])
 
-  // Fetch user data and credits from account API
+  // Fetch user data from account API (credits now handled by CreditsProvider)
   useEffect(() => {
     async function fetchAccountData() {
       try {
         const response = await fetch("/api/account")
         if (response.ok) {
           const data = await response.json()
-          setCredits({ available: data.credits?.available ?? 0 })
           setUserData({
             first_name: data.personal?.first_name || "",
             last_name: data.personal?.last_name || "",
@@ -86,31 +89,43 @@ export default function DashboardLayout({
     email: userData.email,
   }
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      {/* Mobile Header - Row 1: Logo left, actions right */}
-      <MobileHeader 
-        user={user}
-        credits={credits ?? undefined}
-      />
-      
-      {/* Mobile Navigation - Row 2: Horizontal scrollable menu */}
-      <MobileNav />
-
-      {/* Desktop layout with sidebar */}
-      <SidebarProvider>
-        {/* Desktop Sidebar - hidden on mobile */}
-        <div className="hidden sm:block">
-          <AppSidebar user={user} />
-        </div>
-
-        {/* Main content */}
-        <main className="flex-1 w-full sm:ml-[var(--sidebar-width)] mt-4 sm:mt-6 mb-10">
-          <div className="max-w-[62.5rem] mx-auto px-4 sm:p-6">
+  // Focused page layout (no sidebar, full width)
+  if (isFocusedPage) {
+    return (
+      <CreditsProvider>
+        <div className="min-h-screen">
+          <main className="w-full mb-10">
             {children}
+          </main>
+        </div>
+      </CreditsProvider>
+    )
+  }
+
+  return (
+    <CreditsProvider>
+      <div className="min-h-screen flex flex-col">
+        {/* Mobile Header - Row 1: Logo left, actions right */}
+        <MobileHeader user={user} />
+        
+        {/* Mobile Navigation - Row 2: Horizontal scrollable menu */}
+        <MobileNav />
+
+        {/* Desktop layout with sidebar */}
+        <SidebarProvider>
+          {/* Desktop Sidebar - hidden on mobile */}
+          <div className="hidden sm:block">
+            <AppSidebar user={user} />
           </div>
-        </main>
-      </SidebarProvider>
-    </div>
+
+          {/* Main content */}
+          <main className="flex-1 w-full sm:ml-[var(--sidebar-width)] mt-4 sm:mt-6 mb-10">
+            <div className="max-w-[62.5rem] mx-auto px-4 sm:p-6">
+              {children}
+            </div>
+          </main>
+        </SidebarProvider>
+      </div>
+    </CreditsProvider>
   )
 }

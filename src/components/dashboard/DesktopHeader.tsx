@@ -1,40 +1,26 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Coins, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { CreditsCheckoutModal } from "@/components/checkout"
+import { useCredits } from "@/lib/credits-context"
 
 interface DesktopHeaderProps {
   title: string
 }
 
 export function DesktopHeader({ title }: DesktopHeaderProps) {
-  const [credits, setCredits] = useState<{ available: number } | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { credits, isLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
 
-  // Fetch credits from account API on mount
-  useEffect(() => {
-    async function fetchCredits() {
-      try {
-        const response = await fetch("/api/account")
-        if (response.ok) {
-          const data = await response.json()
-          setCredits({ available: data.credits?.available ?? 0 })
-        }
-      } catch (error) {
-        console.error("Failed to fetch credits:", error)
-        setCredits({ available: 0 })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    fetchCredits()
-  }, [])
+  const handleCheckoutSuccess = (newBalance: number, purchasedAmount?: number) => {
+    updateCredits(newBalance, purchasedAmount)
+  }
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
@@ -46,11 +32,20 @@ export function DesktopHeader({ title }: DesktopHeaderProps) {
         {/* Credits info - always on the left, or at the bottom when wrapped */}
         {isLoading ? (
           <Skeleton className="h-12 w-28" />
-        ) : credits ? (
+        ) : (
           <div className="flex flex-col items-end">
             <div className="flex items-center gap-1.5 text-[#1F2D58]">
-              <Coins className="h-4 w-4" />
-              <span className="font-bold">{credits.available} credits</span>
+              {isPendingUpdate ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  <span className="font-bold text-[#1F2D58]/70">Bijwerken...</span>
+                </>
+              ) : (
+                <>
+                  <Coins className="h-4 w-4" />
+                  <span className="font-bold">{credits.available} credits</span>
+                </>
+              )}
             </div>
             <button 
               onClick={() => setIsCheckoutOpen(true)}
@@ -59,7 +54,7 @@ export function DesktopHeader({ title }: DesktopHeaderProps) {
               + credits bijkopen
             </button>
           </div>
-        ) : null}
+        )}
         
         {/* New vacancy button */}
         <Button showArrow={false} asChild>
@@ -75,7 +70,9 @@ export function DesktopHeader({ title }: DesktopHeaderProps) {
         open={isCheckoutOpen} 
         onOpenChange={setIsCheckoutOpen}
         context="dashboard"
-        currentBalance={credits?.available ?? 0}
+        currentBalance={credits.available}
+        onSuccess={handleCheckoutSuccess}
+        onPendingChange={setOptimisticUpdate}
       />
     </div>
   )

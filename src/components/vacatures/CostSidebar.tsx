@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { formatCredits } from "@/lib/credits";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Check } from "lucide-react";
 import type { CostSidebarProps } from "./types";
 
 export function CostSidebar({
@@ -12,77 +12,129 @@ export function CostSidebar({
   onChangePackage,
   onBuyCredits,
 }: CostSidebarProps) {
-  // Calculate totals
+  // Calculate credit totals
   const packageCredits = selectedPackage?.credits || 0;
   const upsellCredits = selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
   const totalCredits = packageCredits + upsellCredits;
-  const remainingCredits = availableCredits - totalCredits;
-  const hasEnoughCredits = remainingCredits >= 0;
+  const shortage = Math.max(0, totalCredits - availableCredits);
+  const hasEnoughCredits = shortage === 0;
+  const creditsRemaining = availableCredits - totalCredits;
+
+  // Calculate prices from database
+  const packagePrice = selectedPackage?.price || 0;
+  const upsellsPrice = selectedUpsells.reduce((sum, u) => sum + u.price, 0);
+  const totalPrice = packagePrice + upsellsPrice;
+  
+  // Calculate shortage price proportionally based on actual prices
+  const shortagePrice = totalCredits > 0 
+    ? Math.round((shortage / totalCredits) * totalPrice)
+    : 0;
 
   return (
-    <div className="space-y-4">
-      {/* Credits Overview Card */}
-      <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-5">
-        <h3 className="text-base font-bold text-[#1F2D58] mb-4">Kostenoverzicht</h3>
+    <div className="space-y-4 mt-6">
+      {/* Cost Overview Card */}
+      <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6 text-sm">
+        <h3 className="text-xl font-bold text-[#1F2D58] mb-4">Overzicht</h3>
 
-        {/* Available credits */}
-        <div className="mb-4">
-          <p className="text-sm text-[#1F2D58]/70 mb-1">Beschikbare credits</p>
-          <p className="text-3xl font-bold text-[#1F2D58]">{availableCredits}</p>
+        {/* Table header */}
+        <div className="flex justify-end mb-2">
+          <span className="text-sm font-bold text-[#1F2D58]">Credits</span>
         </div>
-
-        {/* Buy more credits button */}
-        {onBuyCredits && (
-          <Button
-            variant="secondary"
-            className="w-full mb-4"
-            onClick={onBuyCredits}
-          >
-            Meer credits kopen
-          </Button>
-        )}
 
         {/* Cost breakdown - only show if package selected */}
         {selectedPackage && (
-          <>
-            <div className="border-t border-[#1F2D58]/10 pt-4 mt-4">
-              <p className="text-sm text-[#1F2D58]/70 mb-2">Kosten breakdown</p>
-              
-              {/* Package */}
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-[#1F2D58]">{selectedPackage.display_name}</span>
-                <span className="text-[#1F2D58] font-medium">{packageCredits}</span>
-              </div>
-
-              {/* Upsells */}
-              {selectedUpsells.map((upsell) => (
-                <div key={upsell.id} className="flex justify-between text-sm mb-1">
-                  <span className="text-[#1F2D58]">{upsell.display_name}</span>
-                  <span className="text-[#1F2D58] font-medium">+{upsell.credits}</span>
-                </div>
-              ))}
+          <div className="space-y-2">
+            {/* Package */}
+            <div className="flex justify-between">
+              <span className="text-[#1F2D58]">{selectedPackage.display_name}</span>
+              <span className="text-[#1F2D58]">{packageCredits}</span>
             </div>
 
-            {/* Total */}
-            <div className="border-t border-[#1F2D58]/10 pt-3 mt-3">
+            {/* Upsells */}
+            {selectedUpsells.map((upsell) => (
+              <div key={upsell.id} className="flex justify-between">
+                <span className="text-[#1F2D58]">+ {upsell.display_name}</span>
+                <span className="text-[#1F2D58]">{upsell.credits}</span>
+              </div>
+            ))}
+
+            {/* Totaal */}
+            <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
+              <span className="font-bold text-[#1F2D58]">Totaal</span>
+              <span className="font-bold text-[#1F2D58]">{totalCredits}</span>
+            </div>
+
+            {/* Beschikbare credits */}
+            <div className="flex justify-between pt-2">
+              <span className="text-[#1F2D58]">Beschikbare credits</span>
+              <span className="text-[#1F2D58]">{availableCredits}</span>
+            </div>
+
+            {/* Scenario 1: Genoeg credits - toon "Over na plaatsing" */}
+            {hasEnoughCredits && (
               <div className="flex justify-between">
-                <span className="font-bold text-[#1F2D58]">Totaal benodigd</span>
-                <span className="font-bold text-[#1F2D58]">{totalCredits}</span>
+                <span className="text-[#1F2D58]">Over na plaatsing</span>
+                <span className="text-[#1F2D58]">{creditsRemaining}</span>
               </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-[#1F2D58]/70">Na plaatsing over</span>
-                <span className={`font-medium ${hasEnoughCredits ? "text-[#1F2D58]" : "text-red-600"}`}>
-                  {remainingCredits}
-                </span>
+            )}
+
+            {/* Scenario 2: Te weinig credits - toon "Tekort aan credits" */}
+            {!hasEnoughCredits && (
+              <div className="flex justify-between">
+                <span className="text-[#1F2D58]">Tekort aan credits</span>
+                <span className="text-[#1F2D58]">{shortage} (€{shortagePrice})</span>
               </div>
+            )}
+
+            {/* Bundle promotion - alleen tonen als je 50 of minder credits hebt */}
+            {availableCredits <= 50 && (
+              <button
+                type="button"
+                onClick={onBuyCredits}
+                className="w-full mt-4 px-4 pt-2 pb-3 border-2 border-[#D0E1CE] bg-[#D0E1CE]/20 rounded-lg text-center hover:bg-[#D0E1CE]/40 transition-colors"
+              >
+                {hasEnoughCredits ? (
+                  <p className="text-sm text-[#1F2D58]">
+                    Extra credits kopen met voordeel?
+                    <br />
+                    Bespaar tot 30% met een{" "}
+                    <span className="underline">credit bundel</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-[#1F2D58]">
+                    Plaats je vaker vacatures?
+                    <br />
+                    Bespaar tot 30% met een{" "}
+                    <span className="underline">credit bundel</span>
+                  </p>
+                )}
+              </button>
+            )}
+
+            {/* Onderaan: Credits totaal (scenario 1) of Te betalen (scenario 2) */}
+            <div className="flex justify-between pt-4 mt-4 border-t border-[#1F2D58]/10">
+              {hasEnoughCredits ? (
+                <>
+                  <span className="font-bold text-[#1F2D58]">Totaal</span>
+                  <span className="font-bold text-[#1F2D58]">{totalCredits} credits</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-[#1F2D58]">Te betalen</span>
+                  <div className="text-right">
+                    <span className="font-bold text-[#1F2D58]">{availableCredits} credits + €{shortagePrice}</span>
+                    <p className="text-xs text-[#1F2D58]/60">excl. btw</p>
+                  </div>
+                </>
+              )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
       {/* Package Info Card - only show if package selected and showPackageInfo is true */}
       {showPackageInfo && selectedPackage && (
-        <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-5">
+        <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
           <p className="text-xs text-[#1F2D58]/70 mb-1">Gekozen pakket</p>
           <h4 className="text-lg font-bold text-[#1F2D58] mb-3">{selectedPackage.display_name}</h4>
           
@@ -117,6 +169,22 @@ export function CostSidebar({
           )}
         </div>
       )}
+
+      {/* Review notice */}
+      <Alert className="bg-[#193DAB]/[0.12] border-none">
+        <AlertDescription className="text-[#1F2D58]">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+              <Check className="w-5 h-5 text-[#1F2D58]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm">
+                We beoordelen je vacature na het insturen.{!hasEnoughCredits && " Je ontvangt de factuur automatisch per e-mail."}
+              </p>
+            </div>
+          </div>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -26,19 +26,27 @@ import type {
   WizardStep,
   VacancyWizardState,
   ProductWithFeatures,
+  InvoiceDetails,
 } from "./types";
 import type { ProductRecord, LookupRecord, VacancyRecord } from "@/lib/airtable";
+import { useCredits } from "@/lib/credits-context";
 
 interface VacancyWizardProps {
   initialVacancyId?: string;
+  initialStep?: 1 | 2 | 3 | 4;
 }
 
-export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
+export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  
+  // Credits from global context - ensures sync across all components
+  const { credits, refetch: refetchCredits } = useCredits();
+  const availableCredits = credits.available;
   
   // Wizard state
   const [state, setState] = useState<VacancyWizardState>({
-    currentStep: 1,
+    currentStep: initialStep || 1,
     inputType: "self_service",
     isDirty: false,
     selectedPackage: null,
@@ -57,7 +65,6 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     regions: LookupRecord[];
     sectors: LookupRecord[];
   } | null>(null);
-  const [availableCredits, setAvailableCredits] = useState(0);
   
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -65,10 +72,16 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [weDoItForYouProduct, setWeDoItForYouProduct] = useState<ProductRecord | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails | null>(null);
+  const [showInvoiceError, setShowInvoiceError] = useState(false);
 
   // Auto-save ref
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [lastSavedData, setLastSavedData] = useState<string>("");
+  
+  // Track if initial data has been loaded (prevents re-fetching on URL step changes)
+  const initialLoadDoneRef = useRef(false);
 
   // Unsaved changes warning
   useEffect(() => {
@@ -84,16 +97,32 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [state.isDirty]);
 
-  // Fetch initial data
+  // Sync state to URL for persistence across refreshes
   useEffect(() => {
+    // Only update URL if we have a vacancy ID (after step 1)
+    if (state.vacancyId) {
+      const params = new URLSearchParams();
+      params.set("id", state.vacancyId);
+      params.set("step", state.currentStep.toString());
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [state.vacancyId, state.currentStep, pathname, router]);
+
+  // Fetch initial data - only runs once on mount or when vacancyId changes
+  useEffect(() => {
+    // Skip if we've already loaded initial data and the vacancyId hasn't changed
+    if (initialLoadDoneRef.current) {
+      return;
+    }
+
     async function fetchData() {
       try {
-        // Fetch packages, upsells, lookups, and credits in parallel
-        const [packagesRes, upsellsRes, lookupsRes, accountRes] = await Promise.all([
+        // Fetch packages, upsells, and lookups in parallel
+        // Credits are handled by CreditsContext, no need to fetch here
+        const [packagesRes, upsellsRes, lookupsRes] = await Promise.all([
           fetch("/api/products?type=vacancy_package&includeFeatures=true"),
           fetch("/api/products?type=upsell"),
           fetch("/api/lookups?type=all"),
-          fetch("/api/account"),
         ]);
 
         if (packagesRes.ok) {
@@ -122,11 +151,6 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
           setLookups(data);
         }
 
-        if (accountRes.ok) {
-          const data = await accountRes.json();
-          setAvailableCredits(data.credits?.available || 0);
-        }
-
         // If editing existing vacancy, fetch it
         if (initialVacancyId) {
           const vacancyRes = await fetch(`/api/vacancies/${initialVacancyId}`);
@@ -134,12 +158,18 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
             const data = await vacancyRes.json();
             const vacancy = data.vacancy as VacancyRecord;
             
+            // Determine step: use initialStep from URL if valid, otherwise determine from vacancy state
+            let stepToUse = initialStep;
+            if (!stepToUse || stepToUse < 1 || stepToUse > 4) {
+              // Default: if vacancy has a package, go to step 2, otherwise step 1
+              stepToUse = vacancy.package_id ? 2 : 1;
+            }
+            
             setState((prev) => ({
               ...prev,
               vacancyData: vacancy,
               inputType: vacancy.input_type || "self_service",
-              // If vacancy has a package, we should be on step 2
-              currentStep: vacancy.package_id ? 2 : 1,
+              currentStep: stepToUse as WizardStep,
             }));
 
             // Set selected package if exists
@@ -155,6 +185,9 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
             }
           }
         }
+        
+        // Mark initial load as done
+        initialLoadDoneRef.current = true;
       } catch (error) {
         console.error("Error fetching wizard data:", error);
         toast.error("Er ging iets mis bij het laden van de gegevens");
@@ -164,6 +197,7 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     }
 
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialVacancyId]);
 
   // Calculate completed steps
@@ -194,64 +228,78 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
   }, []);
 
   // Validate vacancy data for step 2 → 3 transition
-  const validateVacancy = useCallback((): { valid: boolean; errors: string[] } => {
-    const errors: string[] = [];
+  const validateVacancy = useCallback((): { valid: boolean; errors: Record<string, string> } => {
+    const errors: Record<string, string> = {};
     const { vacancyData, inputType } = state;
+    
+    // Email validation helper
+    const isValidEmail = (email: string) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    };
 
     if (inputType === "we_do_it_for_you") {
       // Simplified validation for "We do it for you"
       if (!vacancyData.description?.trim()) {
-        errors.push("Vacaturetekst is verplicht");
+        errors.description = "Vacaturetekst is verplicht";
       }
       // Application method
       if (vacancyData.show_apply_form) {
         if (!vacancyData.application_email?.trim()) {
-          errors.push("E-mailadres voor sollicitaties is verplicht");
+          errors.application_email = "E-mailadres voor sollicitaties is verplicht";
+        } else if (!isValidEmail(vacancyData.application_email)) {
+          errors.application_email = "Voer een geldig e-mailadres in";
         }
       } else {
         if (!vacancyData.apply_url?.trim()) {
-          errors.push("Sollicitatie URL is verplicht");
+          errors.apply_url = "Sollicitatie URL is verplicht";
         }
       }
     } else {
       // Full validation for self-service
       if (!vacancyData.title?.trim()) {
-        errors.push("Vacaturetitel is verplicht");
+        errors.title = "Vacaturetitel is verplicht";
       }
       if (!vacancyData.intro_txt?.trim()) {
-        errors.push("Introductietekst is verplicht");
+        errors.intro_txt = "Introductietekst is verplicht";
       }
       if (!vacancyData.description?.trim()) {
-        errors.push("Vacaturetekst is verplicht");
+        errors.description = "Vacaturetekst is verplicht";
       }
       if (!vacancyData.location?.trim()) {
-        errors.push("Plaats is verplicht");
+        errors.location = "Plaats is verplicht";
       }
       if (!vacancyData.region_id) {
-        errors.push("Regio is verplicht");
+        errors.region_id = "Regio is verplicht";
       }
       if (!vacancyData.function_type_id) {
-        errors.push("Functietype is verplicht");
+        errors.function_type_id = "Functietype is verplicht";
       }
       if (!vacancyData.field_id) {
-        errors.push("Vakgebied is verplicht");
+        errors.field_id = "Vakgebied is verplicht";
       }
       if (!vacancyData.sector_id) {
-        errors.push("Sector is verplicht");
+        errors.sector_id = "Sector is verplicht";
+      }
+      // Contact email validation (optional field, but must be valid if filled)
+      if (vacancyData.contact_email?.trim() && !isValidEmail(vacancyData.contact_email)) {
+        errors.contact_email = "Voer een geldig e-mailadres in";
       }
       // Application method
       if (vacancyData.show_apply_form) {
         if (!vacancyData.application_email?.trim()) {
-          errors.push("E-mailadres voor sollicitaties is verplicht");
+          errors.application_email = "E-mailadres voor sollicitaties is verplicht";
+        } else if (!isValidEmail(vacancyData.application_email)) {
+          errors.application_email = "Voer een geldig e-mailadres in";
         }
       } else {
         if (!vacancyData.apply_url?.trim()) {
-          errors.push("Sollicitatie URL is verplicht");
+          errors.apply_url = "Sollicitatie URL is verplicht";
         }
       }
     }
 
-    return { valid: errors.length === 0, errors };
+    return { valid: Object.keys(errors).length === 0, errors };
   }, [state]);
 
   // Auto-save function (defined before handleNext since it depends on it)
@@ -327,6 +375,9 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
           isDirty: false, // Reset dirty state when entering step 2
         }));
         toast.success("Concept vacature aangemaakt");
+        
+        // Scroll to top of page
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (error) {
         console.error("Error creating vacancy:", error);
         toast.error("Er ging iets mis bij het aanmaken van de vacature");
@@ -340,13 +391,17 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     if (currentStep === 2) {
       const validation = validateVacancy();
       if (!validation.valid) {
-        // Show first 3 errors
-        const errorList = validation.errors.slice(0, 3).join(", ");
+        // Set validation errors for inline display
+        setValidationErrors(validation.errors);
+        const errorCount = Object.keys(validation.errors).length;
         toast.error("Vul de verplichte velden in", {
-          description: errorList + (validation.errors.length > 3 ? ` (+${validation.errors.length - 3} meer)` : ""),
+          description: `${errorCount} ${errorCount === 1 ? "veld is" : "velden zijn"} niet correct ingevuld`,
         });
         return;
       }
+      
+      // Clear any previous validation errors
+      setValidationErrors({});
       
       // Save before moving to preview
       if (state.isDirty) {
@@ -359,6 +414,9 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
       ...prev,
       currentStep: Math.min(prev.currentStep + 1, 4) as WizardStep,
     }));
+    
+    // Scroll to top of page
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [state, validateVacancy, saveVacancy]);
 
   // Navigate to previous step
@@ -367,6 +425,9 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
       ...prev,
       currentStep: Math.max(prev.currentStep - 1, 1) as WizardStep,
     }));
+    
+    // Scroll to top of page
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
   // Handle step click in indicator
@@ -376,15 +437,19 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     // Can go to step if it's completed or is the next step after current
     if (completedSteps.includes(step) || step <= state.currentStep) {
       setState((prev) => ({ ...prev, currentStep: step }));
+      
+      // Scroll to top of page
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [state.currentStep, getCompletedSteps]);
 
   // Handle credits purchase success
-  const handleCreditsSuccess = useCallback((newBalance: number) => {
-    setAvailableCredits(newBalance);
+  const handleCreditsSuccess = useCallback(async (_newBalance: number, _purchasedAmount?: number) => {
+    // Refetch credits from context to sync across all components
+    await refetchCredits();
     setShowCheckoutModal(false);
     toast.success("Credits toegevoegd aan je account");
-  }, []);
+  }, [refetchCredits]);
 
   // Handle vacancy data changes with auto-save
   const handleVacancyChange = useCallback((updates: Partial<VacancyRecord>) => {
@@ -393,6 +458,15 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
       vacancyData: { ...prev.vacancyData, ...updates },
       isDirty: true,
     }));
+    // Clear validation errors for updated fields
+    const updatedFields = Object.keys(updates);
+    setValidationErrors((prev) => {
+      const newErrors = { ...prev };
+      updatedFields.forEach((field) => {
+        delete newErrors[field];
+      });
+      return newErrors;
+    });
   }, []);
 
   // Debounced auto-save
@@ -456,12 +530,21 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     });
   }, []);
 
+  // Handle invoice details change from SubmitStep
+  const handleInvoiceDetailsChange = useCallback((details: InvoiceDetails | null) => {
+    setInvoiceDetails(details);
+    // Reset error state when user provides valid invoice details
+    if (details !== null) {
+      setShowInvoiceError(false);
+    }
+  }, []);
+
   // Handle back button with unsaved changes check
   const handleBack = useCallback(() => {
     if (state.isDirty) {
       setShowLeaveDialog(true);
     } else {
-      router.back();
+      router.push("/dashboard");
     }
   }, [state.isDirty, router]);
 
@@ -471,13 +554,28 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
       await saveVacancy();
     }
     setShowLeaveDialog(false);
-    router.back();
+    router.push("/dashboard");
   }, [state.vacancyId, saveVacancy, router]);
 
   // Handle vacancy submission
   const handleSubmit = useCallback(async () => {
     if (!state.vacancyId || !state.selectedPackage) {
       toast.error("Geen vacature of pakket geselecteerd");
+      return;
+    }
+
+    // Calculate if we need invoice details
+    const packageCredits = state.selectedPackage?.credits || 0;
+    const upsellCredits = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+    const totalCredits = packageCredits + upsellCredits;
+    const hasEnoughCredits = availableCredits >= totalCredits;
+
+    // If not enough credits, invoice details are required
+    if (!hasEnoughCredits && !invoiceDetails) {
+      setShowInvoiceError(true);
+      toast.error("Factuurgegevens vereist", {
+        description: "Vink de checkbox aan om je factuurgegevens op te halen.",
+      });
       return;
     }
 
@@ -493,10 +591,13 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
         }),
       });
 
-      // Then submit the vacancy
+      // Then submit the vacancy with invoice details if needed
       const res = await fetch(`/api/vacancies/${state.vacancyId}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoice_details: !hasEnoughCredits ? invoiceDetails : null,
+        }),
       });
 
       if (!res.ok) {
@@ -506,12 +607,14 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
 
       const data = await res.json();
       
-      // Update credits balance
-      setAvailableCredits(data.new_balance);
+      // Refetch credits from context to sync across all components
+      await refetchCredits();
       
       // Show success message
       toast.success("Vacature ingediend", {
-        description: "Je vacature wordt beoordeeld door ons team.",
+        description: data.credits_invoiced > 0 
+          ? "Je vacature wordt beoordeeld. Je ontvangt de factuur per e-mail na goedkeuring."
+          : "Je vacature wordt beoordeeld door ons team.",
       });
 
       // Redirect to vacatures overview
@@ -524,7 +627,7 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, router]);
+  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, router, refetchCredits]);
 
   // Render loading state
   if (isLoading) {
@@ -549,8 +652,8 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
         );
       case 2:
         return (
-          <div className="space-y-6">
-            <div className="bg-white/50 rounded-xl pt-4 px-6 pb-6">
+          <div className="space-y-4">
+            <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6">
               <h2 className="text-xl font-bold text-[#1F2D58] mb-1">2. Vacature opstellen</h2>
               <p className="text-[#1F2D58]/70 text-sm">
                 Vul de vacature gegevens in en kies of upload bijpassende afbeeldingen
@@ -563,6 +666,8 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
                 inputType={state.inputType}
                 lookups={lookups}
                 onChange={handleVacancyChange}
+                validationErrors={validationErrors}
+                selectedPackage={state.selectedPackage}
               />
             )}
           </div>
@@ -583,15 +688,14 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
       case 4:
         return state.selectedPackage ? (
           <SubmitStep
-            vacancy={state.vacancyData}
             selectedPackage={state.selectedPackage}
             selectedUpsells={state.selectedUpsells}
             availableUpsells={upsells}
             availableCredits={availableCredits}
             onToggleUpsell={handleToggleUpsell}
-            onSubmit={handleSubmit}
             onBuyCredits={() => setShowCheckoutModal(true)}
-            isSubmitting={isSaving}
+            onInvoiceDetailsChange={handleInvoiceDetailsChange}
+            showInvoiceError={showInvoiceError}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -604,16 +708,42 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <h1 className="text-2xl font-bold text-[#1F2D58]">Vacature plaatsen</h1>
+    <>
+      {/* Top header bar - full width */}
+      <div className="bg-[#E8EEF2] border-b border-[#193DAB]/[0.12]">
+        <div className="relative flex items-center justify-between px-4 sm:px-8 py-6">
+          {/* Left: Logo */}
+          <img 
+            src="/logo.svg" 
+            alt="Colourful jobs" 
+            className="h-6 w-auto"
+          />
 
-      {/* Step indicator */}
-      <StepIndicator
-        currentStep={state.currentStep}
-        completedSteps={getCompletedSteps()}
-        onStepClick={handleStepClick}
-      />
+          {/* Center: Step indicator - constrained to content width */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-full max-w-[62.5rem] px-4 sm:px-6 pointer-events-auto">
+              <StepIndicator
+                currentStep={state.currentStep}
+                completedSteps={getCompletedSteps()}
+                onStepClick={handleStepClick}
+              />
+            </div>
+          </div>
+
+          {/* Right: Dashboard link */}
+          <Button
+            variant="link"
+            onClick={handleBack}
+            showArrow={true}
+            className="whitespace-nowrap z-10"
+          >
+            Dashboard
+          </Button>
+        </div>
+      </div>
+
+    {/* Main content with max-width container */}
+    <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 mt-6 space-y-6">
 
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -639,7 +769,7 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
               selectedPackage={state.selectedPackage}
               selectedUpsells={state.selectedUpsells}
               availableCredits={availableCredits}
-              showPackageInfo={true}
+              showPackageInfo={false}
               onChangePackage={() => handleStepClick(1)}
               onBuyCredits={() => setShowCheckoutModal(true)}
             />
@@ -648,23 +778,22 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
       </div>
 
       {/* Spacer for sticky navigation bar */}
-      <div className="h-24" />
+      <div className="h-20" />
 
       {/* Sticky navigation bar */}
-      <div className="fixed bottom-4 left-0 right-0 z-50 px-4 sm:left-[var(--sidebar-width)]">
-        <div className="max-w-[62.5rem] mx-auto">
-          <div className="bg-white rounded-[0.75rem] shadow-lg py-4 pr-4 pl-8">
-            <div className="flex items-center justify-between">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
+        <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between">
               <div>
                 {state.currentStep > 1 && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="tertiary"
                     onClick={handlePrevious}
                     disabled={isSaving}
-                    className="text-[#1F2D58] hover:text-[#1F2D58]/70 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    showArrow={false}
                   >
                     Vorige
-                  </button>
+                  </Button>
                 )}
               </div>
               <div className="flex items-center gap-3">
@@ -681,13 +810,13 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
                     <Badge variant="success">Opgeslagen</Badge>
                   ) : null
                 )}
-                {state.currentStep < 4 && (
+                {state.currentStep < 4 ? (
                   <Button
                     onClick={handleNext}
                     disabled={isSaving || (state.currentStep === 1 && !state.selectedPackage)}
-                    showArrow={!isSaving}
+                    showArrow={!(isSaving && state.currentStep !== 2)}
                   >
-                    {isSaving ? (
+                    {isSaving && state.currentStep !== 2 ? (
                       <>
                         <Spinner className="w-4 h-4 mr-2" />
                         Laden...
@@ -696,12 +825,47 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
                       `Verder naar ${state.currentStep === 1 ? "opstellen" : state.currentStep === 2 ? "voorbeeld" : "plaatsen"}`
                     )}
                   </Button>
+                ) : (
+                  (() => {
+                    const packageCredits = state.selectedPackage?.credits || 0;
+                    const upsellCredits = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+                    const totalCredits = packageCredits + upsellCredits;
+                    const shortage = Math.max(0, totalCredits - availableCredits);
+                    const hasEnoughCredits = shortage === 0;
+                    const packagePrice = state.selectedPackage?.price || 0;
+                    const upsellsPrice = state.selectedUpsells.reduce((sum, u) => sum + u.price, 0);
+                    const totalPrice = packagePrice + upsellsPrice;
+                    const shortagePrice = totalCredits > 0 
+                      ? Math.round((shortage / totalCredits) * totalPrice)
+                      : 0;
+                    
+                    // Credits that will be deducted from balance
+                    const creditsFromBalance = Math.min(availableCredits, totalCredits);
+                    
+                    return (
+                      <Button
+                        onClick={handleSubmit}
+                        disabled={isSaving}
+                        showArrow={!isSaving}
+                      >
+                        {isSaving ? (
+                          <>
+                            <Spinner className="w-4 h-4 mr-2" />
+                            Bezig met indienen...
+                          </>
+                        ) : hasEnoughCredits ? (
+                          `Vacature insturen (${totalCredits} credits)`
+                        ) : (
+                          `Vacature insturen (${creditsFromBalance} credits + €${shortagePrice})`
+                        )}
+                      </Button>
+                    );
+                  })()
                 )}
               </div>
             </div>
           </div>
         </div>
-      </div>
 
       {/* Credits checkout modal */}
       <CreditsCheckoutModal
@@ -746,5 +910,6 @@ export function VacancyWizard({ initialVacancyId }: VacancyWizardProps) {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

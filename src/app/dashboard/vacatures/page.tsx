@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { 
   Plus,
   AlertTriangle,
@@ -155,8 +156,8 @@ function formatDate(date: Date): string {
 // Get publication info text based on status
 function getPublicationInfo(
   status: VacancyStatus,
-  publishedAt?: Date,
-  closingDate?: Date
+  publishedAt?: string,
+  closingDate?: string
 ): string | null {
   switch (status) {
     case "concept":
@@ -164,18 +165,20 @@ function getPublicationInfo(
       return "Nog niet online"
     case "gepubliceerd":
       if (publishedAt && closingDate) {
-        const daysRemaining = getDaysRemaining(closingDate)
-        return `${formatDate(publishedAt)} · Nog ${daysRemaining} ${daysRemaining === 1 ? "dag" : "dagen"}`
+        const publishedDate = new Date(publishedAt)
+        const closeDate = new Date(closingDate)
+        const daysRemaining = getDaysRemaining(closeDate)
+        return `${formatDate(publishedDate)} · Nog ${daysRemaining} ${daysRemaining === 1 ? "dag" : "dagen"}`
       }
       return null
     case "verlopen":
       if (publishedAt) {
-        return `${formatDate(publishedAt)} · Verlopen`
+        return `${formatDate(new Date(publishedAt))} · Verlopen`
       }
       return null
     case "gedepubliceerd":
       if (publishedAt) {
-        return `${formatDate(publishedAt)} · Offline`
+        return `${formatDate(new Date(publishedAt))} · Offline`
       }
       return null
     default:
@@ -183,119 +186,19 @@ function getPublicationInfo(
   }
 }
 
-// Mock data with extended vacancy info
-interface MockVacancy {
+// Vacancy type from API
+interface Vacancy {
   id: string
-  title: string
+  title?: string
   status: VacancyStatus
-  creditsUsed: number
-  location: string
-  employmentType: string
-  publishedAt?: Date
-  closingDate?: Date
-  createdAt: Date
+  credits_spent?: number
+  money_invoiced?: number
+  location?: string
+  employment_type?: string
+  "last-published-at"?: string
+  closing_date?: string
+  "created-at"?: string
 }
-
-const mockVacancies: MockVacancy[] = [
-  // Gepubliceerde vacatures
-  {
-    id: "1",
-    title: "Senior Frontend Developer",
-    status: "gepubliceerd",
-    creditsUsed: 10,
-    location: "Amsterdam",
-    employmentType: "Fulltime",
-    publishedAt: new Date("2026-01-10"),
-    closingDate: new Date("2026-02-10"),
-    createdAt: new Date("2026-01-08"),
-  },
-  {
-    id: "2",
-    title: "UX Designer",
-    status: "gepubliceerd",
-    creditsUsed: 10,
-    location: "Rotterdam",
-    employmentType: "Fulltime",
-    publishedAt: new Date("2026-01-05"),
-    closingDate: new Date("2026-01-25"),
-    createdAt: new Date("2026-01-03"),
-  },
-  {
-    id: "3",
-    title: "Product Manager",
-    status: "gepubliceerd",
-    creditsUsed: 10,
-    location: "Utrecht",
-    employmentType: "Parttime",
-    publishedAt: new Date("2026-01-12"),
-    closingDate: new Date("2026-02-12"),
-    createdAt: new Date("2026-01-10"),
-  },
-  // Concept vacatures
-  {
-    id: "4",
-    title: "Marketing Manager",
-    status: "concept",
-    creditsUsed: 0,
-    location: "Den Haag",
-    employmentType: "Fulltime",
-    createdAt: new Date("2026-01-15"),
-  },
-  {
-    id: "5",
-    title: "Sales Representative",
-    status: "concept",
-    creditsUsed: 10,
-    location: "Eindhoven",
-    employmentType: "Parttime",
-    createdAt: new Date("2026-01-14"),
-  },
-  // Wacht op goedkeuring
-  {
-    id: "6",
-    title: "Backend Developer",
-    status: "wacht_op_goedkeuring",
-    creditsUsed: 10,
-    location: "Amsterdam",
-    employmentType: "Fulltime",
-    createdAt: new Date("2026-01-13"),
-  },
-  // Verlopen
-  {
-    id: "7",
-    title: "Data Analyst",
-    status: "verlopen",
-    creditsUsed: 10,
-    location: "Rotterdam",
-    employmentType: "Fulltime",
-    publishedAt: new Date("2025-12-01"),
-    closingDate: new Date("2026-01-01"),
-    createdAt: new Date("2025-11-28"),
-  },
-  {
-    id: "8",
-    title: "HR Manager",
-    status: "verlopen",
-    creditsUsed: 10,
-    location: "Utrecht",
-    employmentType: "Fulltime",
-    publishedAt: new Date("2025-11-15"),
-    closingDate: new Date("2025-12-15"),
-    createdAt: new Date("2025-11-10"),
-  },
-  // Gedepubliceerd
-  {
-    id: "9",
-    title: "Customer Support Lead",
-    status: "gedepubliceerd",
-    creditsUsed: 10,
-    location: "Groningen",
-    employmentType: "Parttime",
-    publishedAt: new Date("2025-12-20"),
-    closingDate: new Date("2026-01-20"),
-    createdAt: new Date("2025-12-18"),
-  },
-]
 
 // Multi-select filter component
 function StatusFilter({
@@ -352,18 +255,42 @@ export default function VacaturesPage() {
   const [selectedStatuses, setSelectedStatuses] = useState<VacancyStatus[]>(
     filterStatuses.map((s) => s.value)
   )
+  const [vacancies, setVacancies] = useState<Vacancy[]>([])
 
   // Set page title
   useEffect(() => {
     document.title = "Vacatures | Colourful jobs"
   }, [])
 
-  // Simulate loading
+  // Fetch vacancies from API
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
-    return () => clearTimeout(timer)
+    const fetchVacancies = async () => {
+      try {
+        const response = await fetch("/api/vacancies")
+        if (!response.ok) {
+          throw new Error("Failed to fetch vacancies")
+        }
+        const data = await response.json()
+        if (data.vacancies) {
+          // Sort by created-at descending
+          const sortedVacancies = data.vacancies.sort(
+            (a: Vacancy, b: Vacancy) => {
+              const dateA = a["created-at"] ? new Date(a["created-at"]).getTime() : 0
+              const dateB = b["created-at"] ? new Date(b["created-at"]).getTime() : 0
+              return dateB - dateA
+            }
+          )
+          setVacancies(sortedVacancies)
+        }
+        setIsLoading(false)
+      } catch (err) {
+        console.error("Error fetching vacancies:", err)
+        setError("Er ging iets mis bij het laden van je vacatures")
+        setIsLoading(false)
+      }
+    }
+
+    fetchVacancies()
   }, [])
 
   const handleVacancyAction = (action: string, vacancyId: string) => {
@@ -372,8 +299,8 @@ export default function VacaturesPage() {
   }
 
   // Split vacancies into two sections
-  const publishedVacancies = mockVacancies.filter((v) => v.status === "gepubliceerd")
-  const otherVacancies = mockVacancies.filter((v) => v.status !== "gepubliceerd")
+  const publishedVacancies = vacancies.filter((v) => v.status === "gepubliceerd")
+  const otherVacancies = vacancies.filter((v) => v.status !== "gepubliceerd")
   
   // Filter other vacancies by selected statuses
   const filteredOtherVacancies = otherVacancies.filter((v) =>
@@ -416,13 +343,13 @@ export default function VacaturesPage() {
             <div className="bg-white/50 px-4 pt-4 pb-4">
               <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
             </div>
-            <Table className="bg-white">
+            <Table className="bg-white table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -453,10 +380,12 @@ export default function VacaturesPage() {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button showArrow={false}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Nieuwe vacature
-                </Button>
+                <Link href="/dashboard/vacatures/nieuw">
+                  <Button showArrow={false}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Nieuwe vacature
+                  </Button>
+                </Link>
               </EmptyContent>
             </Empty>
           </div>
@@ -465,25 +394,25 @@ export default function VacaturesPage() {
             <div className="bg-white/50 px-4 pt-4 pb-4">
               <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
             </div>
-            <Table className="bg-white">
+            <Table className="bg-white table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {publishedVacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
                   const actions = actionsPerStatus[vacancy.status]
-                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy.publishedAt, vacancy.closingDate)
+                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell>
-                        <span className="font-bold text-[#1F2D58]">{vacancy.title}</span>
+                        <span className="font-bold text-[#1F2D58]">{vacancy.title || "Naamloze vacature"}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant={config.variant}>{config.label}</Badge>
@@ -492,11 +421,13 @@ export default function VacaturesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {config.showCredits && (
+                        {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
                           <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
-                            <Coins className="h-4 w-4" />
-                            <span>{vacancy.creditsUsed}</span>
+                            <Coins className="h-4 w-4 flex-shrink-0" />
+                            <span>{vacancy.credits_spent}</span>
                           </div>
+                        ) : (
+                          <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -504,10 +435,10 @@ export default function VacaturesPage() {
                           {actions.filter(action => !action.iconOnly).map((action) => (
                             <Button
                               key={action.action}
-                              variant="ghost"
+                              variant="tertiary"
                               size="sm"
                               onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                              className="gap-1.5 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                              className="gap-1.5"
                               showArrow={false}
                             >
                               <action.icon className="h-3.5 w-3.5" />
@@ -518,10 +449,10 @@ export default function VacaturesPage() {
                             <Tooltip key={action.action}>
                               <TooltipTrigger asChild>
                                 <Button
-                                  variant="ghost"
-                                  size="sm"
+                                  variant="tertiary"
+                                  size="icon"
                                   onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                                  className="w-[30px] h-[30px] p-0 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                                  className="w-[30px] h-[30px]"
                                   showArrow={false}
                                 >
                                   <action.icon className="h-4 w-4" />
@@ -551,13 +482,13 @@ export default function VacaturesPage() {
             <div className="bg-white/50 px-4 pt-4 pb-2">
               <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
             </div>
-            <Table className="bg-white">
+            <Table className="bg-white table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -627,25 +558,25 @@ export default function VacaturesPage() {
                 onStatusChange={setSelectedStatuses}
               />
             </div>
-            <Table className="bg-white">
+            <Table className="bg-white table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredOtherVacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
                   const actions = actionsPerStatus[vacancy.status]
-                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy.publishedAt, vacancy.closingDate)
+                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell>
-                        <span className="font-bold text-[#1F2D58]">{vacancy.title}</span>
+                        <span className="font-bold text-[#1F2D58]">{vacancy.title || "Naamloze vacature"}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant={config.variant}>{config.label}</Badge>
@@ -654,10 +585,10 @@ export default function VacaturesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {config.showCredits ? (
+                        {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
                           <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
-                            <Coins className="h-4 w-4" />
-                            <span>{vacancy.creditsUsed}</span>
+                            <Coins className="h-4 w-4 flex-shrink-0" />
+                            <span>{vacancy.credits_spent}</span>
                           </div>
                         ) : (
                           <span className="text-[#1F2D58]/40">-</span>
@@ -668,10 +599,10 @@ export default function VacaturesPage() {
                           {actions.filter(action => !action.iconOnly).map((action) => (
                             <Button
                               key={action.action}
-                              variant="ghost"
+                              variant="tertiary"
                               size="sm"
                               onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                              className="gap-1.5 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                              className="gap-1.5"
                               showArrow={false}
                             >
                               <action.icon className="h-3.5 w-3.5" />
@@ -682,10 +613,10 @@ export default function VacaturesPage() {
                             <Tooltip key={action.action}>
                               <TooltipTrigger asChild>
                                 <Button
-                                  variant="ghost"
-                                  size="sm"
+                                  variant="tertiary"
+                                  size="icon"
                                   onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                                  className="w-[30px] h-[30px] p-0 bg-[#F3EFEF]/40 border border-[#193DAB]/[0.12] hover:border-[#193DAB]/40 hover:bg-[#193DAB]/[0.12]"
+                                  className="w-[30px] h-[30px]"
                                   showArrow={false}
                                 >
                                   <action.icon className="h-4 w-4" />

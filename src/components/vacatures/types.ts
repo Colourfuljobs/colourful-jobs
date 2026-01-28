@@ -64,7 +64,8 @@ export interface VacancyFormProps {
     sectors: LookupRecord[];
   };
   onChange: (updates: Partial<VacancyRecord>) => void;
-  validationErrors?: string[];
+  validationErrors?: Record<string, string>;
+  selectedPackage?: ProductWithFeatures | null;
 }
 
 export interface VacancyPreviewProps {
@@ -80,14 +81,22 @@ export interface VacancyPreviewProps {
   };
 }
 
+export interface InvoiceDetails {
+  contact_name: string;
+  email: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  reference_nr: string;
+}
+
 export interface SubmitStepProps {
-  vacancy: Partial<VacancyRecord>;
-  selectedPackage: ProductRecord;
+  selectedPackage: ProductWithFeatures;
   selectedUpsells: ProductRecord[];
   availableUpsells: ProductRecord[];
   availableCredits: number;
   onToggleUpsell: (upsell: ProductRecord) => void;
-  onSubmit: () => Promise<void>;
   onBuyCredits: () => void;
-  isSubmitting: boolean;
+  onInvoiceDetailsChange: (details: InvoiceDetails | null) => void;
+  showInvoiceError?: boolean;
 }

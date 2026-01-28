@@ -19,7 +19,7 @@ export function StepIndicator({
   };
 
   return (
-    <div className="bg-white rounded-[0.75rem] p-4">
+    <div className="w-full">
       {/* Progress bar */}
       <div className="relative mb-2">
         <div className="h-1 bg-[#1F2D58]/[0.12] rounded-full">

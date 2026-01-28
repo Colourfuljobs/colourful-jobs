@@ -1,5 +1,6 @@
 "use client";
 
+import { Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProductRecord } from "@/lib/airtable";
 
@@ -10,20 +11,25 @@ interface WeDoItForYouBannerProps {
 
 export function WeDoItForYouBanner({ product, onSelect }: WeDoItForYouBannerProps) {
   return (
-    <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-5">
-      <p className="text-xs text-[#1F2D58]/70 mb-1">Hulp nodig?</p>
-      <h4 className="text-lg font-bold text-[#1F2D58] mb-2">We do it for you</h4>
-      <p className="text-sm text-[#1F2D58]/70 mb-3">
-        Vacature opstellen uit handen genomen worden?
-      </p>
+    <div className="border border-[#193DAB]/[0.12] rounded-t-[0.75rem] rounded-b-[2rem] p-5 mt-6">
+      <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center mb-3">
+        <Rocket className="w-5 h-5 text-[#1F2D58]" />
+      </div>
+      <p className="text-xs text-[#1F2D58]/70 mb-1">Geen tijd of hulp nodig?</p>
+      <h4 className="text-lg font-bold text-[#1F2D58] mb-2">{product.display_name}</h4>
+      {product.description && (
+        <p className="text-sm text-[#1F2D58]/70 mb-3">
+          {product.description}
+        </p>
+      )}
       <p className="text-sm font-medium text-[#1F2D58] mb-4">
-        +€{product.price} / {product.credits} credits
+        +{product.credits} credits
       </p>
       <Button
         variant="secondary"
         onClick={onSelect}
       >
-        Dit wil ik
+        Regel het voor mij
       </Button>
     </div>
   );
