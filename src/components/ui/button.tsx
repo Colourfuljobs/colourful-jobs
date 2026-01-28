@@ -86,8 +86,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, showArrow = true, children, ...props }, ref) => {
     // Show arrow for default, secondary, tertiary, and link variants (but not for icon size)
     const isIconSize = size === "icon"
-    const variantsWithArrow = ["default", "secondary", "tertiary", "link", undefined]
-    const shouldShowArrow = !asChild && showArrow && !isIconSize && variantsWithArrow.includes(variant)
+    const variantsWithArrow: (string | undefined)[] = ["default", "secondary", "tertiary", "link", undefined]
+    const shouldShowArrow = !asChild && showArrow && !isIconSize && variantsWithArrow.includes(variant ?? undefined)
     
     if (asChild) {
       // When asChild is true, Slot expects exactly one child, so we can't add arrow icon
