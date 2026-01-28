@@ -94,10 +94,10 @@ export function VacancyForm({
           
           // Only set header image on initial load, not when user changes selection
           if (!initialMediaLoaded) {
+            let foundHeader: MediaAsset | null = null;
+            
             // Find header image - priority: vacancy's header_image > employer's default header
             if (data.images && data.images.length > 0) {
-              let foundHeader: MediaAsset | null = null;
-              
               // First, check if vacancy has header_image set
               if (vacancy.header_image) {
                 const vacancyHeader = data.images.find((img: { id: string; url: string }) => 

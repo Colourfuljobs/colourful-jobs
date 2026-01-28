@@ -47,9 +47,9 @@ export interface CostSidebarProps {
 }
 
 export interface PackageSelectorProps {
-  packages: ProductRecord[];
-  selectedPackage: ProductRecord | null;
-  onSelectPackage: (pkg: ProductRecord) => void;
+  packages: ProductWithFeatures[];
+  selectedPackage: ProductWithFeatures | null;
+  onSelectPackage: (pkg: ProductWithFeatures) => void;
   availableCredits: number;
 }
 

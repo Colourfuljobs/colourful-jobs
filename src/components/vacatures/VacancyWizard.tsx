@@ -219,7 +219,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   }, [state.selectedPackage, state.vacancyId, state.vacancyData.title, state.currentStep]);
 
   // Handle package selection
-  const handleSelectPackage = useCallback((pkg: ProductRecord) => {
+  const handleSelectPackage = useCallback((pkg: ProductWithFeatures) => {
     setState((prev) => ({
       ...prev,
       selectedPackage: pkg,
