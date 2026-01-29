@@ -3,12 +3,14 @@
 import { useRef, useState, DragEvent } from "react";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 
 interface ImageUploadProps {
   id: string;
   label: string;
   required?: boolean;
+  tooltip?: string;
   preview?: string | null;
   uploading?: boolean;
   onFileSelect: (file: File) => void;
@@ -19,6 +21,7 @@ export function ImageUpload({
   id,
   label,
   required = false,
+  tooltip,
   preview,
   uploading = false,
   onFileSelect,
@@ -82,8 +85,21 @@ export function ImageUpload({
 
   return (
     <div className="space-y-2 flex flex-col h-full">
-      <Label htmlFor={id}>
-        {label} {required && "*"}
+      <Label htmlFor={id} className={tooltip ? "flex items-center" : undefined}>
+        {label}{required ? <span className="text-slate-400 text-sm"> *</span> : null}{tooltip && (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-200 text-slate-500 hover:bg-slate-300 hover:text-slate-600 transition-colors text-xs font-medium ml-1.5">
+                  ?
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p>{tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </Label>
       <div
         onDragOver={handleDragOver}

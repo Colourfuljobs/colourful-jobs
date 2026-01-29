@@ -89,6 +89,10 @@ export default function OnboardingPage() {
   const [logoError, setLogoError] = useState<string | null>(null);
   const [headerError, setHeaderError] = useState<string | null>(null);
   
+  // Step 3 state (sectors dropdown)
+  const [sectors, setSectors] = useState<{ id: string; name: string }[]>([]);
+  const [loadingSectors, setLoadingSectors] = useState(false);
+  
   // Form state
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -207,6 +211,30 @@ export default function OnboardingPage() {
       }
     }
   }, [step, watch, setValue]);
+
+  // Fetch sectors when user is authenticated
+  useEffect(() => {
+    const fetchSectors = async () => {
+      if (status !== "authenticated" || sectors.length > 0) return;
+      
+      setLoadingSectors(true);
+      try {
+        const response = await fetch("/api/lookups?type=sectors");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.sectors) {
+            setSectors(data.sectors);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching sectors:", error);
+      } finally {
+        setLoadingSectors(false);
+      }
+    };
+    
+    fetchSectors();
+  }, [status, sectors.length]);
 
   // Handle authentication and join flow completion
   useEffect(() => {
@@ -1129,11 +1157,14 @@ export default function OnboardingPage() {
           {step === 3 && !joinMode && (
             <Step3Website
               register={register}
+              setValue={setValue}
               watch={watch}
               getValues={getValues}
               formErrors={formErrors}
               setFormErrors={setFormErrors}
               saving={saving}
+              sectors={sectors}
+              loadingSectors={loadingSectors}
               logoPreview={logoPreview}
               headerPreview={headerPreview}
               logoUploaded={logoUploaded}

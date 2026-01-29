@@ -177,6 +177,7 @@ export async function POST(
     await createSpendTransaction({
       employer_id: user.employer_id,
       wallet_id: wallet.id,
+      user_id: user.id, // Track which user initiated the transaction
       vacancy_id: vacancy.id,
       total_credits: totalCredits, // Total credits the vacancy costs
       total_cost: totalPrice, // Total price in euros

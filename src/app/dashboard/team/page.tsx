@@ -339,11 +339,10 @@ export default function TeamPage() {
                   {/* Delete button */}
                   <TableCell>
                     <Button
-                      variant="ghost"
+                      variant="tertiary"
                       size="icon"
-                      className="h-8 w-8 text-[#1F2D58]/70 hover:text-red-600 hover:bg-red-50"
+                      className="w-[30px] h-[30px] hover:text-red-600 hover:bg-red-50"
                       onClick={() => setMemberToDelete(member)}
-                      showArrow={false}
                     >
                       <Trash2 className="h-4 w-4" />
                       <span className="sr-only">Verwijder teamlid</span>

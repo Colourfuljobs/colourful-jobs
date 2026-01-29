@@ -46,7 +46,7 @@ export const billingDataSchema = z.object({
 // Website data validation (Employers table)
 export const websiteDataSchema = z.object({
   display_name: z.string().min(1, "Weergavenaam is verplicht"),
-  sector: z.string().min(1, "Sector is verplicht"),
+  sector: z.string().optional(), // Optional - loaded from Sectors table dropdown
   short_description: z.string().min(1, "Omschrijving is verplicht"),
   // Logo and header_image are uploaded separately, validation handled in UI
   logo: z.any().optional(),

@@ -851,6 +851,9 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
       const wallet_id = Array.isArray(fields.wallet)
         ? fields.wallet[0] || null
         : fields.wallet || null;
+      const user_id = Array.isArray(fields.user)
+        ? fields.user[0] || null
+        : fields.user || null;
       const vacancy_id = Array.isArray(fields.vacancy)
         ? fields.vacancy[0] || null
         : fields.vacancy || null;
@@ -867,7 +870,7 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
         employer_id,
         wallet_id,
         vacancy_id,
-        user_id: null, // Not used in this table
+        user_id,
         product_ids,
         type: fields.type,
         reference_type: fields.reference_type || null,
@@ -1666,6 +1669,7 @@ export async function createPurchaseTransaction(fields: {
   const airtableFields: Record<string, any> = {
     employer: [fields.employer_id], // Linked record requires array
     wallet: [fields.wallet_id], // Linked record requires array
+    user: [fields.user_id], // Linked record to Users - requires array
     product_id: [fields.product_id], // Linked record to Products - requires array
     type: "purchase",
     status: "open",
@@ -1690,6 +1694,9 @@ export async function createPurchaseTransaction(fields: {
     const wallet_id = Array.isArray(recordFields.wallet)
       ? recordFields.wallet[0] || null
       : recordFields.wallet || null;
+    const user_id = Array.isArray(recordFields.user)
+      ? recordFields.user[0] || null
+      : recordFields.user || null;
     const product_ids = Array.isArray(recordFields.product_id)
       ? recordFields.product_id
       : [];
@@ -1698,7 +1705,7 @@ export async function createPurchaseTransaction(fields: {
       id: record.id,
       employer_id,
       wallet_id,
-      user_id: null,
+      user_id,
       product_ids,
       vacancy_id: null,
       type: recordFields.type,
@@ -2215,6 +2222,7 @@ export async function deductCreditsFromWallet(
 export async function createSpendTransaction(fields: {
   employer_id: string;
   wallet_id: string;
+  user_id: string; // User who initiated the transaction
   vacancy_id: string;
   total_credits: number; // Total credits the vacancy costs
   total_cost: number; // Total price in euros
@@ -2237,6 +2245,7 @@ export async function createSpendTransaction(fields: {
   const airtableFields: Record<string, any> = {
     employer: [fields.employer_id],
     wallet: [fields.wallet_id],
+    user: [fields.user_id], // Linked record to Users
     vacancy: [fields.vacancy_id],
     product_id: fields.product_ids, // Linked record to Products
     type: "spend",
@@ -2269,6 +2278,9 @@ export async function createSpendTransaction(fields: {
     const wallet_id = Array.isArray(recordFields.wallet)
       ? recordFields.wallet[0] || null
       : recordFields.wallet || null;
+    const user_id = Array.isArray(recordFields.user)
+      ? recordFields.user[0] || null
+      : recordFields.user || null;
     const vacancy_id = Array.isArray(recordFields.vacancy)
       ? recordFields.vacancy[0] || null
       : recordFields.vacancy || null;
@@ -2282,7 +2294,7 @@ export async function createSpendTransaction(fields: {
       employer_id,
       wallet_id,
       vacancy_id,
-      user_id: null,
+      user_id,
       product_ids: fields.product_ids,
       type: recordFields.type,
       reference_type: recordFields.reference_type || null,

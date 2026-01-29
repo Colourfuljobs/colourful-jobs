@@ -1,5 +1,6 @@
 import type { OnboardingFormData } from "@/lib/validation";
 import type { UseFormSetValue, UseFormWatch, UseFormGetValues } from "react-hook-form";
+import type { LookupRecord } from "@/lib/airtable";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type CustomRegister = (name: keyof OnboardingFormData) => any;
@@ -80,11 +81,16 @@ export interface Step2Props {
 export interface Step3Props {
   // Form
   register: CustomRegister;
+  setValue: UseFormSetValue<OnboardingFormData>;
   watch: UseFormWatch<OnboardingFormData>;
   getValues: UseFormGetValues<OnboardingFormData>;
   formErrors: Record<string, string>;
   setFormErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   saving: boolean;
+  
+  // Sectors dropdown
+  sectors: LookupRecord[];
+  loadingSectors: boolean;
   
   // Image uploads
   logoPreview: string | null;

@@ -4,14 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ImageUpload } from "@/components/ImageUpload";
 import type { Step3Props } from "./types";
 
 export function Step3Website({
   register,
+  setValue,
   watch,
   formErrors,
   saving,
+  sectors,
+  loadingSectors,
   logoPreview,
   headerPreview,
   uploadingLogo,
@@ -22,6 +26,8 @@ export function Step3Website({
   onPrevious,
   onSubmit,
 }: Step3Props) {
+  const selectedSector = watch("sector");
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
@@ -44,12 +50,23 @@ export function Step3Website({
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="sector">Sector <span className="text-slate-400 text-sm">*</span></Label>
-            <Input
-              id="sector"
-              {...register("sector")}
-              className={formErrors.sector ? "border-red-500" : ""}
-            />
+            <Label htmlFor="sector">Sector</Label>
+            <Select
+              value={selectedSector || ""}
+              onValueChange={(value) => setValue("sector", value)}
+              disabled={loadingSectors}
+            >
+              <SelectTrigger id="sector" className={formErrors.sector ? "border-red-500" : ""}>
+                <SelectValue placeholder={loadingSectors ? "Laden..." : "Selecteer sector"} />
+              </SelectTrigger>
+              <SelectContent>
+                {sectors.map((sector) => (
+                  <SelectItem key={sector.id} value={sector.name}>
+                    {sector.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {formErrors.sector && (
               <p className="text-sm text-red-500">{formErrors.sector}</p>
             )}
@@ -82,6 +99,7 @@ export function Step3Website({
               id="header_image"
               label="Headerbeeld"
               required
+              tooltip="Upload een breed, liggend beeld dat je bedrijf representeert. Dit wordt prominent getoond bovenaan je bedrijfsprofiel."
               preview={headerPreview || undefined}
               uploading={uploadingHeader}
               onFileSelect={(file) => onImageUpload(file, "header")}
