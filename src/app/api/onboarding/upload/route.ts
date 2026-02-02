@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
     const altText = generateAltText(type === "header" ? "header" : "logo", {
       display_name: employer?.display_name || companyData.display_name,
       company_name: employer?.company_name || companyData.company_name,
-      sector: employer?.sector || companyData.sector,
+      sector: employer?.sector?.[0] || companyData.sector,
     });
 
     // If replacing existing media, soft delete the old one

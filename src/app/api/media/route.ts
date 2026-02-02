@@ -273,7 +273,7 @@ export async function POST(request: NextRequest) {
       {
         display_name: employer?.display_name,
         company_name: employer?.company_name,
-        sector: employer?.sector,
+        sector: employer?.sector?.[0],
         location: employer?.location,
       }
     );
@@ -379,6 +379,14 @@ export async function PATCH(request: NextRequest) {
 
     // Verify asset belongs to this employer
     const employer = await getEmployerById(employerId);
+    
+    if (!employer) {
+      return NextResponse.json(
+        { error: "Werkgever niet gevonden" },
+        { status: 404 }
+      );
+    }
+    
     const allAssets = await getMediaAssetsByEmployerId(employerId, { type: "sfeerbeeld" });
     const assetBelongsToEmployer = allAssets.some((asset) => asset.id === assetId);
     
