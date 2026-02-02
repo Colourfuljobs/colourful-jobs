@@ -99,4 +99,6 @@ export interface SubmitStepProps {
   onBuyCredits: () => void;
   onInvoiceDetailsChange: (details: InvoiceDetails | null) => void;
   showInvoiceError?: boolean;
+  profileComplete?: boolean;
+  profileEditUrl?: string;
 }

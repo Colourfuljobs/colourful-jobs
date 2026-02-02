@@ -2,21 +2,19 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
 import { AppSidebar, MobileHeader, MobileNav } from "@/components/dashboard"
 import { CreditsProvider } from "@/lib/credits-context"
+import { AccountProvider, useAccount } from "@/lib/account-context"
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+// Inner layout that uses the account context
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const pathname = usePathname()
-  const [userData, setUserData] = useState<{ first_name: string; last_name: string; email: string } | null>(null)
+  const { accountData, isLoading: isAccountLoading } = useAccount()
   
   // Check if we're on a focused page (no sidebar)
   const isFocusedPage = pathname === "/dashboard/vacatures/nieuw"
@@ -34,28 +32,6 @@ export default function DashboardLayout({
       router.replace("/onboarding")
     }
   }, [status, session, router])
-
-  // Fetch user data from account API (credits now handled by CreditsProvider)
-  useEffect(() => {
-    async function fetchAccountData() {
-      try {
-        const response = await fetch("/api/account")
-        if (response.ok) {
-          const data = await response.json()
-          setUserData({
-            first_name: data.personal?.first_name || "",
-            last_name: data.personal?.last_name || "",
-            email: data.personal?.email || session?.user?.email || "",
-          })
-        }
-      } catch (error) {
-        console.error("Failed to fetch account data:", error)
-      }
-    }
-    if (status === "authenticated") {
-      fetchAccountData()
-    }
-  }, [status, session?.user?.email])
 
   // Show loading state while checking session
   if (status === "loading") {
@@ -75,8 +51,8 @@ export default function DashboardLayout({
     )
   }
 
-  // Show loading state while fetching user data
-  if (!userData) {
+  // Show loading state while fetching account data
+  if (isAccountLoading || !accountData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Spinner className="size-12 text-[#1F2D58]" />
@@ -85,47 +61,57 @@ export default function DashboardLayout({
   }
 
   const user = {
-    name: userData.first_name || "Gebruiker",
-    email: userData.email,
+    name: accountData.personal.first_name || "Gebruiker",
+    email: accountData.personal.email,
   }
 
   // Focused page layout (no sidebar, full width)
   if (isFocusedPage) {
     return (
-      <CreditsProvider>
-        <div className="min-h-screen">
-          <main className="w-full mb-10">
-            {children}
-          </main>
-        </div>
-      </CreditsProvider>
+      <div className="min-h-screen">
+        <main className="w-full mb-10">
+          {children}
+        </main>
+      </div>
     )
   }
 
   return (
-    <CreditsProvider>
-      <div className="min-h-screen flex flex-col">
-        {/* Mobile Header - Row 1: Logo left, actions right */}
-        <MobileHeader user={user} />
-        
-        {/* Mobile Navigation - Row 2: Horizontal scrollable menu */}
-        <MobileNav />
+    <div className="min-h-screen flex flex-col">
+      {/* Mobile Header - Row 1: Logo left, actions right */}
+      <MobileHeader user={user} />
+      
+      {/* Mobile Navigation - Row 2: Horizontal scrollable menu */}
+      <MobileNav />
 
-        {/* Desktop layout with sidebar */}
-        <SidebarProvider>
-          {/* Desktop Sidebar - hidden on mobile */}
-          <div className="hidden sm:block">
-            <AppSidebar user={user} />
+      {/* Desktop layout with sidebar */}
+      <SidebarProvider>
+        {/* Desktop Sidebar - hidden on mobile */}
+        <div className="hidden sm:block">
+          <AppSidebar user={user} profileComplete={accountData.profile_complete} />
+        </div>
+
+        {/* Main content */}
+        <main className="flex-1 w-full sm:ml-[var(--sidebar-width)] mt-4 sm:mt-6 mb-10">
+          <div className="max-w-[62.5rem] mx-auto px-4 sm:p-6">
+            {children}
           </div>
+        </main>
+      </SidebarProvider>
+    </div>
+  )
+}
 
-          {/* Main content */}
-          <main className="flex-1 w-full sm:ml-[var(--sidebar-width)] mt-4 sm:mt-6 mb-10">
-            <div className="max-w-[62.5rem] mx-auto px-4 sm:p-6">
-              {children}
-            </div>
-          </main>
-        </SidebarProvider>
-      </div>
-    </CreditsProvider>
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <AccountProvider>
+      <CreditsProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </CreditsProvider>
+    </AccountProvider>
   )
 }

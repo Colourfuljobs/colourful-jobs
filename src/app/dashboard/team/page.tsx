@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
-import { UserPlus, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { UserPlus, Pencil } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -19,14 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog"
 import { DesktopHeader } from "@/components/dashboard"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Types for team members
 interface TeamMember {
@@ -58,7 +53,6 @@ export default function TeamPage() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
   const [isInviting, setIsInviting] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
 
   // Set page title
   useEffect(() => {
@@ -71,9 +65,6 @@ export default function TeamPage() {
   // State for invite form
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteError, setInviteError] = useState<string | null>(null)
-
-  // State for delete confirmation dialog
-  const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null)
 
   // Fetch team members
   const fetchTeamMembers = useCallback(async () => {
@@ -132,47 +123,6 @@ export default function TeamPage() {
     }
   }
 
-  // Handle remove team member
-  const handleConfirmRemove = async () => {
-    if (!memberToDelete) return
-
-    setIsDeleting(true)
-
-    try {
-      const response = await fetch("/api/team", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: memberToDelete.id }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        const memberName = memberToDelete.first_name && memberToDelete.last_name
-          ? `${memberToDelete.first_name} ${memberToDelete.last_name}`
-          : memberToDelete.email
-        
-        toast.success("Teamlid verwijderd", {
-          description: `${memberName} is verwijderd uit het team.`,
-        })
-        setMemberToDelete(null)
-        // Refresh team list
-        fetchTeamMembers()
-      } else {
-        toast.error("Fout bij verwijderen", {
-          description: data.error || "Er ging iets mis bij het verwijderen van het teamlid.",
-        })
-      }
-    } catch (error) {
-      console.error("Error removing team member:", error)
-      toast.error("Fout bij verwijderen", {
-        description: "Er ging iets mis bij het verwijderen van het teamlid.",
-      })
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
   // Handle Enter key in invite input
   const handleInviteKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && inviteEmail.trim() && !isInviting) {
@@ -198,8 +148,8 @@ export default function TeamPage() {
       <TableCell>
         <Skeleton className="h-5 w-20 rounded-full" />
       </TableCell>
-      <TableCell>
-        <Skeleton className="h-8 w-8 rounded" />
+      <TableCell className="text-right">
+        <Skeleton className="h-8 w-20 ml-auto" />
       </TableCell>
     </TableRow>
   )
@@ -207,7 +157,7 @@ export default function TeamPage() {
   const TeamTableSkeleton = () => (
     <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
       <div className="bg-white/50 px-4 pt-4 pb-4">
-        <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
+        <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58]">
           Alle teamleden
         </h2>
       </div>
@@ -217,7 +167,7 @@ export default function TeamPage() {
             <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Naam</TableHead>
             <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">E-mailadres</TableHead>
             <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-            <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]"></TableHead>
+            <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -231,22 +181,18 @@ export default function TeamPage() {
 
   const InviteCardSkeleton = () => (
     <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-      <div className="bg-white/50 px-4 pt-4 pb-4">
-        <div className="space-y-1">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-            Teamlid uitnodigen
-          </h2>
-          <Skeleton className="h-4 w-80" />
-        </div>
+      <div className="bg-white/50 px-6 py-4">
+        <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+          Teamlid uitnodigen
+        </h2>
+        <Skeleton className="h-4 w-80 max-w-[600px]" />
       </div>
       <div className="bg-white p-6">
         <div className="space-y-4">
           <div className="space-y-2">
             <Skeleton className="h-4 w-24" />
-            <div className="flex gap-3">
-              <Skeleton className="h-10 flex-1" />
-              <Skeleton className="h-10 w-32" />
-            </div>
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-32" />
           </div>
           <Skeleton className="h-8 w-full" />
         </div>
@@ -271,8 +217,8 @@ export default function TeamPage() {
 
       {/* Team Members Table */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        <div className="bg-white/50 px-4 pt-4 pb-4">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
+        <div className="bg-white/50 px-6 py-4">
+          <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
             Alle teamleden
           </h2>
         </div>
@@ -282,7 +228,6 @@ export default function TeamPage() {
               <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Naam</TableHead>
               <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">E-mailadres</TableHead>
               <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-              <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -336,17 +281,20 @@ export default function TeamPage() {
                     </Badge>
                   </TableCell>
 
-                  {/* Delete button */}
-                  <TableCell>
-                    <Button
-                      variant="tertiary"
-                      size="icon"
-                      className="w-[30px] h-[30px] hover:text-red-600 hover:bg-red-50"
-                      onClick={() => setMemberToDelete(member)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Verwijder teamlid</span>
-                    </Button>
+                  {/* Actions */}
+                  <TableCell className="text-right">
+                    {isCurrentUser && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link href="/dashboard/gegevens">
+                            <Button variant="tertiary" size="icon" className="w-[30px] h-[30px]" showArrow={false}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </TooltipTrigger>
+                        <TooltipContent>Wijzigen</TooltipContent>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               )})
@@ -357,45 +305,41 @@ export default function TeamPage() {
 
       {/* Invite Team Member */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        <div className="bg-white/50 px-4 pt-4 pb-4">
-          <div className="space-y-1">
-            <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-              Teamlid uitnodigen
-            </h2>
-            <p className="text-sm text-[#1F2D58]/60">
-              Nodig een collega uit om toegang te krijgen tot dit werkgeversaccount.
-            </p>
-          </div>
+        <div className="bg-white/50 px-6 py-4">
+          <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+            Teamlid uitnodigen
+          </h2>
+          <p className="text-sm text-[#1F2D58]/60 max-w-[600px]">
+            Nodig een collega uit om toegang te krijgen tot dit werkgeversaccount.
+          </p>
         </div>
         <div className="bg-white p-6">
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="invite-email">E-mailadres</Label>
-              <div className="flex gap-3">
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="collega@bedrijf.nl"
-                  value={inviteEmail}
-                  onChange={(e) => {
-                    setInviteEmail(e.target.value)
-                    if (inviteError) setInviteError(null)
-                  }}
-                  onKeyDown={handleInviteKeyDown}
-                  className={`flex-1 ${inviteError ? "border-red-500" : ""}`}
-                />
-                <Button 
-                  onClick={handleInvite} 
-                  disabled={!inviteEmail.trim() || isInviting} 
-                  showArrow={false}
-                >
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  {isInviting ? "Bezig..." : "Uitnodigen"}
-                </Button>
-              </div>
+              <Input
+                id="invite-email"
+                type="email"
+                placeholder="collega@bedrijf.nl"
+                value={inviteEmail}
+                onChange={(e) => {
+                  setInviteEmail(e.target.value)
+                  if (inviteError) setInviteError(null)
+                }}
+                onKeyDown={handleInviteKeyDown}
+                className={inviteError ? "border-red-500" : ""}
+              />
               {inviteError && (
                 <p className="text-sm text-red-600">{inviteError}</p>
               )}
+              <Button 
+                onClick={handleInvite} 
+                disabled={!inviteEmail.trim() || isInviting} 
+                showArrow={false}
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                {isInviting ? "Bezig..." : "Uitnodigen"}
+              </Button>
             </div>
             <p className="text-sm text-[#1F2D58]/60">
               De uitgenodigde ontvangt een e-mail met een link om zichzelf toe te voegen aan dit account.
@@ -404,54 +348,6 @@ export default function TeamPage() {
           </div>
         </div>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!memberToDelete} onOpenChange={(open) => !open && setMemberToDelete(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-[#1F2D58]">
-              {memberToDelete?.status === "invited" ? "Uitnodiging annuleren" : "Teamlid verwijderen"}
-            </DialogTitle>
-            <DialogDescription className="text-[#1F2D58]/70">
-              {memberToDelete?.status === "invited" ? (
-                <>
-                  Weet je zeker dat je de uitnodiging voor{" "}
-                  <span className="font-medium text-[#1F2D58]">
-                    {memberToDelete?.email}
-                  </span>{" "}
-                  wilt annuleren?
-                </>
-              ) : (
-                <>
-                  Weet je zeker dat je{" "}
-                  <span className="font-medium text-[#1F2D58]">
-                    {memberToDelete?.first_name} {memberToDelete?.last_name}
-                  </span>{" "}
-                  wilt verwijderen uit het team?
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-3 mt-4">
-            <Button
-              variant="secondary"
-              onClick={() => setMemberToDelete(null)}
-              showArrow={false}
-              disabled={isDeleting}
-            >
-              Annuleren
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmRemove}
-              showArrow={false}
-              disabled={isDeleting}
-            >
-              {isDeleting ? "Bezig..." : memberToDelete?.status === "invited" ? "Annuleren" : "Verwijderen"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

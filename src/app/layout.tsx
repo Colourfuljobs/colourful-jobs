@@ -45,7 +45,7 @@ export default function RootLayout({
         <SessionProvider>
           <TooltipProvider>
             {children}
-            <Toaster position="bottom-center" richColors />
+            <Toaster position="bottom-center" />
           </TooltipProvider>
         </SessionProvider>
       </body>

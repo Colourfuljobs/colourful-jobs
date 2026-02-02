@@ -11,7 +11,7 @@ import { CreditsCheckoutModal } from "@/components/checkout"
 import { useCredits } from "@/lib/credits-context"
 
 interface DesktopHeaderProps {
-  title: string
+  title: React.ReactNode
 }
 
 export function DesktopHeader({ title }: DesktopHeaderProps) {

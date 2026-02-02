@@ -212,12 +212,19 @@ export function MediaPickerDialog({
   }
 
   // Reset local selection when dialog opens
+  // Trim to maxSelection if initial selection exceeds it
   useEffect(() => {
     if (open) {
-      setLocalSelection(selectedIds || [])
+      const initialSelection = selectedIds || []
+      // If initial selection exceeds max, trim it
+      if (!singleSelect && initialSelection.length > maxSelection) {
+        setLocalSelection(initialSelection.slice(0, maxSelection))
+      } else {
+        setLocalSelection(initialSelection)
+      }
       fetchMedia()
     }
-  }, [open, selectedIds, fetchMedia])
+  }, [open, selectedIds, fetchMedia, maxSelection, singleSelect])
 
   // Get the assets to display based on filter
   const displayAssets = (() => {
@@ -255,6 +262,12 @@ export function MediaPickerDialog({
 
   // Handle confirm
   const handleConfirm = () => {
+    // Validate selection doesn't exceed max
+    if (!singleSelect && localSelection.length > maxSelection) {
+      toast.error(`Selecteer maximaal ${maxSelection} afbeeldingen`)
+      return
+    }
+
     // Return full asset objects (id + url) for selected items
     const selectedAssets = localSelection
       .map((id) => displayAssets.find((asset) => asset.id === id))

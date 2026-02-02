@@ -29,7 +29,6 @@ export type EventType =
   | "vacancy_publish"
   | "vacancy_depublish"
   | "vacancy_boost"
-  | "vacancy_duplicate"
   | "media_uploaded"
   | "media_deleted"
   | "onboarding_started"

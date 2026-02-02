@@ -46,7 +46,7 @@ export function KVKSearch({ onSelect, onSkip, onSearchStart }: KVKSearchProps) {
       if (!response.ok) {
         // API returned an error
         if (data.code === "CONNECTION_ERROR") {
-          setApiError("De KVK API is momenteel niet bereikbaar. Je kunt je bedrijfsgegevens handmatig invullen.");
+          setApiError("De KVK API is momenteel niet bereikbaar. Je kunt je organisatiegegevens handmatig invullen.");
         } else {
           setApiError("Er ging iets mis bij het zoeken. Probeer het later opnieuw of vul je gegevens handmatig in.");
         }
@@ -85,17 +85,17 @@ export function KVKSearch({ onSelect, onSkip, onSearchStart }: KVKSearchProps) {
     <div className="space-y-4">
       <div className="space-y-3">
         <label htmlFor="kvk-search" className="p-regular block mb-1 font-semibold">
-          Zoek op bedrijfsnaam of KVK-nummer
+          Zoek op organisatienaam of KVK-nummer
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Input
             id="kvk-search"
             type="text"
-            placeholder="Bedrijfsnaam of KVK-nummer (bijv. 12345678)"
+            placeholder="Organisatienaam of KVK-nummer (bijv. 12345678)"
             value={query}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            className="flex-1"
+            className="sm:flex-1"
           />
           <Button 
             onClick={performSearch} 
@@ -138,20 +138,20 @@ export function KVKSearch({ onSelect, onSkip, onSearchStart }: KVKSearchProps) {
       {results.length > 0 && (
         <div className="space-y-2">
           <p className="p-small font-medium">Zoekresultaten:</p>
-          <div className="space-y-2 max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white p-2">
+          <div className="space-y-2 max-h-52 overflow-y-auto rounded-lg bg-[#E8EEF2] border border-slate-200 p-3 sm:p-6">
             {results.map((result, index) => (
               <button
                 key={`${result.kvkNumber}-${result.type}-${index}`}
                 onClick={() => onSelect(result)}
-                className="w-full text-left p-3 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-[#193DAB] transition-colors cursor-pointer"
+                className="w-full text-left p-3 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-[#193DAB] transition-colors cursor-pointer"
               >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                   <div className="font-medium p-regular">{result.name}</div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 w-fit">
                     {result.typeLabel}
                   </span>
                 </div>
-                <div className="p-small text-slate-600">
+                <div className="p-small text-slate-600 mt-2 sm:mt-0">
                   KVK: {result.kvkNumber}
                   {(result.address || result.city) && (
                     <> • {result.address}{result.address && result.city ? ", " : ""}{result.postalCode} {result.city}</>

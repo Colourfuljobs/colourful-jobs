@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, BackArrowIcon } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -64,9 +64,9 @@ export function Step2Company({
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <h4>Ander bedrijf zoeken</h4>
+              <h4>Andere organisatie zoeken</h4>
               <p className="p-regular text-slate-600">
-                Zoek een ander bedrijf of annuleer om terug te gaan naar je huidige selectie.
+                Zoek een andere organisatie of annuleer om terug te gaan naar je huidige selectie.
               </p>
             </div>
             <KVKSearch 
@@ -86,7 +86,7 @@ export function Step2Company({
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <strong className="block mb-1">Bedrijf bestaat al</strong>
+                      <strong className="block mb-1">Organisatie bestaat al</strong>
                       <p className="mb-2 text-sm">
                         Voor dit KVK-nummer bestaat al een account: <strong>{kvkCheckResult.employer?.company_name || kvkCheckResult.employer?.display_name}</strong>
                       </p>
@@ -142,9 +142,9 @@ export function Step2Company({
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <h4>Geselecteerd bedrijf</h4>
+              <h4>Geselecteerde organisatie</h4>
               <p className="p-regular text-slate-600">
-                Je hebt al een bedrijf geselecteerd voor dit account.
+                Je hebt al een organisatie geselecteerd voor dit account.
               </p>
             </div>
             
@@ -176,13 +176,14 @@ export function Step2Company({
         </div>
 
         <div className="flex justify-between items-center">
-          <button
-            type="button"
+          <Button
+            variant="tertiary"
             onClick={onPrevious}
-            className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+            showArrow={false}
           >
+            <BackArrowIcon />
             Vorige
-          </button>
+          </Button>
           <Button onClick={() => setShowKVKSearch(false)}>
             Volgende stap
           </Button>
@@ -198,9 +199,9 @@ export function Step2Company({
         <div className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
-              <h4>Bedrijfsgegevens ophalen</h4>
+              <h4>Organisatiegegevens ophalen</h4>
               <p className="p-regular text-slate-600">
-                Vul je bedrijfsnaam of KVK-nummer in, zodat wij in de volgende stap je bedrijfsgegevens automatisch kunnen invullen.
+                Vul je organisatienaam of KVK-nummer in, zodat wij in de volgende stap je organisatiegegevens automatisch kunnen invullen.
               </p>
             </div>
             <KVKSearch 
@@ -220,7 +221,7 @@ export function Step2Company({
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <strong className="block mb-1">Bedrijf bestaat al</strong>
+                      <strong className="block mb-1">Organisatie bestaat al</strong>
                       <p className="mb-2 text-sm">
                         Voor dit KVK-nummer bestaat al een account: <strong>{kvkCheckResult.employer?.company_name || kvkCheckResult.employer?.display_name}</strong>
                       </p>
@@ -239,21 +240,21 @@ export function Step2Company({
           </div>
         </div>
 
-        <div className="flex justify-between items-center">
-          <button
-            type="button"
+        <div className="flex flex-col sm:flex-row sm:justify-between gap-3 items-start sm:items-center">
+          <Button
+            variant="tertiary"
             onClick={onPrevious}
-            className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+            showArrow={false}
           >
+            <BackArrowIcon />
             Vorige
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="link"
             onClick={() => setShowKVKSearch(false)}
-            className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
           >
             Overslaan en handmatig invullen
-          </button>
+          </Button>
         </div>
 
         {/* Duplicate Dialog */}
@@ -286,7 +287,7 @@ export function Step2Company({
             )}
           </div>
           <div className="space-y-3">
-            <Label htmlFor="phone">Telefoonnummer <span className="text-slate-400 text-sm">*</span></Label>
+            <Label htmlFor="phone">Telefoonnummer</Label>
             <Input
               id="phone"
               type="tel"
@@ -344,7 +345,7 @@ export function Step2Company({
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <strong className="block mb-1">Bedrijf bestaat al</strong>
+                      <strong className="block mb-1">Organisatie bestaat al</strong>
                       <p className="mb-2 text-sm">
                         Voor dit KVK-nummer bestaat al een account: <strong>{kvkCheckResult.employer?.company_name || kvkCheckResult.employer?.display_name}</strong>
                       </p>
@@ -433,19 +434,20 @@ export function Step2Company({
       </div>
 
       {/* Form Actions */}
-      <div className="flex justify-between items-center">
-        <button
-          type="button"
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3 items-stretch sm:items-center">
+        <Button
+          variant="tertiary"
           onClick={() => setShowKVKSearch(true)}
-          className="p-regular text-slate-500 underline hover:no-underline cursor-pointer transition-colors"
+          showArrow={false}
         >
+          <BackArrowIcon />
           Vorige
-        </button>
+        </Button>
         <Button 
           onClick={onNext}
           disabled={saving}
         >
-          {saving ? "Opslaan..." : "Volgende stap"}
+          {saving ? "Account aanmaken..." : "Account aanmaken"}
         </Button>
       </div>
 
@@ -476,7 +478,7 @@ function DuplicateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Bedrijf bestaat al</DialogTitle>
+          <DialogTitle>Organisatie bestaat al</DialogTitle>
           <DialogDescription>
             Voor dit KVK-nummer bestaat al een account:{" "}
             <strong>{employer?.company_name || employer?.display_name}</strong>

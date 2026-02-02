@@ -9,6 +9,10 @@ import { logEvent, getClientIP } from "@/lib/events";
 import { checkRateLimit, onboardingRateLimiter, getIdentifier } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
+
+// Email validation schema
+const emailSchema = z.string().email();
 
 /**
  * POST /api/onboarding/join
@@ -41,6 +45,18 @@ export async function POST(request: Request) {
     if (!email) {
       return NextResponse.json(
         { error: "E-mailadres is verplicht" },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format early
+    const emailValidation = emailSchema.safeParse(email);
+    if (!emailValidation.success) {
+      return NextResponse.json(
+        { 
+          valid: false, 
+          error: "Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)" 
+        },
         { status: 400 }
       );
     }

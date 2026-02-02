@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Coins, Eye, Pencil, Rocket, Upload, MapPin, Clock, Copy, Calendar } from "lucide-react"
+import { Coins, Eye, Pencil, Rocket, Upload, MapPin, Clock, Calendar } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -62,39 +62,33 @@ const statusConfig: Record<VacancyStatus, {
 const actionsPerStatus: Record<VacancyStatus, Array<{
   label: string
   icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "dupliceren"
+  action: "wijzigen" | "bekijken" | "boosten" | "publiceren"
   iconOnly?: boolean // Whether to show only icon (with tooltip)
 }>> = {
   concept: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   incompleet: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   wacht_op_goedkeuring: [
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   gepubliceerd: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   verlopen: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   gedepubliceerd: [
     { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
 }
 
@@ -230,7 +224,7 @@ export function VacancyCard({
               </Button>
             ))}
             
-            {/* Then render icon-only buttons (Wijzigen, Bekijken, Dupliceren) */}
+            {/* Then render icon-only buttons (Wijzigen, Bekijken) */}
             {actions.filter(action => action.iconOnly).map((action) => (
               <Tooltip key={action.action}>
                 <TooltipTrigger asChild>
@@ -289,7 +283,7 @@ export function VacancyCard({
               </Button>
             ))}
             
-            {/* Then render icon-only buttons (Wijzigen, Bekijken, Dupliceren) */}
+            {/* Then render icon-only buttons (Wijzigen, Bekijken) */}
             {actions.filter(action => action.iconOnly).map((action) => (
               <Tooltip key={action.action}>
                 <TooltipTrigger asChild>

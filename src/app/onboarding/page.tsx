@@ -13,8 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import type { KVKSearchResult, KVKDetails } from "@/lib/kvk";
 import { 
   companyDataSchema, 
-  billingDataSchema, 
-  websiteDataSchema,
+  billingDataSchema,
   type OnboardingFormData 
 } from "@/lib/validation";
 import { toast } from "sonner";
@@ -22,10 +21,8 @@ import { normalizeUrl } from "@/lib/utils";
 
 // Import new components
 import {
-  StepIndicator,
   Step1Personal,
   Step2Company,
-  Step3Website,
   JoinEmployerFlow,
   type Step,
   type ContactData,
@@ -79,20 +76,6 @@ export default function OnboardingPage() {
   const [joinCompleting, setJoinCompleting] = useState(false);
   const [isJoinCallback, setIsJoinCallback] = useState(false);
   
-  // Step 3 state (image uploads)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [headerPreview, setHeaderPreview] = useState<string | null>(null);
-  const [logoUploaded, setLogoUploaded] = useState(false);
-  const [headerUploaded, setHeaderUploaded] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadingHeader, setUploadingHeader] = useState(false);
-  const [logoError, setLogoError] = useState<string | null>(null);
-  const [headerError, setHeaderError] = useState<string | null>(null);
-  
-  // Step 3 state (sectors dropdown)
-  const [sectors, setSectors] = useState<{ id: string; name: string }[]>([]);
-  const [loadingSectors, setLoadingSectors] = useState(false);
-  
   // Form state
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -118,9 +101,6 @@ export default function OnboardingPage() {
       invoice_street: "",
       "invoice_postal-code": "",
       invoice_city: "",
-      display_name: "",
-      sector: "",
-      short_description: "",
     },
   });
 
@@ -200,41 +180,6 @@ export default function OnboardingPage() {
       }
     }
   }, [status, clearOnboardingState]);
-
-  // Pre-fill display_name with company_name when entering step 3
-  useEffect(() => {
-    if (step === 3) {
-      const currentDisplayName = watch("display_name");
-      const currentCompanyName = watch("company_name");
-      if (!currentDisplayName && currentCompanyName) {
-        setValue("display_name", currentCompanyName, { shouldValidate: false });
-      }
-    }
-  }, [step, watch, setValue]);
-
-  // Fetch sectors when user is authenticated
-  useEffect(() => {
-    const fetchSectors = async () => {
-      if (status !== "authenticated" || sectors.length > 0) return;
-      
-      setLoadingSectors(true);
-      try {
-        const response = await fetch("/api/lookups?type=sectors");
-        if (response.ok) {
-          const data = await response.json();
-          if (data.sectors) {
-            setSectors(data.sectors);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching sectors:", error);
-      } finally {
-        setLoadingSectors(false);
-      }
-    };
-    
-    fetchSectors();
-  }, [status, sectors.length]);
 
   // Handle authentication and join flow completion
   useEffect(() => {
@@ -335,7 +280,7 @@ export default function OnboardingPage() {
     }
   }, [status, session, emailSent, step, setValue, clearOnboardingState, initialRedirectDone, router, update]);
 
-  // Handle step navigation click
+  // Handle step navigation click (used for going back from step 2 to step 1)
   const handleStepClick = useCallback((targetStep: Step) => {
     if (targetStep === 1) {
       setStep(1);
@@ -349,78 +294,80 @@ export default function OnboardingPage() {
           description: "Verifieer eerst je e-mailadres om verder te gaan.",
         });
       }
-      return;
     }
-    if (targetStep === 3) {
-      if (step2Complete) {
-        setStep(3);
-      } else {
-        toast.error("Stap 2 nog niet voltooid", {
-          description: "Vul eerst je bedrijfs- en factuurgegevens in.",
-        });
-      }
-    }
-  }, [step1Complete, step2Complete]);
+  }, [step1Complete]);
 
   // Step 1 handlers
   const handleSubmitStep1 = async () => {
     if (!contact.email || !contact.firstName || !contact.lastName) return;
-    setLoading(true);
     setEmailError(null);
     
-    try {
-      const response = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: contact.email,
-          first_name: contact.firstName,
-          last_name: contact.lastName,
-          role: contact.role,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        try {
-          await signIn("email", {
+    // OPTIMISTIC UI: Show "check your email" immediately
+    // This provides instant feedback while user creation and email sending happen in background
+    setEmailSent(true);
+    saveOnboardingState(contact, true);
+    
+    // Run user creation and email sending in background
+    (async () => {
+      try {
+        const response = await fetch("/api/onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             email: contact.email,
-            redirect: false,
-            callbackUrl: "/onboarding",
-          });
-          setEmailSent(true);
-          saveOnboardingState(contact, true);
+            first_name: contact.firstName,
+            last_name: contact.lastName,
+            role: contact.role,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
           if (data.resend) {
             toast.success("Verificatie e-mail opnieuw verstuurd", {
               description: "Check je inbox voor de nieuwe verificatielink.",
             });
           }
-        } catch (signInError) {
-          console.error("Error sending magic link:", signInError);
-          setEmailSent(true);
-          saveOnboardingState(contact, true);
-        }
-      } else {
-        const data = await response.json();
-        if (response.status === 409) {
-          setEmailError("Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.");
-          toast.error("E-mailadres al in gebruik", {
-            description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+          
+          // Send magic link in background (don't await)
+          signIn("email", {
+            email: contact.email,
+            redirect: false,
+            callbackUrl: "/onboarding",
+          }).catch((signInError) => {
+            console.error("Error sending magic link:", signInError);
+            toast.error("Fout bij versturen", {
+              description: "De verificatie e-mail kon niet worden verstuurd. Klik op 'opnieuw versturen'.",
+            });
           });
         } else {
-          toast.error("Fout bij aanmelden", {
-            description: data.error || "Er ging iets mis. Probeer het later opnieuw.",
-          });
+          // Error: revert optimistic UI
+          const data = await response.json();
+          setEmailSent(false);
+          clearOnboardingState();
+          
+          if (response.status === 409) {
+            setEmailError("Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.");
+            toast.error("E-mailadres al in gebruik", {
+              description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+            });
+          } else {
+            toast.error("Fout bij aanmelden", {
+              description: data.error || "Er ging iets mis. Probeer het later opnieuw.",
+            });
+          }
         }
+      } catch (error) {
+        // Error: revert optimistic UI
+        console.error("Error submitting step 1:", error);
+        setEmailSent(false);
+        clearOnboardingState();
+        toast.error("Fout bij aanmelden", {
+          description: "Er ging iets mis. Probeer het later opnieuw.",
+        });
       }
-    } catch (error) {
-      console.error("Error submitting step 1:", error);
-      toast.error("Fout bij aanmelden", {
-        description: "Er ging iets mis. Probeer het later opnieuw.",
-      });
-    } finally {
-      setLoading(false);
-    }
+    })();
   };
 
   const handleResendEmail = async () => {
@@ -502,10 +449,6 @@ export default function OnboardingPage() {
         setEmailSent(false);
         setShowKVKSearch(true);
         setKvkSelected(false);
-        setLogoPreview(null);
-        setHeaderPreview(null);
-        setLogoUploaded(false);
-        setHeaderUploaded(false);
         setFormErrors({});
         setStep(1);
         setRestartDialogOpen(false);
@@ -672,7 +615,8 @@ export default function OnboardingPage() {
     setSaving(true);
     
     try {
-      const response = await fetch("/api/onboarding", {
+      // Save company and billing data
+      const companyResponse = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -688,13 +632,35 @@ export default function OnboardingPage() {
         }),
       });
 
-      if (response.ok) {
-        setStep2Complete(true);
-        setStep(3);
+      if (!companyResponse.ok) {
+        toast.error("Fout bij opslaan", {
+          description: "Er ging iets mis bij het opslaan van je organisatiegegevens.",
+        });
+        return false;
+      }
+
+      // Activate user and employer accounts
+      const activateResponse = await fetch("/api/onboarding", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: contact.firstName,
+          last_name: contact.lastName,
+          role: contact.role,
+          status: "active",
+        }),
+      });
+
+      if (activateResponse.ok) {
+        await update();
+        toast.success("Welkom bij Colourful jobs!", {
+          description: "Je werkgeversaccount is succesvol aangemaakt.",
+        });
+        router.push("/dashboard");
         return true;
       } else {
-        toast.error("Fout bij opslaan", {
-          description: "Er ging iets mis bij het opslaan van je gegevens.",
+        toast.error("Fout bij activeren", {
+          description: "Er ging iets mis bij het activeren van je account.",
         });
         return false;
       }
@@ -789,55 +755,81 @@ export default function OnboardingPage() {
           });
         }
       } else {
-        const createResponse = await fetch("/api/onboarding", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: joinEmail,
-            first_name: joinContact.firstName,
-            last_name: joinContact.lastName,
-            role: joinContact.role,
-            joinMode: true,
-            target_employer_id: joinEmployer.id,
-          }),
-        });
-        
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json();
-          if (createResponse.status === 409) {
-            toast.error("E-mailadres al in gebruik", {
-              description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
-            });
-          } else {
-            toast.error("Fout bij aanmelden", {
-              description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
-            });
-          }
-          setJoinLoading(false);
-          return;
-        }
-        
+        // OPTIMISTIC UI: Show verification step immediately
+        // User creation and email sending happen in background
         localStorage.setItem("colourful_join_employer_id", joinEmployer.id);
         localStorage.setItem("colourful_join_pending_verification", "true");
-        
-        try {
-          await signIn("email", {
-            email: joinEmail,
-            redirect: false,
-            callbackUrl: "/onboarding?join=true",
-          });
-        } catch (signInError) {
-          console.error("Error sending magic link:", signInError);
-        }
-        
         setJoinStep("verification");
+        setJoinLoading(false);
+        
+        // Capture values for async closure
+        const emailToUse = joinEmail;
+        const employerId = joinEmployer.id;
+        const contactData = { ...joinContact };
+        
+        // Run user creation and email sending in background
+        (async () => {
+          try {
+            const createResponse = await fetch("/api/onboarding", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: emailToUse,
+                first_name: contactData.firstName,
+                last_name: contactData.lastName,
+                role: contactData.role,
+                joinMode: true,
+                target_employer_id: employerId,
+              }),
+            });
+            
+            if (!createResponse.ok) {
+              // Error: revert optimistic UI
+              const errorData = await createResponse.json();
+              localStorage.removeItem("colourful_join_employer_id");
+              localStorage.removeItem("colourful_join_pending_verification");
+              setJoinStep("confirm");
+              
+              if (createResponse.status === 409) {
+                toast.error("E-mailadres al in gebruik", {
+                  description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+                });
+              } else {
+                toast.error("Fout bij aanmelden", {
+                  description: errorData.error || "Er ging iets mis. Probeer het later opnieuw.",
+                });
+              }
+              return;
+            }
+            
+            // Send magic link in background (don't await)
+            signIn("email", {
+              email: emailToUse,
+              redirect: false,
+              callbackUrl: "/onboarding?join=true",
+            }).catch((signInError) => {
+              console.error("Error sending magic link:", signInError);
+              toast.error("Fout bij versturen", {
+                description: "De verificatie e-mail kon niet worden verstuurd. Klik op 'opnieuw versturen'.",
+              });
+            });
+          } catch (error) {
+            // Error: revert optimistic UI
+            console.error("Error in join flow:", error);
+            localStorage.removeItem("colourful_join_employer_id");
+            localStorage.removeItem("colourful_join_pending_verification");
+            setJoinStep("confirm");
+            toast.error("Fout bij aanmelden", {
+              description: "Er ging iets mis. Probeer het later opnieuw.",
+            });
+          }
+        })();
       }
     } catch (error) {
       console.error("Error in join flow:", error);
       toast.error("Fout bij toevoegen", {
         description: "Er ging iets mis. Probeer het later opnieuw.",
       });
-    } finally {
       setJoinLoading(false);
     }
   };
@@ -861,168 +853,6 @@ export default function OnboardingPage() {
       });
     } finally {
       setJoinResending(false);
-    }
-  };
-
-  // Step 3 handlers
-  const handleImageUpload = async (file: File, type: "logo" | "header") => {
-    if (type === "logo") {
-      setLogoError(null);
-      setUploadingLogo(true);
-    } else {
-      setHeaderError(null);
-      setUploadingHeader(true);
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("type", type);
-    
-    const companyData = watch();
-    formData.append("companyData", JSON.stringify({
-      display_name: companyData.display_name,
-      company_name: companyData.company_name,
-      sector: companyData.sector,
-    }));
-
-    try {
-      const response = await fetch("/api/onboarding/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const contentType = response.headers.get("content-type");
-      let data: Record<string, unknown>;
-
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        const errorMessage = response.status === 500 
-          ? "Server error bij uploaden. Probeer het opnieuw."
-          : `Fout bij uploaden: ${response.statusText || "Onbekende fout"}`;
-        
-        if (type === "logo") setLogoError(errorMessage);
-        else setHeaderError(errorMessage);
-        return;
-      }
-
-      if (!response.ok) {
-        const errorMessage = (data.error as string) || "Fout bij uploaden van afbeelding";
-        if (type === "logo") setLogoError(errorMessage);
-        else setHeaderError(errorMessage);
-        return;
-      }
-
-      if (type === "logo") {
-        setLogoPreview(data.url as string);
-        setLogoUploaded(true);
-        setLogoError(null);
-      } else {
-        setHeaderPreview(data.url as string);
-        setHeaderUploaded(true);
-        setHeaderError(null);
-      }
-    } catch (error: unknown) {
-      console.error("Error uploading image:", error);
-      const errorMessage = error instanceof Error ? error.message : "Fout bij uploaden van afbeelding";
-      if (type === "logo") setLogoError(errorMessage);
-      else setHeaderError(errorMessage);
-    } finally {
-      if (type === "logo") setUploadingLogo(false);
-      else setUploadingHeader(false);
-    }
-  };
-
-  const handleFinalSubmit = async () => {
-    const formData = getValues();
-    
-    const websiteResult = websiteDataSchema.safeParse(formData);
-    const newErrors: Record<string, string> = {};
-    
-    if (!websiteResult.success) {
-      websiteResult.error.issues.forEach((err) => {
-        const fieldName = err.path.map(String).join(".");
-        if (!newErrors[fieldName]) newErrors[fieldName] = err.message;
-      });
-    }
-    
-    let hasImageError = false;
-    if (!logoUploaded) {
-      setLogoError("Logo upload is verplicht");
-      hasImageError = true;
-    }
-    if (!headerUploaded) {
-      setHeaderError("Header afbeelding upload is verplicht");
-      hasImageError = true;
-    }
-    
-    if (Object.keys(newErrors).length > 0) {
-      setFormErrors(newErrors);
-      const firstErrorField = Object.keys(newErrors)[0];
-      setTimeout(() => {
-        const element = document.querySelector(`[name="${firstErrorField}"], #${firstErrorField}`);
-        if (element) element.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
-      return;
-    }
-    
-    if (hasImageError) {
-      const logoElement = document.getElementById("logo");
-      if (logoElement) logoElement.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    
-    setFormErrors({});
-    setSaving(true);
-    
-    try {
-      const userResponse = await fetch("/api/onboarding", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          first_name: contact.firstName,
-          last_name: contact.lastName,
-          role: contact.role,
-          status: "active",
-        }),
-      });
-
-      if (!userResponse.ok) {
-        toast.error("Fout bij opslaan", {
-          description: "Er ging iets mis bij het opslaan van je persoonlijke gegevens.",
-        });
-        return;
-      }
-
-      const employerResponse = await fetch("/api/onboarding", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: formData.display_name,
-          sector: formData.sector,
-          short_description: formData.short_description,
-          status: "active",
-        }),
-      });
-
-      if (employerResponse.ok) {
-        await update();
-        toast.success("Welkom bij Colourful jobs!", {
-          description: "Je werkgeversaccount is succesvol aangemaakt.",
-        });
-        router.push("/dashboard");
-      } else {
-        toast.error("Fout bij opslaan", {
-          description: "Er ging iets mis bij het opslaan van je websitegegevens. Probeer het opnieuw.",
-        });
-      }
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      toast.error("Fout bij opslaan", {
-        description: "Er ging iets mis. Probeer het later opnieuw.",
-      });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -1074,29 +904,22 @@ export default function OnboardingPage() {
         </Link>
       </div>
       <Card className="p-0 overflow-hidden">
-        {/* Header with stepper */}
+        {/* Header */}
         {!joinMode && (
-          <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-8 sm:pb-10">
+          <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-6 sm:pb-8">
             <CardTitle className="mb-3 contempora-small">Bouw aan je werkgeversmerk</CardTitle>
-            {step === 1 && (
-              <p className="p-regular text-slate-600 mb-6">
-                Maak een account aan en bereik geschikte kandidaten die passen bij jouw organisatie.
-              </p>
-            )}
-            <div className="pb-2">
-              <StepIndicator
-                currentStep={step}
-                step1Complete={step1Complete}
-                step2Complete={step2Complete}
-                onStepClick={handleStepClick}
-              />
-            </div>
+            <p className="p-regular text-slate-600">
+              {step === 1 
+                ? "Maak een account aan en bereik geschikte kandidaten die passen bij jouw organisatie."
+                : "Vul je organisatie- en factuurgegevens in om je account te voltooien."
+              }
+            </p>
           </div>
         )}
         
         {/* Join mode header */}
         {joinMode && (
-          <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-8 sm:pb-10">
+          <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-6 sm:pb-8">
             <CardTitle>Toevoegen aan werkgeversaccount</CardTitle>
           </div>
         )}
@@ -1150,35 +973,6 @@ export default function OnboardingPage() {
               onStartJoinFlow={startJoinFlow}
               onKVKSelect={handleKVKSelect}
               onKvkManualChange={handleKvkManualChange}
-            />
-          )}
-
-          {/* Step 3 */}
-          {step === 3 && !joinMode && (
-            <Step3Website
-              register={register}
-              setValue={setValue}
-              watch={watch}
-              getValues={getValues}
-              formErrors={formErrors}
-              setFormErrors={setFormErrors}
-              saving={saving}
-              sectors={sectors}
-              loadingSectors={loadingSectors}
-              logoPreview={logoPreview}
-              headerPreview={headerPreview}
-              logoUploaded={logoUploaded}
-              headerUploaded={headerUploaded}
-              uploadingLogo={uploadingLogo}
-              uploadingHeader={uploadingHeader}
-              logoError={logoError}
-              headerError={headerError}
-              setLogoError={setLogoError}
-              setHeaderError={setHeaderError}
-              onImageUpload={handleImageUpload}
-              onPrevious={() => setStep(2)}
-              onSubmit={handleFinalSubmit}
-              contact={contact}
             />
           )}
 

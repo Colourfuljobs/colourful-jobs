@@ -12,6 +12,7 @@ import {
   RefreshCw,
   ShoppingCart,
   Undo2,
+  FileText,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -246,7 +247,7 @@ function TypeFilter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="secondary"
+          variant="tertiary"
           size="sm"
           showArrow={false}
         >
@@ -403,11 +404,15 @@ export default function OrdersPage() {
 
       {/* Credits Overview Card */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden mb-10">
-        <div className="bg-white/50 px-4 pt-4 pb-4">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58] flex items-center gap-2">
-            <Coins className="h-5 w-5" />
-            Creditsoverzicht
-          </h2>
+        <div className="bg-white/50 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+              <Coins className="h-5 w-5 text-[#1F2D58]" />
+            </div>
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              Creditsoverzicht
+            </h2>
+          </div>
         </div>
         <div className="bg-white p-6">
           {isLoading ? (
@@ -471,8 +476,13 @@ export default function OrdersPage() {
       <section>
         {isLoading ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-[#1F2D58]" />
+                </div>
+                <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
+              </div>
             </div>
             <div className="bg-white">
               <TableSkeleton />
@@ -480,12 +490,17 @@ export default function OrdersPage() {
           </div>
         ) : transactions.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-[#1F2D58]" />
+                </div>
+                <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
+              </div>
             </div>
             <Empty className="bg-white rounded-t-none">
               <EmptyHeader>
-                <EmptyMedia>
+                <EmptyMedia variant="icon">
                   <Coins />
                 </EmptyMedia>
                 <EmptyTitle>Nog geen transacties</EmptyTitle>
@@ -503,16 +518,23 @@ export default function OrdersPage() {
           </div>
         ) : filteredTransactions.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
-              <TypeFilter
-                selectedTypes={selectedTypes}
-                onTypeChange={setSelectedTypes}
-              />
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-5 w-5 text-[#1F2D58]" />
+                  </div>
+                  <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
+                </div>
+                <TypeFilter
+                  selectedTypes={selectedTypes}
+                  onTypeChange={setSelectedTypes}
+                />
+              </div>
             </div>
             <Empty className="bg-white rounded-t-none">
               <EmptyHeader>
-                <EmptyMedia>
+                <EmptyMedia variant="icon">
                   <Coins />
                 </EmptyMedia>
                 <EmptyTitle>
@@ -532,12 +554,19 @@ export default function OrdersPage() {
           </div>
         ) : (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Transacties</h2>
-              <TypeFilter
-                selectedTypes={selectedTypes}
-                onTypeChange={setSelectedTypes}
-              />
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-5 w-5 text-[#1F2D58]" />
+                  </div>
+                  <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
+                </div>
+                <TypeFilter
+                  selectedTypes={selectedTypes}
+                  onTypeChange={setSelectedTypes}
+                />
+              </div>
             </div>
             <Table className="bg-white">
               <TableHeader>

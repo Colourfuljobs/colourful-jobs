@@ -30,6 +30,9 @@ import type {
 } from "./types";
 import type { ProductRecord, LookupRecord, VacancyRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Building2 } from "lucide-react";
+import Link from "next/link";
 
 interface VacancyWizardProps {
   initialVacancyId?: string;
@@ -75,6 +78,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails | null>(null);
   const [showInvoiceError, setShowInvoiceError] = useState(false);
+  const [profileComplete, setProfileComplete] = useState(true);
 
   // Auto-save ref
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -117,13 +121,20 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
     async function fetchData() {
       try {
-        // Fetch packages, upsells, and lookups in parallel
+        // Fetch packages, upsells, lookups and account data in parallel
         // Credits are handled by CreditsContext, no need to fetch here
-        const [packagesRes, upsellsRes, lookupsRes] = await Promise.all([
+        const [packagesRes, upsellsRes, lookupsRes, accountRes] = await Promise.all([
           fetch("/api/products?type=vacancy_package&includeFeatures=true"),
           fetch("/api/products?type=upsell"),
           fetch("/api/lookups?type=all"),
+          fetch("/api/account"),
         ]);
+
+        // Check profile completeness from account data
+        if (accountRes.ok) {
+          const accountData = await accountRes.json();
+          setProfileComplete(accountData.profile_complete ?? true);
+        }
 
         if (packagesRes.ok) {
           const data = await packagesRes.json();
@@ -559,6 +570,14 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Handle vacancy submission
   const handleSubmit = useCallback(async () => {
+    // Block submission if profile is not complete
+    if (!profileComplete) {
+      toast.error("Werkgeversprofiel niet compleet", {
+        description: "Vul eerst je werkgeversprofiel aan voordat je een vacature kunt insturen.",
+      });
+      return;
+    }
+
     if (!state.vacancyId || !state.selectedPackage) {
       toast.error("Geen vacature of pakket geselecteerd");
       return;
@@ -627,7 +646,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     } finally {
       setIsSaving(false);
     }
-  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, router, refetchCredits]);
+  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, router, refetchCredits, profileComplete]);
 
   // Render loading state
   if (isLoading) {
@@ -643,12 +662,37 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     switch (state.currentStep) {
       case 1:
         return (
-          <PackageSelector
-            packages={packages}
-            selectedPackage={state.selectedPackage}
-            onSelectPackage={handleSelectPackage}
-            availableCredits={availableCredits}
-          />
+          <>
+            {/* Profile incomplete warning */}
+            {!profileComplete && (
+              <Alert className="bg-[#F86600]/10 border-none mb-4 p-6">
+                <AlertDescription className="text-[#1F2D58]">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-[#F86600]" />
+                    </div>
+                    <div className="flex-1">
+                      <strong className="block mb-1">Werkgeversprofiel niet compleet</strong>
+                      <p className="text-sm mb-3">
+                        Om een vacature aan te maken heb je een compleet werkgeversprofiel nodig. Vul deze eerst aan.
+                      </p>
+                      <Link href={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}` : ''))}`}>
+                        <Button>
+                          Werkgeversprofiel invullen
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            <PackageSelector
+              packages={packages}
+              selectedPackage={state.selectedPackage}
+              onSelectPackage={handleSelectPackage}
+              availableCredits={availableCredits}
+            />
+          </>
         );
       case 2:
         return (
@@ -696,6 +740,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             onBuyCredits={() => setShowCheckoutModal(true)}
             onInvoiceDetailsChange={handleInvoiceDetailsChange}
             showInvoiceError={showInvoiceError}
+            profileComplete={profileComplete}
+            profileEditUrl={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}&step=4` : ''))}`}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -845,7 +891,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                     return (
                       <Button
                         onClick={handleSubmit}
-                        disabled={isSaving}
+                        disabled={isSaving || !profileComplete}
                         showArrow={!isSaving}
                       >
                         {isSaving ? (

@@ -25,17 +25,23 @@ cloudinary.config({
 });
 
 // File size limits
-const MAX_LOGO_SIZE = 5 * 1024 * 1024; // 5MB for logos
+const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB for logos
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for gallery images
 const MAX_GALLERY_IMAGES = 10;
 
-// Allowed file types
+// Allowed file types for gallery images
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
   "image/avif",
+  "image/svg+xml",
+];
+
+// Allowed file types for logos (PNG/SVG only for quality and transparency)
+const ALLOWED_LOGO_TYPES = [
+  "image/png",
   "image/svg+xml",
 ];
 
@@ -101,23 +107,12 @@ export async function GET(request: NextRequest) {
       logo = logos[0] || null;
     }
 
-    // Get header image ID
+    // Get header image ID (the one currently selected for the profile)
     const headerImageId = employer.header_image?.[0] || null;
 
-    // Get gallery images (sfeerbeelden)
-    let gallery: MediaAssetRecord[] = [];
-    if (employer.gallery && employer.gallery.length > 0) {
-      gallery = await getMediaAssetsByIds(employer.gallery);
-    }
-
-    // Also include header_image if it's not already in gallery
-    // This handles legacy accounts where header was uploaded before fix
-    if (headerImageId && !employer.gallery?.includes(headerImageId)) {
-      const headerAssets = await getMediaAssetsByIds([headerImageId]);
-      if (headerAssets.length > 0) {
-        gallery = [...headerAssets, ...gallery];
-      }
-    }
+    // Get ALL sfeerbeelden for this employer (not just those selected for profile)
+    // This is the full media library / beeldbank
+    const allSfeerbeelden = await getMediaAssetsByEmployerId(employerId, { type: "sfeerbeeld" });
 
     // Transform to frontend format
     const transformAsset = (asset: MediaAssetRecord) => {
@@ -137,7 +132,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       logo: logo ? transformAsset(logo) : null,
-      images: gallery.map(transformAsset),
+      images: allSfeerbeelden.map(transformAsset),
       headerImageId,
       maxImages: MAX_GALLERY_IMAGES,
     });
@@ -194,17 +189,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        { error: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan" },
-        { status: 400 }
-      );
+    // Validate file type (logos: PNG/SVG only, gallery: all formats)
+    if (type === "logo") {
+      if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+        return NextResponse.json(
+          { error: "Upload je logo als PNG of SVG bestand. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden." },
+          { status: 400 }
+        );
+      }
+    } else {
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        return NextResponse.json(
+          { error: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan" },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate file size
     const maxSize = type === "logo" ? MAX_LOGO_SIZE : MAX_IMAGE_SIZE;
-    const maxSizeMB = type === "logo" ? "5MB" : "10MB";
+    const maxSizeMB = type === "logo" ? "1MB" : "10MB";
     if (file.size > maxSize) {
       return NextResponse.json(
         { error: `Afbeelding mag maximaal ${maxSizeMB} zijn` },
@@ -289,16 +293,12 @@ export async function POST(request: NextRequest) {
       show_on_company_page: false,
     });
 
-    // Update Employer record
+    // Update Employer record (only for logo - gallery images are selected via werkgeversprofiel)
     if (type === "logo") {
       await updateEmployer(employerId, { logo: [mediaAsset.id] });
-    } else {
-      // Append to gallery
-      const currentGallery = employer?.gallery || [];
-      await updateEmployer(employerId, {
-        gallery: [...currentGallery, mediaAsset.id],
-      });
     }
+    // Note: sfeerbeelden are NOT automatically added to employer.gallery
+    // Users select which images appear on their profile via the werkgeversprofiel page
 
     // Log event
     await logEvent({
@@ -379,7 +379,10 @@ export async function PATCH(request: NextRequest) {
 
     // Verify asset belongs to this employer
     const employer = await getEmployerById(employerId);
-    if (!employer?.gallery?.includes(assetId)) {
+    const allAssets = await getMediaAssetsByEmployerId(employerId, { type: "sfeerbeeld" });
+    const assetBelongsToEmployer = allAssets.some((asset) => asset.id === assetId);
+    
+    if (!assetBelongsToEmployer) {
       return NextResponse.json(
         { error: "Afbeelding niet gevonden" },
         { status: 404 }
@@ -474,17 +477,23 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Verify asset belongs to this employer (only sfeerbeelden can be deleted)
+    // Verify asset belongs to this employer by checking all sfeerbeelden
     if (type === "sfeerbeeld") {
-      if (!employer.gallery?.includes(assetId)) {
+      const allAssets = await getMediaAssetsByEmployerId(employerId, { type: "sfeerbeeld" });
+      const assetBelongsToEmployer = allAssets.some((asset) => asset.id === assetId);
+      
+      if (!assetBelongsToEmployer) {
         return NextResponse.json(
           { error: "Afbeelding niet gevonden" },
           { status: 404 }
         );
       }
-      // Remove from gallery
-      const newGallery = employer.gallery.filter((id) => id !== assetId);
-      await updateEmployer(employerId, { gallery: newGallery });
+
+      // Remove from gallery if it was selected for the profile
+      if (employer.gallery?.includes(assetId)) {
+        const newGallery = employer.gallery.filter((id) => id !== assetId);
+        await updateEmployer(employerId, { gallery: newGallery });
+      }
 
       // If this was the header image, also clear that
       if (employer.header_image?.[0] === assetId) {

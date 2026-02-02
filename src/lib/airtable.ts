@@ -49,12 +49,13 @@ export const employerRecordSchema = z.object({
   invoice_street: z.string().optional(),
   "invoice_postal-code": z.string().optional(),
   invoice_city: z.string().optional(),
-  sector: z.string().optional(),
+  sector: z.array(z.string()).optional(), // Linked record to Sectors table
   location: z.string().optional(),
   short_description: z.string().optional(),
   logo: z.array(z.string()).optional(), // Linked record to Media Assets
   header_image: z.array(z.string()).optional(), // Linked record to Media Assets
   gallery: z.array(z.string()).optional(), // Linked records to Media Assets
+  faq: z.array(z.string()).optional(), // Linked records to FAQ table (order matters for Webflow)
   video_url: z.string().optional(), // YouTube or Vimeo URL for company page
   status: z.enum(["draft", "active"]).default("draft"),
   role: z.array(z.string()).optional(), // Linked record to Roles table
@@ -78,7 +79,7 @@ export const faqRecordSchema = z.object({
   question: z.string(),
   answer: z.string(),
   order: z.number().default(0),
-  "created-at": z.string().optional(),
+  created_at: z.string().optional(),
 });
 
 export const walletRecordSchema = z.object({
@@ -562,10 +563,11 @@ export async function updateEmployer(
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
   if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
-  // Linked records to Media Assets (require arrays of record IDs)
+  // Linked records (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
   if (fields.header_image !== undefined) airtableFields.header_image = fields.header_image;
   if (fields.gallery !== undefined) airtableFields.gallery = fields.gallery;
+  if (fields.faq !== undefined) airtableFields.faq = fields.faq; // FAQ order matters for Webflow
   if (fields.video_url !== undefined) airtableFields.video_url = fields.video_url;
   if (fields.status !== undefined) airtableFields.status = fields.status;
 
@@ -670,6 +672,7 @@ export async function getEmployerById(id: string): Promise<EmployerRecord | null
     const logo = Array.isArray(fields.logo) ? fields.logo : [];
     const header_image = Array.isArray(fields.header_image) ? fields.header_image : [];
     const gallery = Array.isArray(fields.gallery) ? fields.gallery : [];
+    const sector = Array.isArray(fields.sector) ? fields.sector : [];
 
     return employerRecordSchema.parse({
       id: record.id,
@@ -677,6 +680,7 @@ export async function getEmployerById(id: string): Promise<EmployerRecord | null
       logo,
       header_image,
       gallery,
+      sector,
     });
   } catch (error: unknown) {
     console.error("Error getting employer by ID:", getErrorMessage(error));
@@ -1179,7 +1183,7 @@ export async function getFAQByEmployerId(employerId: string): Promise<FAQRecord[
         question: fields.question || "",
         answer: fields.answer || "",
         order: fields.order || 0,
-        "created-at": fields["created-at"] as string | undefined,
+        created_at: fields.created_at as string | undefined,
       });
     });
   } catch (error: unknown) {
@@ -1206,7 +1210,7 @@ export async function createFAQ(fields: {
     question: fields.question,
     answer: fields.answer,
     order: fields.order ?? 0,
-    "created-at": new Date().toISOString(),
+    created_at: new Date().toISOString(),
   };
 
   try {
@@ -1223,7 +1227,7 @@ export async function createFAQ(fields: {
       question: recordFields.question || "",
       answer: recordFields.answer || "",
       order: recordFields.order || 0,
-      "created-at": recordFields["created-at"] as string | undefined,
+      created_at: recordFields.created_at as string | undefined,
     });
   } catch (error: unknown) {
     console.error("Error creating FAQ:", getErrorMessage(error));
@@ -1261,7 +1265,7 @@ export async function updateFAQ(
     question: recordFields.question || "",
     answer: recordFields.answer || "",
     order: recordFields.order || 0,
-    "created-at": recordFields["created-at"] as string | undefined,
+    created_at: recordFields.created_at as string | undefined,
   });
 }
 
@@ -2134,6 +2138,28 @@ export async function getRegions(): Promise<LookupRecord[]> {
  */
 export async function getSectors(): Promise<LookupRecord[]> {
   return getLookupRecords(SECTORS_TABLE);
+}
+
+/**
+ * Get a sector by its record ID
+ */
+export async function getSectorById(id: string): Promise<LookupRecord | null> {
+  if (!baseId || !apiKey || !id) {
+    return null;
+  }
+
+  try {
+    const record = await base(SECTORS_TABLE).find(id);
+    if (!record) return null;
+
+    return lookupRecordSchema.parse({
+      id: record.id,
+      name: record.fields.name || "",
+    });
+  } catch (error: unknown) {
+    console.error("Error getting sector by ID:", getErrorMessage(error));
+    return null;
+  }
 }
 
 /**

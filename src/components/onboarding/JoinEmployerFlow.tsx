@@ -4,7 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 import type { JoinFlowProps } from "./types";
+
+// Email validation regex that matches Zod's email validation
+// Must have: local part, @, domain with at least one dot, TLD of 2+ chars
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function isValidEmail(email: string): boolean {
+  return EMAIL_REGEX.test(email);
+}
 
 export function JoinEmployerFlow({
   joinEmployer,
@@ -23,6 +32,18 @@ export function JoinEmployerFlow({
   onCancel,
 }: JoinFlowProps) {
   const isSameEmail = sessionEmail && joinEmail.toLowerCase() === sessionEmail.toLowerCase();
+
+  // Handle submit with email validation
+  const handleSubmit = () => {
+    if (!isValidEmail(joinEmail)) {
+      setJoinDomainError("Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)");
+      toast.error("Ongeldig e-mailadres", {
+        description: "Controleer of je e-mailadres correct is geschreven.",
+      });
+      return;
+    }
+    onSubmit();
+  };
 
   return (
     <div className="space-y-6">
@@ -97,7 +118,7 @@ export function JoinEmployerFlow({
               Annuleren
             </button>
             <Button
-              onClick={onSubmit}
+              onClick={handleSubmit}
               disabled={!joinContact.firstName || !joinContact.lastName || !joinEmail || joinLoading}
             >
               {joinLoading 
@@ -114,7 +135,7 @@ export function JoinEmployerFlow({
       {/* Verification step - only shown when different email is used */}
       {joinStep === "verification" && (
         <div className="flex flex-col items-center justify-center py-8 px-6 text-center bg-[#193DAB]/[0.12] rounded-lg">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white mb-6">
+          <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white mb-3">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24">
               <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
             </svg>

@@ -93,11 +93,11 @@ function generateEmailHtml(config: EmailTemplateConfig, url: string): string {
                 ${config.bodyText}
               </p>
               
-              <!-- Button -->
-              <table role="presentation" style="margin: 0 0 32px;">
+              <!-- Button (bulletproof for Outlook) -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 32px;">
                 <tr>
-                  <td style="border-radius: 100px; background-color: ${buttonColor};">
-                    <a href="${url}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 100px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);">
+                  <td align="center" bgcolor="#F86600" style="background-color: ${buttonColor}; padding: 14px 32px; border-radius: 100px;">
+                    <a href="${url}" target="_blank" style="display: block; font-size: 16px; font-weight: 600; color: #ffffff; text-decoration: none;">
                       ${config.buttonText}
                     </a>
                   </td>

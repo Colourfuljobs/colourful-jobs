@@ -15,6 +15,7 @@ import {
   ChevronsUpDown,
   User,
   Settings,
+  Building2,
 } from "lucide-react"
 
 import {
@@ -50,14 +51,9 @@ const navItems = [
     icon: Briefcase,
   },
   {
-    title: "Orders",
-    url: "/dashboard/orders",
-    icon: Coins,
-  },
-  {
-    title: "Gegevens",
-    url: "/dashboard/gegevens",
-    icon: FileText,
+    title: "Werkgeversprofiel",
+    url: "/dashboard/werkgeversprofiel",
+    icon: Building2,
   },
   {
     title: "Beeldbank",
@@ -69,6 +65,16 @@ const navItems = [
     url: "/dashboard/team",
     icon: Users,
   },
+  {
+    title: "Gegevens",
+    url: "/dashboard/gegevens",
+    icon: FileText,
+  },
+  {
+    title: "Orders",
+    url: "/dashboard/orders",
+    icon: Coins,
+  },
 ]
 
 interface AppSidebarProps {
@@ -76,9 +82,10 @@ interface AppSidebarProps {
     name?: string | null
     email?: string | null
   }
+  profileComplete?: boolean
 }
 
-export function AppSidebar({ user }: AppSidebarProps) {
+export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
   const pathname = usePathname()
 
   const handleSignOut = async () => {
@@ -107,6 +114,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
               {navItems.map((item) => {
                 const isActive = pathname === item.url || 
                   (item.url !== "/dashboard" && pathname.startsWith(item.url))
+                const showNotification = item.url === "/dashboard/werkgeversprofiel" && !profileComplete
                 
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -119,6 +127,9 @@ export function AppSidebar({ user }: AppSidebarProps) {
                       <Link href={item.url}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
+                        {showNotification && (
+                          <span className="-ml-1 self-start mt-0.5 w-1.5 h-1.5 rounded-full bg-[#F86600]" />
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

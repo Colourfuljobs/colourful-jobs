@@ -25,6 +25,7 @@ import {
 import { nl } from "react-day-picker/locale";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import type { VacancyFormProps } from "./types";
 
 interface MediaAsset {
@@ -201,19 +202,19 @@ export function VacancyForm({
 
   // Handle logo upload
   const handleLogoUpload = async (file: File) => {
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
-    if (!allowedTypes.includes(file.type)) {
+    // Validate file type (PNG/SVG only for logos)
+    const allowedLogoTypes = ["image/png", "image/svg+xml"];
+    if (!allowedLogoTypes.includes(file.type)) {
       toast.error("Ongeldig bestandstype", {
-        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
+        description: "Upload je logo als PNG of SVG. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden.",
       });
       return;
     }
 
-    // Validate file size (5MB for logos)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (1MB for logos)
+    if (file.size > 1 * 1024 * 1024) {
       toast.error("Bestand te groot", {
-        description: "Logo mag maximaal 5MB zijn",
+        description: "Logo mag maximaal 1MB zijn",
       });
       return;
     }
@@ -405,7 +406,10 @@ export function VacancyForm({
           {/* Logo and Header */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <Label>Logo <span className="text-slate-400 text-sm">*</span></Label>
+              <div className="flex items-center gap-2">
+                <Label className="!mb-0">Logo <span className="text-slate-400 text-sm">*</span></Label>
+                <InfoTooltip content="Upload je logo als PNG of SVG met een transparante achtergrond. Zo blijft je logo scherp en past het mooi op de website." />
+              </div>
               <LogoUploadButton
                 logoUrl={employerLogo?.url}
                 isUploading={isUploadingLogo}
@@ -929,7 +933,7 @@ function LogoUploadButton({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"
+        accept="image/png,image/svg+xml"
         onChange={handleFileChange}
         className="hidden"
       />
@@ -937,7 +941,7 @@ function LogoUploadButton({
         type="button"
         onClick={handleClick}
         disabled={isUploading}
-        className="mt-1.5 w-full h-40 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+        className="mt-1.5 w-full h-44 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isUploading ? (
           <div className="flex flex-col items-center gap-2">
@@ -945,23 +949,25 @@ function LogoUploadButton({
             <span className="text-sm text-[#1F2D58]/70">Uploaden...</span>
           </div>
         ) : logoUrl ? (
-          <>
-            <div className="h-24 w-24 flex items-center justify-center bg-white rounded-lg p-2">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center p-3">
               <img
                 src={logoUrl}
                 alt="Logo"
                 className="max-h-full max-w-full object-contain"
               />
             </div>
+            <p className="text-xs text-[#1F2D58]/50">Zo ziet het eruit op de website</p>
             <div className="flex items-center gap-1.5 text-sm text-[#1F2D58]/70 group-hover:text-[#1F2D58]">
               <Upload className="h-4 w-4" />
               <span>Vervangen</span>
             </div>
-          </>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <Upload className="h-6 w-6 text-[#1F2D58]/50" />
             <span className="text-sm text-[#1F2D58]/70">Logo uploaden</span>
+            <span className="text-xs text-[#1F2D58]/50">PNG of SVG, max 1MB</span>
           </div>
         )}
       </button>

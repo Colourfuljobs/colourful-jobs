@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getUserByEmail } from "@/lib/airtable";
 import { checkRateLimit, loginRateLimiter, getIdentifier } from "@/lib/rate-limit";
+import { z } from "zod";
+
+// Email validation schema
+const emailSchema = z.string().email();
 
 export async function POST(request: Request) {
   try {
@@ -27,6 +31,15 @@ export async function POST(request: Request) {
     if (!email) {
       return NextResponse.json(
         { error: "E-mailadres is verplicht" },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format early
+    const emailValidation = emailSchema.safeParse(email);
+    if (!emailValidation.success) {
+      return NextResponse.json(
+        { error: "Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)" },
         { status: 400 }
       );
     }

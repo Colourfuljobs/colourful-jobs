@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 import type { Step1Props } from "./types";
+
+// Email validation regex that matches Zod's email validation
+// Must have: local part, @, domain with at least one dot, TLD of 2+ chars
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function isValidEmail(email: string): boolean {
+  return EMAIL_REGEX.test(email);
+}
 
 export function Step1Personal({
   contact,
@@ -23,6 +32,19 @@ export function Step1Personal({
   onOpenRestartDialog,
   saving,
 }: Step1Props) {
+  // Handle form submission with email validation
+  const handleSubmit = () => {
+    // Validate email format before submitting
+    if (!isValidEmail(contact.email)) {
+      setEmailError("Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)");
+      toast.error("Ongeldig e-mailadres", {
+        description: "Controleer of je e-mailadres correct is geschreven.",
+      });
+      return;
+    }
+    onSubmit();
+  };
+
   // Not verified and email not sent yet - show form
   if (!emailSent && !emailVerified) {
     return (
@@ -63,11 +85,17 @@ export function Step1Personal({
           />
           {emailError && (
             <p className="text-sm text-red-500">
-              Er bestaat al een account met dit e-mailadres.{" "}
-              <Link href="/login" className="underline hover:text-red-700">
-                Log in
-              </Link>{" "}
-              om verder te gaan.
+              {emailError.includes("bestaat al") ? (
+                <>
+                  Er bestaat al een account met dit e-mailadres.{" "}
+                  <Link href="/login" className="underline hover:text-red-700">
+                    Log in
+                  </Link>{" "}
+                  om verder te gaan.
+                </>
+              ) : (
+                emailError
+              )}
             </p>
           )}
         </div>
@@ -81,12 +109,9 @@ export function Step1Personal({
             }
           />
         </div>
-        <p className="p-small text-slate-500">
-          We sturen je een e-mail met een link om veilig in te loggen en verder te gaan.
-        </p>
         <div className="mt-4 flex justify-end">
           <Button
-            onClick={onSubmit}
+            onClick={handleSubmit}
             disabled={!contact.firstName || !contact.lastName || !contact.email || loading}
           >
             {loading ? "Bezig..." : "Verstuur email link"}
@@ -100,8 +125,8 @@ export function Step1Personal({
   if (emailSent && !emailVerified) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-6 text-center bg-[#193DAB]/[0.12] rounded-lg">
-        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white mb-6">
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24">
+        <div className="flex size-10 sm:size-16 shrink-0 items-center justify-center rounded-full bg-white mb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-7 sm:h-7" fill="none" viewBox="0 0 24 24">
             <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
           </svg>
         </div>
@@ -110,7 +135,7 @@ export function Step1Personal({
             Bevestig je e-mailadres<br />om verder te gaan
           </h3>
           <p className="p-regular text-slate-600">
-            We hebben een activatielink gestuurd naar <strong className="text-[#1F2D58]">{contact.email}</strong>.
+            We hebben een activatielink gestuurd naar <strong className="text-[#1F2D58] break-all">{contact.email}</strong>.
           </p>
           <p className="p-small text-slate-500 !mt-7">
             Geen mail gezien? Check je spam of{" "}

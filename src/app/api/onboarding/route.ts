@@ -5,6 +5,10 @@ import { getErrorMessage } from "@/lib/utils";
 import { checkRateLimit, onboardingRateLimiter, getIdentifier } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
+
+// Email validation schema - must have a domain with at least one dot and a TLD of 2+ chars
+const emailSchema = z.string().email("Ongeldig e-mailadres. Controleer of je e-mailadres correct is geschreven.");
 
 export async function POST(request: Request) {
   try {
@@ -31,7 +35,16 @@ export async function POST(request: Request) {
     const clientIP = getClientIP(request);
 
     if (!email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+      return NextResponse.json({ error: "E-mailadres is verplicht." }, { status: 400 });
+    }
+
+    // Validate email format early to provide user-friendly error message
+    const emailValidation = emailSchema.safeParse(email);
+    if (!emailValidation.success) {
+      return NextResponse.json(
+        { error: "Ongeldig e-mailadres. Controleer of je e-mailadres correct is geschreven (bijv. naam@bedrijf.nl)." },
+        { status: 400 }
+      );
     }
 
     // Check if user already exists
@@ -88,32 +101,34 @@ export async function POST(request: Request) {
       });
       userId = user.id;
 
-      // Log user_created event - link to target employer for tracking
-      await logEvent({
-        event_type: "user_created",
-        actor_user_id: userId,
-        employer_id: target_employer_id || undefined, // Link to employer they're joining
-        source: "web",
-        ip_address: clientIP,
-        payload: {
-          email,
-          first_name,
-          last_name,
-          role,
-          joinMode: true,
-          target_employer_id,
-        },
-      });
-
-      // Log email pending event - link to target employer for tracking
-      await logEvent({
-        event_type: "user_email_pending",
-        actor_user_id: userId,
-        employer_id: target_employer_id || undefined, // Link to employer they're joining
-        source: "web",
-        ip_address: clientIP,
-        payload: { joinMode: true, target_employer_id },
-      });
+      // Log events in parallel for better performance
+      await Promise.all([
+        // Log user_created event - link to target employer for tracking
+        logEvent({
+          event_type: "user_created",
+          actor_user_id: userId,
+          employer_id: target_employer_id || undefined,
+          source: "web",
+          ip_address: clientIP,
+          payload: {
+            email,
+            first_name,
+            last_name,
+            role,
+            joinMode: true,
+            target_employer_id,
+          },
+        }),
+        // Log email pending event - link to target employer for tracking
+        logEvent({
+          event_type: "user_email_pending",
+          actor_user_id: userId,
+          employer_id: target_employer_id || undefined,
+          source: "web",
+          ip_address: clientIP,
+          payload: { joinMode: true, target_employer_id },
+        }),
+      ]);
 
       return NextResponse.json({
         userId: user.id,
@@ -132,35 +147,36 @@ export async function POST(request: Request) {
       });
       userId = user.id;
 
-      // Log user_created event (without employer - will be linked in step 2)
-      await logEvent({
-        event_type: "user_created",
-        actor_user_id: userId,
-        source: "web",
-        ip_address: clientIP,
-        payload: {
-          email,
-          first_name,
-          last_name,
-          role,
-        },
-      });
-
-      // Log onboarding_started event
-      await logEvent({
-        event_type: "onboarding_started",
-        actor_user_id: userId,
-        source: "web",
-        ip_address: clientIP,
-      });
-
-      // Log user_email_pending event (magic link will be sent)
-      await logEvent({
-        event_type: "user_email_pending",
-        actor_user_id: userId,
-        source: "web",
-        ip_address: clientIP,
-      });
+      // Log all events in parallel for better performance
+      await Promise.all([
+        // Log user_created event (without employer - will be linked in step 2)
+        logEvent({
+          event_type: "user_created",
+          actor_user_id: userId,
+          source: "web",
+          ip_address: clientIP,
+          payload: {
+            email,
+            first_name,
+            last_name,
+            role,
+          },
+        }),
+        // Log onboarding_started event
+        logEvent({
+          event_type: "onboarding_started",
+          actor_user_id: userId,
+          source: "web",
+          ip_address: clientIP,
+        }),
+        // Log user_email_pending event (magic link will be sent)
+        logEvent({
+          event_type: "user_email_pending",
+          actor_user_id: userId,
+          source: "web",
+          ip_address: clientIP,
+        }),
+      ]);
     }
 
     return NextResponse.json({
@@ -216,6 +232,39 @@ export async function PATCH(request: Request) {
           updated_fields: Object.keys(body).filter((key) => body[key] !== undefined),
         },
       });
+
+      // If user is being activated and has an employer, create wallet and log onboarding completion
+      if (body.status === "active" && user.employer_id) {
+        // Create wallet for the employer when user becomes active
+        let walletId: string | null = null;
+        try {
+          const wallet = await createWallet(user.employer_id);
+          walletId = wallet.id;
+        } catch (error) {
+          console.error("Failed to create wallet for employer:", user.employer_id, error);
+        }
+        
+        // Log wallet_created event
+        if (walletId) {
+          await logEvent({
+            event_type: "wallet_created",
+            actor_user_id: user.id,
+            employer_id: user.employer_id,
+            source: "web",
+            ip_address: clientIP,
+            payload: { wallet_id: walletId },
+          });
+        }
+        
+        // Log onboarding_completed event
+        await logEvent({
+          event_type: "onboarding_completed",
+          actor_user_id: user.id,
+          employer_id: user.employer_id,
+          source: "web",
+          ip_address: clientIP,
+        });
+      }
 
       return NextResponse.json(updatedUser);
     }

@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
+import { HelpCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -28,4 +29,30 @@ const TooltipContent = React.forwardRef<
 ))
 TooltipContent.displayName = TooltipPrimitive.Content.displayName
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
+/**
+ * InfoTooltip - Herbruikbare tooltip met vraagteken icoon
+ * Gebruik voor hulptekst bij formuliervelden en labels.
+ */
+interface InfoTooltipProps {
+  /** De tekst die in de tooltip wordt getoond */
+  content: string
+  /** Extra classes voor de tooltip content */
+  className?: string
+}
+
+function InfoTooltip({ content, className }: InfoTooltipProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#193DAB]/12 cursor-help">
+          <HelpCircle className="h-3.5 w-3.5 text-[#1F2D58]" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className={cn("max-w-xs", className)}>
+        <p>{content}</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, InfoTooltip }

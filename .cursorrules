@@ -108,6 +108,52 @@ import { Button, BackArrowIcon } from "@/components/ui/button";
 - Handmatig uitschakelen: `showArrow={false}`
 - BackArrowIcon beschikbaar voor terug-navigatie
 
+### Button Iconen per Actie
+Gebruik het juiste icoon voor het type actie. Zet `showArrow={false}` en voeg het icoon toe als child:
+
+| Actie | Icoon | Voorbeeld |
+|-------|-------|-----------|
+| **Opslaan** | `Check` | `<Button showArrow={false}><Check className="h-4 w-4" />Opslaan</Button>` |
+| **Toevoegen** | `Plus` | `<Button showArrow={false}><Plus className="h-4 w-4" />Toevoegen</Button>` |
+| **Bewerken** | `Pencil` | `<Button variant="tertiary" showArrow={false}><Pencil className="h-4 w-4" />Bewerken</Button>` |
+| **Verwijderen** | `Trash2` | `<Button variant="tertiary" showArrow={false}><Trash2 className="h-4 w-4" />Verwijderen</Button>` |
+| **Vervangen** | `RefreshCw` | `<Button variant="secondary" showArrow={false}><RefreshCw className="h-4 w-4" />Vervangen</Button>` |
+| **Uploaden** | `Plus` | `<Button variant="secondary" showArrow={false}><Plus className="h-4 w-4" />Uploaden</Button>` |
+| **Terug** | `BackArrowIcon` | `<Button variant="link"><BackArrowIcon />Terug</Button>` |
+| **Annuleren** | geen | `<Button variant="secondary" showArrow={false}>Annuleren</Button>` |
+| **Verder/Volgende** | arrow (default) | `<Button>Verder naar stap 2</Button>` |
+| **Sluiten** | `X` | `<Button variant="tertiary" size="icon"><X className="h-4 w-4" /></Button>` |
+
+Import iconen van lucide-react:
+```jsx
+import { Check, Plus, Pencil, Trash2, RefreshCw, X } from "lucide-react"
+```
+
+### Tabel Actie Knoppen
+Acties in tabellen zijn ALTIJD tertiary icon buttons met een tooltip:
+```jsx
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+
+<Tooltip>
+  <TooltipTrigger asChild>
+    <Link href="/dashboard/gegevens">
+      <Button variant="tertiary" size="icon" className="w-[30px] h-[30px]" showArrow={false}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+    </Link>
+  </TooltipTrigger>
+  <TooltipContent>Wijzigen</TooltipContent>
+</Tooltip>
+```
+
+Veelgebruikte tabel acties:
+| Actie | Icoon | Tooltip tekst |
+|-------|-------|---------------|
+| Wijzigen/Bewerken | `Pencil` | "Wijzigen" of "Bewerken" |
+| Bekijken | `Eye` | "Bekijken" |
+| Verwijderen | `Trash2` | "Verwijderen" |
+| Downloaden | `Download` | "Downloaden" |
+
 ### Speciale varianten (alleen voor specifieke cases)
 - `variant="ghost"`: Alleen voor speciale UI elementen (sidebar toggle, calendar days)
 - `variant="destructive"`: Alleen voor delete/danger acties met rode styling
@@ -145,11 +191,115 @@ import { Button, BackArrowIcon } from "@/components/ui/button";
 - Gebruik GEEN losse `<label>` met checkbox - gebruik Field + FieldLabel
 - Gebruik GEEN `flex items-center gap-2` met handmatige styling - gebruik Field component
 
+## InfoTooltip (Hulptekst bij velden)
+- Gebruik de `InfoTooltip` component voor hulptekst bij formuliervelden
+- Import: `import { InfoTooltip } from "@/components/ui/tooltip";`
+- De component toont een vraagteken icoon in een lichtblauw rondje (`bg-[#193DAB]/12`)
+- Bij hover verschijnt een tooltip met de hulptekst
+
+### Gebruik met Label:
+```jsx
+<div className="flex items-center gap-2">
+  <Label htmlFor="fieldName" className="!mb-0">
+    Veldnaam <span className="text-slate-400 text-sm">*</span>
+  </Label>
+  <InfoTooltip content="Uitleg over dit veld voor de gebruiker." />
+</div>
+```
+
+### Belangrijk:
+- Voeg `!mb-0` toe aan de Label wanneer je deze in een flex container met InfoTooltip plaatst
+- Gebruik GEEN `Info` icoon van lucide-react - gebruik altijd `InfoTooltip`
+- Gebruik GEEN losse `Tooltip`, `TooltipTrigger`, `TooltipContent` combinatie voor dit doel
+
 ## Cards & Containers
 - Altijd custom border-radius gebruiken: `rounded-t-[0.75rem] rounded-b-[2rem]`
 - **Altijd witte achtergrond** (`#ffffff` of `bg-white`), geen border
 - Pas toe op alle containers/boxes
 - Achtergrond van de pagina/app is altijd `#E8EEF2`
+
+## Titelsvlakken (Card Headers)
+De `bg-white/50` header boven een witte card. Gebruik deze styling consistent:
+
+### Basis styling
+- **Padding**: `py-4 px-6` (16px top/bottom, 24px left/right)
+- **Titel**: `!text-[1.125rem] sm:!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1`
+  - Mobiel: 18px (1.125rem)
+  - Desktop (sm+): 24px (1.5rem)
+- De `-mt-1` zorgt voor betere visuele uitlijning
+
+### Varianten
+
+**Alleen titel:**
+```jsx
+<div className="bg-white/50 px-6 py-4">
+  <h2 className="!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Titel</h2>
+</div>
+```
+
+**Titel met icon:**
+```jsx
+<div className="bg-white/50 px-6 py-4">
+  <div className="flex items-center gap-3">
+    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+      <IconName className="h-5 w-5 text-[#1F2D58]" />
+    </div>
+    <h2 className="!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Titel</h2>
+  </div>
+</div>
+```
+
+**Titel met label/teller** (bijv. "3/10"):
+- Label in witte pill: `bg-white px-2 py-0.5 rounded-full text-sm text-[#1F2D58]/60 -mt-1`
+```jsx
+<div className="bg-white/50 px-6 py-4">
+  <div className="flex items-center gap-3">
+    <h2 className="!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Titel</h2>
+    <span className="bg-white px-2 py-0.5 rounded-full text-sm text-[#1F2D58]/60 -mt-1">3/10</span>
+  </div>
+</div>
+```
+
+**Titel met button rechts:**
+```jsx
+<div className="bg-white/50 px-6 py-4">
+  <div className="flex items-center justify-between gap-3">
+    <h2 className="!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Titel</h2>
+    <Button variant="tertiary" size="sm">Actie</Button>
+  </div>
+</div>
+```
+
+**Titel met beschrijving en button rechts:**
+- Gebruik `items-end` voor uitlijning aan onderkant
+- Beschrijving: `max-w-[600px]`
+```jsx
+<div className="bg-white/50 px-6 py-4">
+  <div className="flex items-end justify-between gap-3">
+    <div>
+      <h2 className="!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Titel</h2>
+      <p className="text-sm text-[#1F2D58]/60 max-w-[600px]">Beschrijving...</p>
+    </div>
+    <Button variant="tertiary" size="sm">Actie</Button>
+  </div>
+</div>
+```
+
+**Titel met icon, label en button rechts:**
+```jsx
+<div className="bg-white/50 px-6 py-4">
+  <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+        <IconName className="h-5 w-5 text-[#1F2D58]" />
+      </div>
+      <h2 className="!!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Titel</h2>
+      <span className="bg-white px-2 py-0.5 rounded-full text-sm text-[#1F2D58]/60 -mt-1">3/10</span>
+    </div>
+    <Button variant="tertiary" size="sm">Actie</Button>
+  </div>
+</div>
+```
 
 ## Inline Alerts / Meldingen
 - Gebruik de shadcn Alert component uit `@/components/ui/alert`
@@ -203,7 +353,7 @@ import { Button, BackArrowIcon } from "@/components/ui/button";
   - User: `user_created`, `user_updated`, `user_login`, `user_logout`, `user_invited`, `user_removed`
   - Auth: `user_email_pending` (magic link verstuurd), `user_email_verified` (verificatie link geklikt tijdens onboarding)
   - Employer: `employer_created`, `employer_updated`, `employer_deleted`
-  - Vacancy: `vacancy_created`, `vacancy_updated`, `vacancy_publish`, `vacancy_depublish`, `vacancy_boost`, `vacancy_duplicate`
+  - Vacancy: `vacancy_created`, `vacancy_updated`, `vacancy_publish`, `vacancy_depublish`, `vacancy_boost`
   - Media: `media_uploaded`, `media_deleted`
   - Onboarding: `onboarding_started`, `onboarding_completed`
 - Notitie: `user_email_verified` wordt gelogd tijdens onboarding, `user_login` alleen bij actieve gebruikers

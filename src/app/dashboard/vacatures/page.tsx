@@ -12,7 +12,6 @@ import {
   Eye,
   Rocket,
   Upload,
-  Copy,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -101,39 +100,33 @@ const statusConfig: Record<VacancyStatus, {
 const actionsPerStatus: Record<VacancyStatus, Array<{
   label: string
   icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "dupliceren"
+  action: "wijzigen" | "bekijken" | "boosten" | "publiceren"
   iconOnly?: boolean
 }>> = {
   concept: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   incompleet: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   wacht_op_goedkeuring: [
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   gepubliceerd: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   verlopen: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
   gedepubliceerd: [
     { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Dupliceren", icon: Copy, action: "dupliceren", iconOnly: true },
   ],
 }
 
@@ -220,7 +213,7 @@ function StatusFilter({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="secondary"
+          variant="tertiary"
           size="sm"
           showArrow={false}
         >
@@ -340,8 +333,8 @@ export default function VacaturesPage() {
       <section>
         {isLoading ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Gepubliceerde vacatures</h2>
             </div>
             <Table className="bg-white table-fixed">
               <TableHeader>
@@ -366,12 +359,12 @@ export default function VacaturesPage() {
           </div>
         ) : publishedVacancies.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Gepubliceerde vacatures</h2>
             </div>
             <Empty className="bg-white">
               <EmptyHeader>
-                <EmptyMedia>
+                <EmptyMedia variant="icon">
                   <Briefcase />
                 </EmptyMedia>
                 <EmptyTitle>Geen gepubliceerde vacatures</EmptyTitle>
@@ -391,8 +384,8 @@ export default function VacaturesPage() {
           </div>
         ) : (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Gepubliceerde vacatures</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Gepubliceerde vacatures</h2>
             </div>
             <Table className="bg-white table-fixed">
               <TableHeader>
@@ -479,8 +472,8 @@ export default function VacaturesPage() {
       <section>
         {isLoading ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-2">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Overige vacatures</h2>
             </div>
             <Table className="bg-white table-fixed">
               <TableHeader>
@@ -505,33 +498,32 @@ export default function VacaturesPage() {
           </div>
         ) : otherVacancies.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 px-4 pt-4 pb-2">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
+            <div className="bg-white/50 px-6 py-4">
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Overige vacatures</h2>
             </div>
             <Empty className="bg-white">
               <EmptyHeader>
-                <EmptyMedia>
+                <EmptyMedia variant="icon">
                   <Briefcase />
                 </EmptyMedia>
                 <EmptyTitle>Geen overige vacatures</EmptyTitle>
-                <EmptyDescription>
-                  Je hebt nog geen concepten, wachtende of verlopen vacatures.
-                </EmptyDescription>
               </EmptyHeader>
             </Empty>
           </div>
         ) : filteredOtherVacancies.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
-              <StatusFilter
-                selectedStatuses={selectedStatuses}
-                onStatusChange={setSelectedStatuses}
-              />
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Overige vacatures</h2>
+                <StatusFilter
+                  selectedStatuses={selectedStatuses}
+                  onStatusChange={setSelectedStatuses}
+                />
+              </div>
             </div>
             <Empty className="bg-white">
               <EmptyHeader>
-                <EmptyMedia>
+                <EmptyMedia variant="icon">
                   <Briefcase />
                 </EmptyMedia>
                 <EmptyTitle>
@@ -551,12 +543,14 @@ export default function VacaturesPage() {
           </div>
         ) : (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-            <div className="bg-white/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 pt-4 pb-4">
-              <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">Overige vacatures</h2>
-              <StatusFilter
-                selectedStatuses={selectedStatuses}
-                onStatusChange={setSelectedStatuses}
-              />
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Overige vacatures</h2>
+                <StatusFilter
+                  selectedStatuses={selectedStatuses}
+                  onStatusChange={setSelectedStatuses}
+                />
+              </div>
             </div>
             <Table className="bg-white table-fixed">
               <TableHeader>

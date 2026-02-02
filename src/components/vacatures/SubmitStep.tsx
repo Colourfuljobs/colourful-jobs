@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, AlertCircle } from "lucide-react";
+import { Check, ChevronDown, AlertCircle, Building2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SubmitStepProps, InvoiceDetails } from "./types";
@@ -22,6 +23,8 @@ export function SubmitStep({
   onBuyCredits,
   onInvoiceDetailsChange,
   showInvoiceError = false,
+  profileComplete = true,
+  profileEditUrl,
 }: SubmitStepProps) {
   // Get features from the selected package
   const features = selectedPackage.populatedFeatures || [];
@@ -117,6 +120,48 @@ export function SubmitStep({
           Je rekent nu af om je vacature te publiceren.
         </p>
       </div>
+
+      {/* Profile status message */}
+      {!profileComplete ? (
+        <Alert className="bg-[#F86600]/10 border-none p-6">
+          <AlertDescription className="text-[#1F2D58]">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-[#F86600]" />
+              </div>
+              <div className="flex-1">
+                <strong className="block mb-1">Werkgeversprofiel niet compleet</strong>
+                <p className="text-sm mb-3">
+                  Om een vacature in te sturen heb je een compleet werkgeversprofiel nodig. Vul deze eerst aan.
+                </p>
+                {profileEditUrl && (
+                  <Link href={profileEditUrl}>
+                    <Button>
+                      Werkgeversprofiel invullen
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="bg-[#2F9D07]/10 border-none p-6">
+          <AlertDescription className="text-[#1F2D58]">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                <Check className="w-5 h-5 text-[#2F9D07]" />
+              </div>
+              <div className="flex-1">
+                <strong className="block mb-1">Je werkgeversprofiel is compleet</strong>
+                <p className="text-sm">
+                  Je kunt nu je vacature indienen.
+                </p>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Package summary */}
       <div className={`bg-white p-6 ${availableUpsells.length === 0 ? "rounded-t-[0.75rem] rounded-b-[2rem]" : "rounded-[0.75rem]"}`}>

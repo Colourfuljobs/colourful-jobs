@@ -191,6 +191,7 @@ h6 {
 @media (min-width: 640px) {
   .contempora-large {
     font-size: 6rem; /* 96px desktop */
+    line-height: 75px;
   }
 }
 
@@ -282,4 +283,79 @@ nextjs-portal {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Sonner Toast Styling - Override all defaults */
+[data-sonner-toaster] {
+  font-family: "sofia-pro", sans-serif !important;
+}
+
+[data-sonner-toaster] li[data-sonner-toast],
+[data-sonner-toaster] [data-sonner-toast] {
+  font-family: "sofia-pro", sans-serif !important;
+  background: white !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 16px 20px !important;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+}
+
+/* Icon wrapper - FORCE static positioning and add padding to content */
+[data-sonner-toaster] [data-sonner-toast] [data-icon] {
+  position: relative !important;
+  margin: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform: none !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+/* Content wrapper */
+[data-sonner-toaster] [data-sonner-toast] [data-content] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title],
+[data-sonner-toaster] [data-sonner-toast] .sonner-toast-title {
+  font-family: "sofia-pro", sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 18px !important;
+  line-height: 1.3 !important;
+  color: #1F2D58 !important;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-description],
+[data-sonner-toaster] [data-sonner-toast] .sonner-toast-description {
+  font-family: "sofia-pro", sans-serif !important;
+  font-weight: 400 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  color: rgba(31, 45, 88, 0.7) !important;
+}
+
+/* Remove any absolute positioning from icon or its children */
+[data-sonner-toaster] [data-sonner-toast] [data-icon] *,
+[data-sonner-toaster] [data-sonner-toast] [data-icon] > div {
+  position: static !important;
+  margin: 0 !important;
+  transform: none !important;
 }

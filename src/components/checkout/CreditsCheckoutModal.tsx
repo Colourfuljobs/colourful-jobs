@@ -253,7 +253,7 @@ export function CreditsCheckoutModal({
 
         {/* Header section with white/50 background */}
         <div className="bg-white/50 px-6 pt-6 pb-4 pr-12">
-          <div className="flex items-end justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold text-[#1F2D58]">
                 Credit bundel kopen
@@ -263,10 +263,10 @@ export function CreditsCheckoutModal({
               </p>
             </DialogHeader>
 
-            {/* Current balance - top right */}
-            <div className="text-right">
+            {/* Current balance - inline centered on mobile, stacked right on desktop */}
+            <div className="flex items-center justify-center gap-2 sm:block sm:text-right">
               <p className="text-sm text-[#1F2D58]/70">Huidig saldo</p>
-              <div className="flex items-center justify-end gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 sm:justify-end sm:mt-0.5">
                 <Coins className="h-4 w-4 text-[#1F2D58]" />
                 <span className="font-bold text-[#1F2D58]">{currentBalance} credits</span>
               </div>
@@ -279,18 +279,11 @@ export function CreditsCheckoutModal({
           {isLoading ? (
             <div className="space-y-6 pt-6">
               {/* Skeleton product cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
                 {[0, 1, 2, 3].map((index) => (
                   <div
                     key={index}
-                    className={cn(
-                      "flex flex-col bg-white overflow-hidden",
-                      index === 0
-                        ? "rounded-tl-[0.75rem] rounded-tr-[0.75rem] rounded-br-[0.75rem] rounded-bl-[1.5rem]"
-                        : index === 3
-                        ? "rounded-tl-[0.75rem] rounded-tr-[0.75rem] rounded-bl-[0.75rem] rounded-br-[1.5rem]"
-                        : "rounded-[0.75rem]"
-                    )}
+                    className="flex flex-col bg-white overflow-hidden rounded-[0.75rem]"
                   >
                     <div className="p-4 pb-3">
                       <Skeleton className="h-10 w-16 mb-2" />
@@ -319,26 +312,16 @@ export function CreditsCheckoutModal({
             <div className="space-y-6 pt-6">
             {/* Product cards */}
             <div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {products.map((product, index) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                {products.map((product) => {
                   const isSelected = selectedProduct?.id === product.id;
                   const vacancyEstimate = getVacancyEstimate(product.credits);
-                  const isFirst = index === 0;
-                  const isLast = index === products.length - 1;
-
-                  // Border radius: large on outer bottom corners only
-                  const borderRadiusClass = isFirst
-                    ? "rounded-tl-[0.75rem] rounded-tr-[0.75rem] rounded-br-[0.75rem] rounded-bl-[1.5rem]"
-                    : isLast
-                    ? "rounded-tl-[0.75rem] rounded-tr-[0.75rem] rounded-bl-[0.75rem] rounded-br-[1.5rem]"
-                    : "rounded-[0.75rem]";
 
                   return (
                     <div
                       key={product.id}
                       className={cn(
-                        "relative flex flex-col transition-all cursor-pointer overflow-hidden",
-                        borderRadiusClass,
+                        "relative flex flex-col transition-all cursor-pointer overflow-hidden rounded-[0.75rem]",
                         isSelected
                           ? "bg-white shadow-lg"
                           : "bg-transparent border border-[#1F2D58]/10 hover:border-[#1F2D58]/40"
@@ -459,7 +442,7 @@ export function CreditsCheckoutModal({
                 : "bg-transparent"
             )}>
               {/* Checkbox and collapsible toggle row */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 {/* Checkbox to load from account */}
                 <Field orientation="horizontal" className="justify-start items-center w-auto">
                   <Checkbox
@@ -614,14 +597,14 @@ export function CreditsCheckoutModal({
             </div>
 
             {/* Submit button with invoice info */}
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-sm text-[#1F2D58]/70">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+              <p className="text-sm text-[#1F2D58]/70 text-center sm:text-left">
                 De factuur wordt verzonden naar het e-mailadres dat bij facturatie is ingesteld.
               </p>
               <Button
                 onClick={handleSubmit}
                 disabled={isSubmitting || !selectedProduct || !useAccountDetails || isLoadingAccountDetails || !invoiceDetails.contact_name}
-                className="min-w-[200px]"
+                className="w-full sm:w-auto sm:min-w-[200px]"
               >
                 {isSubmitting ? (
                   "Bezig..."

@@ -19,7 +19,7 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
-import { GripVertical, X } from "lucide-react"
+import { GripVertical, X, Plus } from "lucide-react"
 
 interface GalleryImage {
   id: string
@@ -53,7 +53,7 @@ function SortableImage({ image, onRemove, disabled }: SortableImageProps) {
       ref={setNodeRef}
       style={style}
       className={`
-        group relative rounded-lg overflow-hidden bg-[#193DAB]/12
+        group relative rounded-[0.75rem] overflow-hidden
         ${isDragging ? "shadow-lg ring-2 ring-[#F86600]" : ""}
         ${disabled ? "" : "cursor-grab active:cursor-grabbing"}
       `}
@@ -61,7 +61,7 @@ function SortableImage({ image, onRemove, disabled }: SortableImageProps) {
       <img
         src={image.url}
         alt="Gallery afbeelding"
-        className="h-20 w-full object-contain"
+        className="h-24 w-auto object-contain rounded-[0.75rem]"
       />
 
       {/* Drag handle overlay */}
@@ -98,6 +98,7 @@ interface SortableGalleryProps {
   images: GalleryImage[]
   onReorder: (images: GalleryImage[]) => void
   onRemove?: (id: string) => void
+  onAdd?: () => void
   disabled?: boolean
 }
 
@@ -105,6 +106,7 @@ export function SortableGallery({
   images,
   onReorder,
   onRemove,
+  onAdd,
   disabled = false,
 }: SortableGalleryProps) {
   const sensors = useSensors(
@@ -150,7 +152,7 @@ export function SortableGallery({
         items={images.map((img) => img.id)}
         strategy={rectSortingStrategy}
       >
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3 items-start">
           {images.map((image) => (
             <SortableImage
               key={image.id}
@@ -159,6 +161,18 @@ export function SortableGallery({
               disabled={disabled}
             />
           ))}
+          {onAdd && !disabled && (
+            <button
+              type="button"
+              onClick={onAdd}
+              className="h-24 w-24 flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#1F2D58]/20 rounded-[0.75rem] hover:border-[#1F2D58]/40 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
+                <Plus className="h-5 w-5 text-[#1F2D58]/60" />
+              </div>
+              <span className="text-xs text-[#1F2D58]/60">Selecteren</span>
+            </button>
+          )}
         </div>
       </SortableContext>
     </DndContext>

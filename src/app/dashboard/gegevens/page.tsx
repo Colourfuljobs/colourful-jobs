@@ -1,19 +1,36 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef } from "react"
-import Link from "next/link"
-import { Pencil, Image as ImageIcon, RefreshCw, Plus } from "lucide-react"
+import { useEffect, useState, useCallback } from "react"
+import { Pencil, User, Building2, FileText } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Spinner } from "@/components/ui/spinner"
-import { MediaPickerDialog } from "@/components/MediaPickerDialog"
-import { SortableGallery } from "@/components/SortableGallery"
 import { DesktopHeader } from "@/components/dashboard"
+import { normalizeUrl } from "@/lib/utils"
+
+// URL validation helper - must have valid domain with TLD
+// e.g., "example.nl" is valid, "examplenl" or "www.examplenl" is not
+function isValidUrl(url: string): boolean {
+  if (!url || url.trim() === "") return false;
+  const normalized = normalizeUrl(url);
+  try {
+    const parsedUrl = new URL(normalized);
+    // Remove www. prefix for domain validation
+    const hostname = parsedUrl.hostname.replace(/^www\./, '');
+    // Domain must still contain a dot (e.g., "jansmit.nl" not "jansmitnl")
+    if (!hostname.includes('.')) return false;
+    // TLD must be at least 2 characters
+    const parts = hostname.split('.');
+    const tld = parts[parts.length - 1];
+    if (tld.length < 2) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Types for form data
 interface PersonalData {
@@ -37,31 +54,6 @@ interface BillingData {
   invoice_street: string
   "invoice_postal-code": string
   invoice_city: string
-}
-
-interface GalleryImage {
-  id: string
-  url: string
-}
-
-interface FAQItem {
-  id?: string
-  question: string
-  answer: string
-  order?: number
-}
-
-interface WebsiteData {
-  display_name: string
-  sector: string
-  short_description: string
-  logo: string | null
-  logo_id: string | null
-  header_image: string | null
-  header_image_id: string | null
-  gallery_images: GalleryImage[]
-  video_url: string
-  faq: FAQItem[]
 }
 
 // Default empty data
@@ -88,21 +80,8 @@ const emptyBillingData: BillingData = {
   invoice_city: "",
 }
 
-const emptyWebsiteData: WebsiteData = {
-  display_name: "",
-  sector: "",
-  short_description: "",
-  logo: null,
-  logo_id: null,
-  header_image: null,
-  header_image_id: null,
-  gallery_images: [],
-  video_url: "",
-  faq: [],
-}
-
 // Section edit states
-type EditingSection = "personal" | "company" | "billing" | "website" | null
+type EditingSection = "personal" | "company" | "billing" | null
 
 export default function GegevensPage() {
   // Loading states
@@ -119,14 +98,12 @@ export default function GegevensPage() {
   const [personalData, setPersonalData] = useState<PersonalData>(emptyPersonalData)
   const [companyData, setCompanyData] = useState<CompanyData>(emptyCompanyData)
   const [billingData, setBillingData] = useState<BillingData>(emptyBillingData)
-  const [websiteData, setWebsiteData] = useState<WebsiteData>(emptyWebsiteData)
 
   // Edit states
   const [editingSection, setEditingSection] = useState<EditingSection>(null)
   const [editPersonalData, setEditPersonalData] = useState<PersonalData>(emptyPersonalData)
   const [editCompanyData, setEditCompanyData] = useState<CompanyData>(emptyCompanyData)
   const [editBillingData, setEditBillingData] = useState<BillingData>(emptyBillingData)
-  const [editWebsiteData, setEditWebsiteData] = useState<WebsiteData>(emptyWebsiteData)
 
   // Fetch account data from API
   const fetchAccountData = useCallback(async () => {
@@ -153,20 +130,6 @@ export default function GegevensPage() {
       if (data.billing) {
         setBillingData(data.billing)
       }
-      if (data.website) {
-        setWebsiteData({
-          display_name: data.website.display_name || "",
-          sector: data.website.sector || "",
-          short_description: data.website.short_description || "",
-          logo: data.website.logo || null,
-          logo_id: data.website.logo_id || null,
-          header_image: data.website.header_image || null,
-          header_image_id: data.website.header_image_id || null,
-          gallery_images: data.website.gallery_images || [],
-          video_url: data.website.video_url || "",
-          faq: data.website.faq || [],
-        })
-      }
     } catch (error) {
       console.error("Error fetching account data:", error)
       setLoadError(error instanceof Error ? error.message : "Er is een fout opgetreden")
@@ -185,7 +148,6 @@ export default function GegevensPage() {
     if (section === "personal") setEditPersonalData({ ...personalData })
     if (section === "company") setEditCompanyData({ ...companyData })
     if (section === "billing") setEditBillingData({ ...billingData })
-    if (section === "website") setEditWebsiteData({ ...websiteData })
     setEditingSection(section)
   }
 
@@ -214,24 +176,11 @@ export default function GegevensPage() {
       }
       if (section === "company") {
         dataToSave = editCompanyData
-        sectionName = "Bedrijfsgegevens"
+        sectionName = "Organisatiegegevens"
       }
       if (section === "billing") {
         dataToSave = editBillingData
         sectionName = "Factuurgegevens"
-      }
-      if (section === "website") {
-        dataToSave = {
-          display_name: editWebsiteData.display_name,
-          sector: editWebsiteData.sector,
-          short_description: editWebsiteData.short_description,
-          video_url: editWebsiteData.video_url,
-          // Include media selections - send as arrays of IDs
-          logo: editWebsiteData.logo_id ? [editWebsiteData.logo_id] : [],
-          header_image: editWebsiteData.header_image_id ? [editWebsiteData.header_image_id] : [],
-          gallery: editWebsiteData.gallery_images.map((img) => img.id),
-        }
-        sectionName = "Bedrijfsprofiel"
       }
 
       const response = await fetch("/api/account", {
@@ -260,9 +209,6 @@ export default function GegevensPage() {
       if (section === "billing") {
         setBillingData({ ...editBillingData })
       }
-      if (section === "website") {
-        setWebsiteData({ ...editWebsiteData })
-      }
 
       toast.success(`${sectionName} opgeslagen`)
       setEditingSection(null)
@@ -283,13 +229,18 @@ export default function GegevensPage() {
   )
 
   // Skeleton for a card section
-  const CardSkeleton = ({ title, fieldCount = 4 }: { title: string; fieldCount?: number }) => (
-    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-      <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
-        <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-          {title}
-        </h2>
-        <Skeleton className="h-8 w-24" />
+  const CardSkeleton = ({ title, fieldCount = 4, isLast = false }: { title: string; fieldCount?: number; isLast?: boolean }) => (
+    <div className={`overflow-hidden ${isLast ? "rounded-t-[0.75rem] rounded-b-[2rem]" : "rounded-[0.75rem]"}`}>
+      <div className="bg-white/50 px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-10 h-10 rounded-full" />
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              {title}
+            </h2>
+          </div>
+          <Skeleton className="h-8 w-24" />
+        </div>
       </div>
       <div className="bg-white p-6">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -301,59 +252,13 @@ export default function GegevensPage() {
     </div>
   )
 
-  // Skeleton for website/bedrijfsprofiel section
-  const WebsiteCardSkeleton = () => (
-    <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-      <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
-        <div className="space-y-1">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-            Bedrijfsprofiel
-          </h2>
-          <Skeleton className="h-4 w-80" />
-        </div>
-        <Skeleton className="h-8 w-24" />
-      </div>
-      <div className="bg-white p-6">
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <DataFieldSkeleton />
-            <DataFieldSkeleton />
-          </div>
-          <div className="space-y-1">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-20 w-full" />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-12" />
-              <Skeleton className="h-24 w-24 rounded-lg" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-24 w-24 rounded-lg" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-32" />
-            <div className="flex gap-2">
-              <Skeleton className="h-12 w-12 rounded-lg" />
-              <Skeleton className="h-12 w-12 rounded-lg" />
-              <Skeleton className="h-12 w-12 rounded-lg" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-
   if (isLoading) {
     return (
       <div className="space-y-6">
         <DesktopHeader title="Gegevens" />
         <CardSkeleton title="Persoonlijke gegevens" fieldCount={4} />
-        <CardSkeleton title="Bedrijfsgegevens" fieldCount={4} />
-        <CardSkeleton title="Factuurgegevens" fieldCount={4} />
-        <WebsiteCardSkeleton />
+        <CardSkeleton title="Organisatiegegevens" fieldCount={4} />
+        <CardSkeleton title="Factuurgegevens" fieldCount={4} isLast />
       </div>
     )
   }
@@ -383,22 +288,29 @@ export default function GegevensPage() {
       <DesktopHeader title="Gegevens" />
 
       {/* Personal Data Section */}
-      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-            Persoonlijke gegevens
-          </h2>
-          {editingSection !== "personal" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => startEditing("personal")}
-              showArrow={false}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Bewerken
-            </Button>
-          )}
+      <div className="rounded-[0.75rem] overflow-hidden">
+        <div className="bg-white/50 px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                <User className="h-5 w-5 text-[#1F2D58]" />
+              </div>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+                Persoonlijke gegevens
+              </h2>
+            </div>
+            {editingSection !== "personal" && (
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => startEditing("personal")}
+                showArrow={false}
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Bewerken
+              </Button>
+            )}
+          </div>
         </div>
         <div className="bg-white p-6">
           {editingSection === "personal" ? (
@@ -416,22 +328,29 @@ export default function GegevensPage() {
       </div>
 
       {/* Company Data Section */}
-      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-            Bedrijfsgegevens
-          </h2>
-          {editingSection !== "company" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => startEditing("company")}
-              showArrow={false}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Bewerken
-            </Button>
-          )}
+      <div className="rounded-[0.75rem] overflow-hidden">
+        <div className="bg-white/50 px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                <Building2 className="h-5 w-5 text-[#1F2D58]" />
+              </div>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+                Organisatiegegevens
+              </h2>
+            </div>
+            {editingSection !== "company" && (
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => startEditing("company")}
+                showArrow={false}
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Bewerken
+              </Button>
+            )}
+          </div>
         </div>
         <div className="bg-white p-6">
           {editingSection === "company" ? (
@@ -450,21 +369,28 @@ export default function GegevensPage() {
 
       {/* Billing Data Section */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
-          <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-            Factuurgegevens
-          </h2>
-          {editingSection !== "billing" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => startEditing("billing")}
-              showArrow={false}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Bewerken
-            </Button>
-          )}
+        <div className="bg-white/50 px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                <FileText className="h-5 w-5 text-[#1F2D58]" />
+              </div>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+                Factuurgegevens
+              </h2>
+            </div>
+            {editingSection !== "billing" && (
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => startEditing("billing")}
+                showArrow={false}
+              >
+                <Pencil className="h-4 w-4 mr-1" />
+                Bewerken
+              </Button>
+            )}
+          </div>
         </div>
         <div className="bg-white p-6">
           {editingSection === "billing" ? (
@@ -477,44 +403,6 @@ export default function GegevensPage() {
             />
           ) : (
             <BillingDataView data={billingData} />
-          )}
-        </div>
-      </div>
-
-      {/* Website Data Section */}
-      <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        <div className="bg-white/50 px-4 pt-4 pb-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <h2 className="!text-[1.5rem] font-semibold text-[#1F2D58]">
-              Bedrijfsprofiel
-            </h2>
-            <p className="text-sm text-[#1F2D58]/60">
-              Deze gegevens verschijnen op jullie bedrijfsprofiel op colourfuljobs.nl en zijn zichtbaar voor kandidaten.
-            </p>
-          </div>
-          {editingSection !== "website" && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => startEditing("website")}
-              showArrow={false}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Bewerken
-            </Button>
-          )}
-        </div>
-        <div className="bg-white p-6">
-          {editingSection === "website" ? (
-            <WebsiteDataForm
-              data={editWebsiteData}
-              onChange={setEditWebsiteData}
-              onSave={() => saveSection("website")}
-              onCancel={cancelEditing}
-              isSaving={isSaving}
-            />
-          ) : (
-            <WebsiteDataView data={websiteData} />
           )}
         </div>
       </div>
@@ -549,7 +437,7 @@ function PersonalDataView({ data }: { data: PersonalData }) {
 function CompanyDataView({ data }: { data: CompanyData }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <DataField label="Juridische bedrijfsnaam" value={data.company_name} />
+      <DataField label="Juridische organisatienaam" value={data.company_name} />
       <DataField label="Telefoonnummer" value={data.phone} />
       <DataField label="KVK-nummer" value={data.kvk} />
       <DataField label="Website-URL" value={data.website_url} />
@@ -572,93 +460,6 @@ function BillingDataView({ data }: { data: BillingData }) {
           <p>{address}</p>
           <p>{cityPostal}</p>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function WebsiteDataView({ data }: { data: WebsiteData }) {
-  return (
-    <div className="space-y-6">
-      {/* Basic info */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <DataField label="Weergavenaam" value={data.display_name} />
-        <DataField label="Sector" value={data.sector} />
-      </div>
-      
-      {/* Description */}
-      <div className="space-y-1">
-        <p className="text-sm text-[#1F2D58]/60">Omschrijving</p>
-        <p className="text-[#1F2D58]">{data.short_description || "-"}</p>
-      </div>
-
-      <hr className="border-[#E8EEF2]" />
-
-      {/* Images */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <p className="text-sm text-[#1F2D58]/60">Logo</p>
-          {data.logo ? (
-            <img src={data.logo} alt="Logo" className="max-h-24 rounded-lg object-contain" />
-          ) : (
-            <p className="text-[#1F2D58]/40 italic">Geen logo geüpload</p>
-          )}
-        </div>
-        <div className="space-y-2">
-          <p className="text-sm text-[#1F2D58]/60">Headerbeeld</p>
-          {data.header_image ? (
-            <img src={data.header_image} alt="Header" className="max-h-24 rounded-lg object-contain" />
-          ) : (
-            <p className="text-[#1F2D58]/40 italic">Geen headerbeeld geüpload</p>
-          )}
-        </div>
-      </div>
-
-      {/* Gallery */}
-      <div className="space-y-2">
-        <p className="text-sm text-[#1F2D58]/60">Afbeeldingen gallery</p>
-        {data.gallery_images.length > 0 ? (
-          <div className="flex gap-2 flex-wrap items-end">
-            {data.gallery_images.map((img) => (
-              <img key={img.id} src={img.url} alt="Gallery" className="h-20 max-w-32 rounded-lg object-contain" />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[#1F2D58]/40 italic">Geen afbeeldingen</p>
-        )}
-      </div>
-
-      <hr className="border-[#E8EEF2]" />
-
-      {/* Video */}
-      <div className="space-y-1">
-        <p className="text-sm text-[#1F2D58]/60">Video URL</p>
-        {data.video_url ? (
-          <a href={data.video_url} target="_blank" rel="noopener noreferrer" className="text-[#193DAB] underline">
-            {data.video_url}
-          </a>
-        ) : (
-          <p className="text-[#1F2D58]/40 italic">Geen video toegevoegd</p>
-        )}
-      </div>
-
-      <hr className="border-[#E8EEF2]" />
-
-      {/* FAQ */}
-      <div className="space-y-2">
-        <p className="text-sm text-[#1F2D58]/60">Veelgestelde vragen</p>
-        {data.faq.length > 0 ? (
-          <div className="space-y-2">
-            {data.faq.map((item, i) => (
-              <div key={item.id || i} className="bg-[#E8EEF2] rounded-lg p-3">
-                <p className="font-medium text-[#1F2D58]">{item.question}</p>
-                <p className="text-sm text-[#1F2D58]/70 mt-1">{item.answer}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[#1F2D58]/40 italic">Geen veelgestelde vragen</p>
-        )}
       </div>
     </div>
   )
@@ -754,11 +555,26 @@ interface CompanyDataFormProps {
 }
 
 function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: CompanyDataFormProps) {
+  const [urlError, setUrlError] = useState<string | null>(null);
+
+  const handleSave = () => {
+    // Validate URL before saving
+    if (data.website_url && !isValidUrl(data.website_url)) {
+      setUrlError("Voer een geldige URL in (bijv. www.voorbeeld.nl)");
+      toast.error("Ongeldige URL", {
+        description: "Controleer of de website-URL correct is geschreven.",
+      });
+      return;
+    }
+    setUrlError(null);
+    onSave();
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="company_name">Juridische bedrijfsnaam *</Label>
+          <Label htmlFor="company_name">Juridische organisatienaam *</Label>
           <Input
             id="company_name"
             value={data.company_name}
@@ -767,7 +583,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="phone">Telefoonnummer *</Label>
+          <Label htmlFor="phone">Telefoonnummer</Label>
           <Input
             id="phone"
             type="tel"
@@ -794,12 +610,19 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
             id="website_url"
             type="url"
             value={data.website_url}
-            onChange={(e) => onChange({ ...data, website_url: e.target.value })}
+            className={urlError ? "border-red-500" : ""}
+            onChange={(e) => {
+              onChange({ ...data, website_url: e.target.value });
+              if (urlError) setUrlError(null);
+            }}
             disabled={isSaving}
           />
+          {urlError && (
+            <p className="text-sm text-red-500">{urlError}</p>
+          )}
         </div>
       </div>
-      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
+      <FormActions onSave={handleSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
@@ -881,342 +704,3 @@ function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: Billing
     </div>
   )
 }
-
-interface WebsiteDataFormProps {
-  data: WebsiteData
-  onChange: (data: WebsiteData) => void
-  onSave: () => void
-  onCancel: () => void
-  isSaving?: boolean
-}
-
-function WebsiteDataForm({ 
-  data, 
-  onChange, 
-  onSave, 
-  onCancel,
-  isSaving,
-}: WebsiteDataFormProps) {
-  // Dialog states for media pickers
-  const [headerPickerOpen, setHeaderPickerOpen] = useState(false)
-  const [galleryPickerOpen, setGalleryPickerOpen] = useState(false)
-  
-  // Logo upload state
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
-  const logoInputRef = useRef<HTMLInputElement>(null)
-
-  // Handle logo upload
-  const handleLogoUpload = async (file: File) => {
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"]
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Ongeldig bestandstype", {
-        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
-      })
-      return
-    }
-
-    // Validate file size (5MB for logo)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Bestand te groot", {
-        description: "Logo mag maximaal 5MB zijn",
-      })
-      return
-    }
-
-    setIsUploadingLogo(true)
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("type", "logo")
-
-      const response = await fetch("/api/media", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Upload failed")
-      }
-
-      const result = await response.json()
-      
-      // Update form data with new logo
-      onChange({ ...data, logo: result.asset.url, logo_id: result.asset.id })
-      
-      toast.success("Logo geüpload", {
-        description: "Je logo is succesvol bijgewerkt.",
-      })
-    } catch (error) {
-      console.error("Error uploading logo:", error)
-      toast.error("Upload mislukt", {
-        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
-      })
-    } finally {
-      setIsUploadingLogo(false)
-      if (logoInputRef.current) {
-        logoInputRef.current.value = ""
-      }
-    }
-  }
-
-  const handleLogoInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) handleLogoUpload(file)
-  }
-
-  // Handle header selection from picker
-  const handleHeaderSelect = (selectedAssets: { id: string; url: string }[]) => {
-    if (selectedAssets.length > 0) {
-      const selected = selectedAssets[0]
-      onChange({ ...data, header_image: selected.url, header_image_id: selected.id })
-    } else {
-      onChange({ ...data, header_image: null, header_image_id: null })
-    }
-  }
-
-  // Handle gallery selection from picker
-  const handleGallerySelect = (selectedAssets: { id: string; url: string }[]) => {
-    // Update gallery with selected assets (preserving order from selection)
-    onChange({ ...data, gallery_images: selectedAssets })
-  }
-
-  // Handle gallery reorder (drag & drop)
-  const handleGalleryReorder = (newImages: { id: string; url: string }[]) => {
-    onChange({ ...data, gallery_images: newImages })
-  }
-
-  // Handle remove from gallery
-  const handleGalleryRemove = (id: string) => {
-    onChange({
-      ...data,
-      gallery_images: data.gallery_images.filter((img) => img.id !== id),
-      // Also clear header if it was the removed image
-      ...(data.header_image_id === id && { header_image: null, header_image_id: null }),
-    })
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Basic info */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="display_name">Weergavenaam bedrijf *</Label>
-          <Input
-            id="display_name"
-            value={data.display_name}
-            onChange={(e) => onChange({ ...data, display_name: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="sector">Sector *</Label>
-          <Input
-            id="sector"
-            value={data.sector}
-            onChange={(e) => onChange({ ...data, sector: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-      </div>
-
-      {/* Description */}
-      <div className="space-y-2">
-        <Label htmlFor="short_description">Omschrijving bedrijf *</Label>
-        <Textarea
-          id="short_description"
-          rows={4}
-          value={data.short_description}
-          onChange={(e) => onChange({ ...data, short_description: e.target.value })}
-          disabled={isSaving}
-        />
-      </div>
-
-      <hr className="border-[#E8EEF2]" />
-
-      {/* Logo and Header with pickers */}
-      <div className="grid gap-6 sm:grid-cols-2">
-        {/* Logo */}
-        <div className="space-y-3">
-          <Label>Logo</Label>
-          {/* Hidden file input for logo upload */}
-          <input
-            ref={logoInputRef}
-            type="file"
-            accept="image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"
-            onChange={handleLogoInputChange}
-            className="hidden"
-          />
-          <div className="flex items-center gap-3">
-            {data.logo ? (
-              <div className="h-16 w-16 rounded-lg bg-[#193DAB]/12 flex items-center justify-center overflow-hidden">
-                <img src={data.logo} alt="Logo" className="h-full w-full object-contain p-1" />
-              </div>
-            ) : (
-              <div className="h-16 w-16 rounded-lg bg-[#193DAB]/12 flex items-center justify-center">
-                <ImageIcon className="h-6 w-6 text-[#1F2D58]/40" />
-              </div>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              showArrow={false}
-              onClick={() => logoInputRef.current?.click()}
-              disabled={isSaving || isUploadingLogo}
-            >
-              {isUploadingLogo ? (
-                <>
-                  <Spinner className="h-4 w-4 mr-1" />
-                  Uploaden...
-                </>
-              ) : data.logo ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Vervangen
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Uploaden
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Header */}
-        <div className="space-y-3">
-          <Label>Headerbeeld</Label>
-          <div className="flex items-center gap-3">
-            {data.header_image ? (
-              <div className="h-16 w-28 rounded-lg bg-[#193DAB]/12 overflow-hidden">
-                <img src={data.header_image} alt="Header" className="h-full w-full object-cover" />
-              </div>
-            ) : (
-              <div className="h-16 w-28 rounded-lg bg-[#193DAB]/12 flex items-center justify-center">
-                <ImageIcon className="h-6 w-6 text-[#1F2D58]/40" />
-              </div>
-            )}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              showArrow={false}
-              onClick={() => setHeaderPickerOpen(true)}
-              disabled={isSaving}
-            >
-              {data.header_image ? "Wijzigen" : "Kiezen"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <hr className="border-[#E8EEF2]" />
-
-      {/* Gallery with drag & drop */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label>Afbeeldingen gallery</Label>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            showArrow={false}
-            onClick={() => setGalleryPickerOpen(true)}
-            disabled={isSaving}
-          >
-            Selectie aanpassen
-          </Button>
-        </div>
-        
-        {data.gallery_images.length > 0 ? (
-          <div className="space-y-2">
-            <p className="text-xs text-[#1F2D58]/50">Sleep om de volgorde te wijzigen</p>
-            <SortableGallery
-              images={data.gallery_images}
-              onReorder={handleGalleryReorder}
-              onRemove={handleGalleryRemove}
-              disabled={isSaving}
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-8 rounded-lg border-2 border-dashed border-[#1F2D58]/20">
-            <ImageIcon className="h-8 w-8 text-[#1F2D58]/30 mb-2" />
-            <p className="text-sm text-[#1F2D58]/50">Geen afbeeldingen geselecteerd</p>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              showArrow={false}
-              className="mt-3"
-              onClick={() => setGalleryPickerOpen(true)}
-              disabled={isSaving}
-            >
-              Afbeeldingen kiezen
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <hr className="border-[#E8EEF2]" />
-
-      {/* Video URL */}
-      <div className="space-y-2">
-        <Label htmlFor="video_url">Video URL (YouTube of Vimeo)</Label>
-        <Input
-          id="video_url"
-          type="url"
-          placeholder="https://www.youtube.com/watch?v=..."
-          value={data.video_url}
-          onChange={(e) => onChange({ ...data, video_url: e.target.value })}
-          disabled={isSaving}
-        />
-      </div>
-
-      {/* FAQ Builder - read-only for now, will be editable via separate flow */}
-      <div className="space-y-2">
-        <Label>Veelgestelde vragen</Label>
-        {data.faq.length > 0 ? (
-          <div className="space-y-2">
-            {data.faq.map((item, i) => (
-              <div key={item.id || i} className="bg-[#E8EEF2] rounded-lg p-4">
-                <p className="font-medium text-[#1F2D58]">{item.question}</p>
-                <p className="text-sm text-[#1F2D58]/70 mt-1">{item.answer}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[#1F2D58]/40 italic text-sm">Geen veelgestelde vragen</p>
-        )}
-      </div>
-
-      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
-
-      {/* Media Picker Dialogs */}
-      <MediaPickerDialog
-        open={headerPickerOpen}
-        onOpenChange={setHeaderPickerOpen}
-        title="Headerbeeld kiezen"
-        description="Selecteer een afbeelding als header voor je bedrijfsprofiel."
-        selectedIds={data.header_image_id ? [data.header_image_id] : []}
-        onSelect={handleHeaderSelect}
-        singleSelect
-        filter="gallery"
-      />
-
-      <MediaPickerDialog
-        open={galleryPickerOpen}
-        onOpenChange={setGalleryPickerOpen}
-        title="Gallery afbeeldingen kiezen"
-        description="Selecteer welke afbeeldingen op je bedrijfsprofiel worden getoond."
-        selectedIds={data.gallery_images.map((img) => img.id)}
-        onSelect={handleGallerySelect}
-        maxSelection={10}
-        filter="gallery"
-      />
-    </div>
-  )
-}
-

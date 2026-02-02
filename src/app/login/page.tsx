@@ -56,9 +56,25 @@ export default function LoginPage() {
     }
   }, [sessionStatus, session, router]);
 
+  // Email validation regex that matches Zod's email validation
+  // Must have: local part, @, domain with at least one dot, TLD of 2+ chars
+  const isValidEmail = (emailToValidate: string): boolean => {
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    return EMAIL_REGEX.test(emailToValidate);
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email) return;
+    
+    // Validate email format before submitting
+    if (!isValidEmail(email)) {
+      setEmailError("Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)");
+      toast.error("Ongeldig e-mailadres", {
+        description: "Controleer of je e-mailadres correct is geschreven.",
+      });
+      return;
+    }
     
     setLoading(true);
     setEmailError(null);
@@ -96,19 +112,28 @@ export default function LoginPage() {
         return;
       }
 
-      // Email exists and is active, send magic link
-      await signIn("email", { 
+      // OPTIMISTIC UI: Show success immediately, send email in background
+      // This provides instant feedback while the email is being sent
+      setSent(true);
+      setLoading(false);
+
+      // Send magic link in background (don't await)
+      signIn("email", { 
         email, 
         redirect: false,
         callbackUrl: "/dashboard"
+      }).catch((error) => {
+        // If email sending fails, show error toast (user already sees success UI)
+        console.error("Error sending login email:", error);
+        toast.error("Fout bij versturen", {
+          description: "De e-mail kon niet worden verstuurd. Probeer het opnieuw.",
+        });
       });
-      setSent(true);
     } catch (error) {
       console.error("Error during login:", error);
       toast.error("Fout bij inloggen", {
         description: "Er ging iets mis. Probeer het later opnieuw.",
       });
-    } finally {
       setLoading(false);
     }
   }
@@ -206,102 +231,116 @@ export default function LoginPage() {
             <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">
               <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
               <CardDescription className="p-regular text-[#1F2D58]/70">
-                Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen.
+                {sent 
+                  ? "We hebben je een e-mail gestuurd met een link om in te loggen."
+                  : "Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen."
+                }
               </CardDescription>
             </div>
             
             {/* Form content - 100% white background */}
             <CardContent className="p-6 sm:p-8 bg-white">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mailadres</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    required
-                    className={emailError ? "border-red-500" : ""}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (emailError) setEmailError(null);
-                      // Clear browser validation error when user types
-                      e.target.setCustomValidity("");
-                    }}
-                    onInvalid={(e) => {
-                      e.preventDefault();
-                      const target = e.target as HTMLInputElement;
-                      const errorMessage = target.validity.valueMissing
-                        ? "E-mailadres is verplicht"
-                        : target.validity.typeMismatch
-                        ? "Voer een geldig e-mailadres in"
-                        : "Ongeldig e-mailadres";
-                      
-                      setEmailError(errorMessage);
-                      toast.error("Ongeldig e-mailadres", {
-                        description: errorMessage,
-                      });
-                      
-                      // Prevent default browser validation message
-                      target.setCustomValidity(errorMessage);
-                    }}
-                    placeholder="jouw@email.nl"
-                  />
-                  {emailError && (
-                    <p className="text-sm text-red-500">
-                      {emailError.includes("bestaat") ? (
-                        <>
-                          {emailError}{" "}
-                          <Link href="/onboarding" className="underline hover:text-red-700">
-                            Maak een account aan
-                          </Link>
-                          .
-                        </>
-                      ) : emailError.includes("niet geactiveerd") ? (
-                        <>
-                          Dit account is nog niet geactiveerd. Voltooi eerst de{" "}
-                          <Link href="/onboarding" className="underline hover:text-red-700">
-                            onboarding
-                          </Link>
-                          .
-                        </>
-                      ) : (
-                        emailError
-                      )}
+              {sent ? (
+                <div className="flex flex-col items-center justify-center py-8 px-6 text-center bg-[#193DAB]/[0.12] rounded-lg">
+                  <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-white mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24">
+                      <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                  <div className="max-w-md space-y-3">
+                    <h3 className="text-lg font-semibold text-[#1F2D58]">
+                      Bevestig je e-mailadres<br />om verder te gaan
+                    </h3>
+                    <p className="p-regular text-slate-600">
+                      We hebben een activatielink gestuurd naar <strong className="text-[#1F2D58]">{email}</strong>.
                     </p>
-                  )}
+                    <p className="p-small text-slate-500 !mt-7">
+                      Geen mail gezien? Check je spam of{" "}
+                      <button
+                        type="button"
+                        onClick={handleResend}
+                        disabled={isResending}
+                        className="underline hover:no-underline disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isResending ? "Bezig..." : "verstuur 'm opnieuw"}
+                      </button>
+                      .
+                    </p>
+                    <p className="p-small text-slate-500 !mt-0.5">
+                      Verkeerd e-mailadres?{" "}
+                      <button
+                        type="button"
+                        onClick={() => setSent(false)}
+                        className="underline hover:no-underline"
+                      >
+                        Vul een ander adres in
+                      </button>
+                    </p>
+                  </div>
                 </div>
-                <Button type="submit" disabled={!email || loading}>
-                  {loading ? "Versturen..." : "Stuur e-mail link"}
-                </Button>
-              </form>
-              {sent && (
-                <Alert className="mt-4 bg-[#193DAB]/[0.12] border-none">
-                  <AlertDescription className="text-[#1F2D58]">
-                    <div className="flex flex-col sm:flex-row items-start gap-3">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-                          <path fill="#1F2D58" fillRule="evenodd" d="M20.204 4.01A2 2 0 0 1 22 6v12a2 2 0 0 1-1.796 1.99L20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16l.204.01ZM12 14 3 8.6V18a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V8.6L12 14ZM4 5a1 1 0 0 0-1 1v1.434l9 5.399 9-5.4V6a1 1 0 0 0-1-1H4Z" clipRule="evenodd"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <strong className="block mb-1">Check je e-mail</strong>
-                        <p className="mb-2 text-sm">We hebben je een e-mail gestuurd met een link om veilig in te loggen.</p>
-                        <p className="text-xs">
-                          Geen mail gezien? Check je spam of{" "}
-                          <button
-                            type="button"
-                            onClick={handleResend}
-                            disabled={isResending}
-                            className="underline hover:text-[#193DAB] disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isResending ? "versturen..." : "verstuur 'm opnieuw"}
-                          </button>
-                          .
-                        </p>
-                      </div>
-                    </div>
-                  </AlertDescription>
-                </Alert>
+              ) : (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mailadres</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      required
+                      className={emailError ? "border-red-500" : ""}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (emailError) setEmailError(null);
+                        // Clear browser validation error when user types
+                        e.target.setCustomValidity("");
+                      }}
+                      onInvalid={(e) => {
+                        e.preventDefault();
+                        const target = e.target as HTMLInputElement;
+                        const errorMessage = target.validity.valueMissing
+                          ? "E-mailadres is verplicht"
+                          : target.validity.typeMismatch
+                          ? "Voer een geldig e-mailadres in"
+                          : "Ongeldig e-mailadres";
+                        
+                        setEmailError(errorMessage);
+                        toast.error("Ongeldig e-mailadres", {
+                          description: errorMessage,
+                        });
+                        
+                        // Prevent default browser validation message
+                        target.setCustomValidity(errorMessage);
+                      }}
+                      placeholder="jouw@email.nl"
+                    />
+                    {emailError && (
+                      <p className="text-sm text-red-500">
+                        {emailError.includes("bestaat") ? (
+                          <>
+                            {emailError}{" "}
+                            <Link href="/onboarding" className="underline hover:text-red-700">
+                              Maak een account aan
+                            </Link>
+                            .
+                          </>
+                        ) : emailError.includes("niet geactiveerd") ? (
+                          <>
+                            Dit account is nog niet geactiveerd. Voltooi eerst de{" "}
+                            <Link href="/onboarding" className="underline hover:text-red-700">
+                              onboarding
+                            </Link>
+                            .
+                          </>
+                        ) : (
+                          emailError
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <Button type="submit" disabled={!email || loading}>
+                    {loading ? "Versturen..." : "Stuur e-mail link"}
+                  </Button>
+                </form>
               )}
             </CardContent>
           </Card>

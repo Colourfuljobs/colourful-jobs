@@ -10,9 +10,10 @@ import {
   createFAQ,
   updateFAQ,
   deleteFAQ,
+  getSectorById,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, isProfileComplete } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
@@ -23,6 +24,8 @@ import { getServerSession } from "next-auth";
  * - Company data (from Employers table)
  * - Media assets (from Media Assets table)
  * - FAQ items (from FAQ table)
+ * 
+ * Performance optimized: runs independent Airtable calls in parallel
  */
 export async function GET() {
   try {
@@ -32,7 +35,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user data
+    // Get user data (must be first - we need employer_id)
     const user = await getUserByEmail(session.user.email);
 
     if (!user) {
@@ -47,6 +50,9 @@ export async function GET() {
         email: user.email,
         role: user.role || "",
       },
+      // Default profile status (will be overwritten if employer exists)
+      profile_complete: false,
+      profile_missing_fields: ["Weergavenaam", "Sector", "Omschrijving", "Logo", "Headerbeeld"],
     };
 
     // Get employer data if user has an employer
@@ -70,58 +76,76 @@ export async function GET() {
           invoice_city: employer.invoice_city || "",
         };
 
+        // Run all independent data fetches in parallel for better performance
+        // This reduces ~6 sequential calls to 1 parallel batch
+        const [
+          sectorResult,
+          logoAssets,
+          headerAssets,
+          galleryAssets,
+          faqItems,
+          wallet,
+        ] = await Promise.all([
+          // Sector lookup
+          employer.sector && employer.sector.length > 0
+            ? getSectorById(employer.sector[0])
+            : Promise.resolve(null),
+          // Logo media assets
+          employer.logo && employer.logo.length > 0
+            ? getMediaAssetsByIds(employer.logo)
+            : Promise.resolve([]),
+          // Header image media assets
+          employer.header_image && employer.header_image.length > 0
+            ? getMediaAssetsByIds(employer.header_image)
+            : Promise.resolve([]),
+          // Gallery media assets
+          employer.gallery && employer.gallery.length > 0
+            ? getMediaAssetsByIds(employer.gallery)
+            : Promise.resolve([]),
+          // FAQ items
+          getFAQByEmployerId(user.employer_id),
+          // Wallet/credits data
+          getWalletByEmployerId(user.employer_id),
+        ]);
+
+        // Process sector
+        const sectorName = sectorResult?.name || "";
+        const sectorId = sectorResult?.id || null;
+
+        // Process logo
+        const logo = logoAssets[0];
+        const logoUrl = logo?.file?.[0]?.url || null;
+        const logoId = logo?.id || null;
+
+        // Process header image
+        const headerImage = headerAssets[0];
+        const headerImageUrl = headerImage?.file?.[0]?.url || null;
+        const headerImageId = headerImage?.id || null;
+
+        // Build website response
         response.website = {
           display_name: employer.display_name || "",
-          sector: employer.sector || "",
+          sector: sectorName,
+          sector_id: sectorId,
           short_description: employer.short_description || "",
           video_url: employer.video_url || "",
-        };
-
-        // Get media assets via linked records in employer
-        // Logo (linked record - array with 1 ID)
-        if (employer.logo && employer.logo.length > 0) {
-          const logoAssets = await getMediaAssetsByIds(employer.logo);
-          const logo = logoAssets[0];
-          response.website.logo = logo?.file?.[0]?.url || null;
-          response.website.logo_id = logo?.id || null;
-        } else {
-          response.website.logo = null;
-          response.website.logo_id = null;
-        }
-
-        // Header image (linked record - array with 1 ID)
-        if (employer.header_image && employer.header_image.length > 0) {
-          const headerAssets = await getMediaAssetsByIds(employer.header_image);
-          const headerImage = headerAssets[0];
-          response.website.header_image = headerImage?.file?.[0]?.url || null;
-          response.website.header_image_id = headerImage?.id || null;
-        } else {
-          response.website.header_image = null;
-          response.website.header_image_id = null;
-        }
-
-        // Gallery images (linked records - array with multiple IDs)
-        if (employer.gallery && employer.gallery.length > 0) {
-          const galleryAssets = await getMediaAssetsByIds(employer.gallery);
-          response.website.gallery_images = galleryAssets.map((asset) => ({
+          logo: logoUrl,
+          logo_id: logoId,
+          header_image: headerImageUrl,
+          header_image_id: headerImageId,
+          gallery_images: galleryAssets.map((asset) => ({
             id: asset.id,
             url: asset.file?.[0]?.url || "",
-          }));
-        } else {
-          response.website.gallery_images = [];
-        }
+          })),
+          faq: faqItems.map((item) => ({
+            id: item.id,
+            question: item.question,
+            answer: item.answer,
+            order: item.order,
+          })),
+        };
 
-        // Get FAQ items
-        const faqItems = await getFAQByEmployerId(user.employer_id);
-        response.website.faq = faqItems.map((item) => ({
-          id: item.id,
-          question: item.question,
-          answer: item.answer,
-          order: item.order,
-        }));
-
-        // Get wallet/credits data
-        const wallet = await getWalletByEmployerId(user.employer_id);
+        // Process wallet/credits
         if (wallet) {
           response.credits = {
             available: wallet.balance,
@@ -135,6 +159,18 @@ export async function GET() {
             total_spent: 0,
           };
         }
+
+        // Check if employer profile is complete
+        const profileStatus = isProfileComplete({
+          display_name: employer.display_name,
+          sector: sectorName || null,
+          short_description: employer.short_description,
+          logo: logoUrl,
+          header_image: headerImageUrl,
+        });
+        
+        response.profile_complete = profileStatus.complete;
+        response.profile_missing_fields = profileStatus.missingFields;
       }
     }
 
@@ -300,11 +336,12 @@ export async function PATCH(request: Request) {
       
       // Text fields
       if (data.display_name !== undefined) updateData.display_name = data.display_name;
-      if (data.sector !== undefined) updateData.sector = data.sector;
       if (data.short_description !== undefined) updateData.short_description = data.short_description;
       if (data.video_url !== undefined) updateData.video_url = data.video_url;
       
-      // Media fields (arrays of IDs)
+      // Linked record fields (arrays of IDs)
+      // sector expects an array with 1 record ID, e.g., ["recABC123"]
+      if (data.sector !== undefined) updateData.sector = data.sector;
       if (data.logo !== undefined) updateData.logo = data.logo;
       if (data.header_image !== undefined) updateData.header_image = data.header_image;
       if (data.gallery !== undefined) updateData.gallery = data.gallery;
@@ -417,6 +454,29 @@ export async function PATCH(request: Request) {
           source: "web",
           ip_address: clientIP,
           payload: { section: "faq", action: "delete", faq_id: data.id },
+        });
+
+        return NextResponse.json({ success: true });
+      }
+
+      // Reorder FAQ items by updating the linked field order on Employer
+      if (action === "reorder") {
+        if (!data.faqIds || !Array.isArray(data.faqIds)) {
+          return NextResponse.json({ error: "faqIds array is required for reorder" }, { status: 400 });
+        }
+
+        // Update the employer's faq linked field with the new order
+        await updateEmployer(user.employer_id, {
+          faq: data.faqIds,
+        });
+
+        await logEvent({
+          event_type: "employer_updated",
+          actor_user_id: user.id,
+          employer_id: user.employer_id,
+          source: "web",
+          ip_address: clientIP,
+          payload: { section: "faq", action: "reorder", faq_order: data.faqIds },
         });
 
         return NextResponse.json({ success: true });

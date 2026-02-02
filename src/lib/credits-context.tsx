@@ -1,13 +1,14 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  ReactNode,
-} from "react";
+/**
+ * CreditsProvider - Thin wrapper around AccountProvider for credits data
+ * 
+ * This provider now uses AccountProvider's shared data instead of fetching separately.
+ * This eliminates a duplicate /api/account call and improves loading performance.
+ */
+
+import { ReactNode } from "react";
+import { useAccount } from "./account-context";
 
 interface CreditsData {
   available: number;
@@ -31,84 +32,36 @@ const defaultCredits: CreditsData = {
   total_spent: 0,
 };
 
-const CreditsContext = createContext<CreditsContextType | undefined>(undefined);
-
-interface CreditsProviderProps {
-  children: ReactNode;
+// CreditsProvider is now just a pass-through - children render directly
+// Credits data comes from AccountProvider via useCredits hook
+export function CreditsProvider({ children }: { children: ReactNode }) {
+  // No separate fetch needed - AccountProvider handles it
+  return <>{children}</>;
 }
 
-export function CreditsProvider({ children }: CreditsProviderProps) {
-  const [credits, setCredits] = useState<CreditsData>(defaultCredits);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isPendingUpdate, setIsPendingUpdate] = useState(false);
+/**
+ * useCredits hook - Gets credits data from AccountProvider
+ * 
+ * This maintains the same API as before, but now uses shared account data
+ * instead of fetching separately.
+ */
+export function useCredits(): CreditsContextType {
+  const { 
+    accountData, 
+    isLoading, 
+    refreshAccount, 
+    updateCredits, 
+    setOptimisticUpdate,
+    isPendingUpdate 
+  } = useAccount();
 
-  const fetchCredits = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await fetch("/api/account");
-      if (!response.ok) {
-        throw new Error("Failed to fetch credits");
-      }
-      const data = await response.json();
-      setCredits({
-        available: data.credits?.available ?? 0,
-        total_purchased: data.credits?.total_purchased ?? 0,
-        total_spent: data.credits?.total_spent ?? 0,
-      });
-    } catch (err) {
-      console.error("Failed to fetch credits:", err);
-      setError("Kon credits niet ophalen");
-    } finally {
-      setIsLoading(false);
-      setIsPendingUpdate(false);
-    }
-  }, []);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchCredits();
-  }, [fetchCredits]);
-
-  // Update credits after a successful purchase
-  const updateCredits = useCallback(
-    (newBalance: number, purchasedAmount?: number) => {
-      setCredits((prev) => ({
-        available: newBalance,
-        total_purchased: purchasedAmount
-          ? prev.total_purchased + purchasedAmount
-          : prev.total_purchased + (newBalance - prev.available),
-        total_spent: prev.total_spent,
-      }));
-      setIsPendingUpdate(false);
-    },
-    []
-  );
-
-  // Set optimistic update state (show loading indicator)
-  const setOptimisticUpdate = useCallback((pending: boolean) => {
-    setIsPendingUpdate(pending);
-  }, []);
-
-  const value: CreditsContextType = {
-    credits,
+  return {
+    credits: accountData?.credits ?? defaultCredits,
     isLoading,
-    error,
-    refetch: fetchCredits,
+    error: null, // Error handling is done in AccountProvider
+    refetch: refreshAccount,
     updateCredits,
     setOptimisticUpdate,
     isPendingUpdate,
   };
-
-  return (
-    <CreditsContext.Provider value={value}>{children}</CreditsContext.Provider>
-  );
-}
-
-export function useCredits() {
-  const context = useContext(CreditsContext);
-  if (context === undefined) {
-    throw new Error("useCredits must be used within a CreditsProvider");
-  }
-  return context;
 }
