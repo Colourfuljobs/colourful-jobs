@@ -117,9 +117,7 @@ export function isProfileComplete(profile: EmployerProfileData): ProfileComplete
     if (!value || (typeof value === 'string' && value.trim() === '')) {
       missingFields.push(field.label);
     }
-  }
-
-  return {
+  }  return {
     complete: missingFields.length === 0,
     missingFields,
   };

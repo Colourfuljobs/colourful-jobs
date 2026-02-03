@@ -47,18 +47,12 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // If user has a session cookie, redirect login and home to dashboard
+  // If user has a session cookie, redirect home to dashboard
   // The dashboard page will validate the actual session
-  if (hasSessionCookie && (pathname.startsWith("/login") || pathname === "/")) {
-    // Check if this is a callback from magic link (has callbackUrl or token params)
-    const callbackUrl = req.nextUrl.searchParams.get("callbackUrl");
-    const token = req.nextUrl.searchParams.get("token");
-    
-    // Allow login page if it's processing auth callback
-    if (callbackUrl || token) {
-      return NextResponse.next();
-    }
-    
+  // Note: We always allow access to /login because:
+  // 1. It handles pending_onboarding users (signs them out so they can login with a different account)
+  // 2. Users should be able to switch accounts from onboarding flow
+  if (hasSessionCookie && pathname === "/") {
     const url = req.nextUrl.clone();
     url.pathname = DASHBOARD_PATH;
     return NextResponse.redirect(url);
