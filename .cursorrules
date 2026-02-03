@@ -352,7 +352,7 @@ De `bg-white/50` header boven een witte card. Gebruik deze styling consistent:
 - Event types:
   - User: `user_created`, `user_updated`, `user_login`, `user_logout`, `user_invited`, `user_removed`
   - Auth: `user_email_pending` (magic link verstuurd), `user_email_verified` (verificatie link geklikt tijdens onboarding)
-  - Employer: `employer_created`, `employer_updated`, `employer_deleted`
+  - Employer: `employer_created`, `employer_updated`, `employer_deleted`, `employer_creation_failed`
   - Vacancy: `vacancy_created`, `vacancy_updated`, `vacancy_publish`, `vacancy_depublish`, `vacancy_boost`
   - Media: `media_uploaded`, `media_deleted`
   - Onboarding: `onboarding_started`, `onboarding_completed`
