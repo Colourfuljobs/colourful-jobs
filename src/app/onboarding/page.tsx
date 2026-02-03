@@ -187,6 +187,9 @@ export default function OnboardingPage() {
       // If user is already active, redirect to dashboard
       // They shouldn't be on the onboarding page
       if (session.user?.status === "active") {
+        toast.success("Je account is al aangemaakt!", {
+          description: "Je wordt doorgestuurd naar het dashboard.",
+        });
         router.push("/dashboard");
         return;
       }
@@ -413,13 +416,24 @@ export default function OnboardingPage() {
         }),
       });
 
+      const data = await response.json();
+      
+      // If account is already complete (from another tab), redirect to dashboard
+      if (data.alreadyComplete) {
+        toast.success("Je account is al aangemaakt!", {
+          description: "Je wordt doorgestuurd naar het dashboard.",
+        });
+        router.push("/dashboard");
+        return true;
+      }
+
       if (response.ok) {
         setStep1Complete(true);
         setStep(2);
         return true;
       } else {
         toast.error("Fout bij opslaan", {
-          description: "Er ging iets mis bij het opslaan van je gegevens.",
+          description: data.error || "Er ging iets mis bij het opslaan van je gegevens.",
         });
         return false;
       }
@@ -632,17 +646,20 @@ export default function OnboardingPage() {
         }),
       });
 
+      // Check response
+      const companyData = await companyResponse.json();
+      
+      // If account is already complete (from another tab), redirect to dashboard
+      if (companyData.alreadyComplete) {
+        toast.success("Je account is al aangemaakt!", {
+          description: "Je wordt doorgestuurd naar het dashboard.",
+        });
+        router.push("/dashboard");
+        return true;
+      }
+      
       if (!companyResponse.ok) {
-        // Try to get specific error message from API
-        let errorMessage = "Er ging iets mis bij het opslaan van je organisatiegegevens.";
-        try {
-          const errorData = await companyResponse.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
+        const errorMessage = companyData.error || "Er ging iets mis bij het opslaan van je organisatiegegevens.";
         
         toast.error("Fout bij opslaan", {
           description: errorMessage,
@@ -666,6 +683,17 @@ export default function OnboardingPage() {
         }),
       });
 
+      const activateData = await activateResponse.json();
+      
+      // If account is already complete (from another tab), redirect to dashboard
+      if (activateData.alreadyComplete) {
+        toast.success("Je account is al aangemaakt!", {
+          description: "Je wordt doorgestuurd naar het dashboard.",
+        });
+        router.push("/dashboard");
+        return true;
+      }
+      
       if (activateResponse.ok) {
         await update();
         toast.success("Welkom bij Colourful jobs!", {
@@ -674,16 +702,7 @@ export default function OnboardingPage() {
         router.push("/dashboard");
         return true;
       } else {
-        // Try to get specific error message from API
-        let errorMessage = "Er ging iets mis bij het activeren van je account.";
-        try {
-          const errorData = await activateResponse.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Ignore JSON parse errors
-        }
+        const errorMessage = activateData.error || "Er ging iets mis bij het activeren van je account.";
         
         toast.error("Fout bij activeren", {
           description: errorMessage,
@@ -1038,9 +1057,18 @@ export default function OnboardingPage() {
         <div className="mt-4 text-center">
           <p className="p-small text-[#1F2D58]">
             Heb je al een account?{" "}
-            <Link href="/login" className="underline hover:text-[#193DAB]">
+            <button
+              onClick={async () => {
+                // Sign out first (if authenticated) to allow login with different account
+                if (status === "authenticated") {
+                  await signOut({ redirect: false });
+                }
+                router.push("/login");
+              }}
+              className="underline hover:text-[#193DAB]"
+            >
               Log in
-            </Link>
+            </button>
           </p>
         </div>
       )}

@@ -210,6 +210,15 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // If user is already active, don't allow further onboarding changes
+    // This prevents duplicate account creation from old tabs
+    if (user.status === "active") {
+      return NextResponse.json({ 
+        alreadyComplete: true,
+        message: "Account is al aangemaakt. Je wordt doorgestuurd naar het dashboard.",
+      });
+    }
+
     // Check if this is a user update (has first_name, last_name, or role - these are user-only fields)
     // Note: status alone is not enough to determine user vs employer update
     if (body.first_name !== undefined || body.last_name !== undefined || body.role !== undefined) {
