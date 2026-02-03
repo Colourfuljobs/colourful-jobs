@@ -76,6 +76,10 @@ export default function OnboardingPage() {
   const [joinCompleting, setJoinCompleting] = useState(false);
   const [isJoinCallback, setIsJoinCallback] = useState(false);
   
+  // Session switch detection state
+  const [sessionSwitchedDialogOpen, setSessionSwitchedDialogOpen] = useState(false);
+  const [originalEmail, setOriginalEmail] = useState<string | null>(null);
+  
   // Form state
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -171,6 +175,10 @@ export default function OnboardingPage() {
           if (Date.now() - timestamp < twentyFourHours) {
             setContact(savedContact);
             setEmailSent(savedEmailSent);
+            // Store the original email for session switch detection
+            if (savedContact.email) {
+              setOriginalEmail(savedContact.email);
+            }
           } else {
             clearOnboardingState();
           }
@@ -180,6 +188,19 @@ export default function OnboardingPage() {
       }
     }
   }, [status, clearOnboardingState]);
+  
+  // Detect session switch: when user is authenticated with a different email than they started with
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.email && originalEmail) {
+      const sessionEmail = session.user.email.toLowerCase();
+      const startedEmail = originalEmail.toLowerCase();
+      
+      // If emails don't match, user has switched accounts
+      if (sessionEmail !== startedEmail) {
+        setSessionSwitchedDialogOpen(true);
+      }
+    }
+  }, [status, session, originalEmail]);
 
   // Handle authentication and join flow completion
   useEffect(() => {
@@ -1092,6 +1113,55 @@ export default function OnboardingPage() {
               disabled={isRestarting}
             >
               {isRestarting ? "Bezig..." : "Ja, opnieuw beginnen"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Session Switched Dialog */}
+      <Dialog open={sessionSwitchedDialogOpen} onOpenChange={setSessionSwitchedDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Je bent ingelogd met een ander e-mailadres</DialogTitle>
+            <DialogDescription className="space-y-3">
+              <span className="block">
+                Je was bezig met een account voor <strong className="text-[#1F2D58]">{originalEmail}</strong>, maar je bent nu ingelogd als <strong className="text-[#1F2D58]">{session?.user?.email}</strong>.
+              </span>
+              <span className="block text-sm">
+                Dit kan gebeuren als je in een andere tab een nieuw account hebt aangemaakt.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row justify-end gap-2 mt-4">
+            <Button 
+              variant="secondary" 
+              onClick={async () => {
+                // Sign out and restart onboarding
+                setSessionSwitchedDialogOpen(false);
+                setOriginalEmail(null);
+                clearOnboardingState();
+                await signOut({ redirect: false });
+                // Reset all state
+                setStep(1);
+                setStep1Complete(false);
+                setStep2Complete(false);
+                setEmailVerified(false);
+                setEmailSent(false);
+                setContact({ firstName: "", lastName: "", email: "", role: "" });
+              }}
+              showArrow={false}
+            >
+              Opnieuw beginnen
+            </Button>
+            <Button 
+              onClick={() => {
+                // Continue with current session
+                setSessionSwitchedDialogOpen(false);
+                setOriginalEmail(null);
+                clearOnboardingState();
+              }}
+            >
+              Doorgaan als {session?.user?.email}
             </Button>
           </div>
         </DialogContent>
