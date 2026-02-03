@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -19,7 +19,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = useState(false);
 
   // Set page title
   useEffect(() => {
@@ -27,7 +26,7 @@ export default function LoginPage() {
   }, []);
 
   // If user has an active session, redirect to dashboard
-  // If user has a pending_onboarding session, silently clear it so they can log in
+  // If user has a pending_onboarding session, redirect to onboarding to continue
   useEffect(() => {
     if (sessionStatus === "authenticated" && session?.user) {
       // Active users should go to dashboard
@@ -36,20 +35,11 @@ export default function LoginPage() {
         return;
       }
       
-      // Pending onboarding users: clear session so they can log in with existing account
+      // Pending onboarding users: redirect to onboarding to continue their flow
+      // Don't sign them out - they need to complete their registration
       if (session.user.status === "pending_onboarding") {
-        setIsSigningOut(true);
-        // Clear any localStorage onboarding state
-        try {
-          localStorage.removeItem("colourful_onboarding_state");
-          localStorage.removeItem("colourful_join_employer_id");
-          localStorage.removeItem("colourful_join_pending_verification");
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-        signOut({ redirect: false }).then(() => {
-          setIsSigningOut(false);
-        });
+        router.push("/onboarding");
+        return;
       }
     }
   }, [sessionStatus, session, router]);
@@ -178,8 +168,9 @@ export default function LoginPage() {
     }
   }
 
-  // While signing out or redirecting, show nothing to avoid ugly loading state
-  if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding") || (sessionStatus === "authenticated" && session?.user?.status === "active")) {
+  // While redirecting, show nothing to avoid ugly loading state
+  if (sessionStatus === "authenticated" && session?.user) {
+    // User will be redirected by the useEffect above
     return null;
   }
 

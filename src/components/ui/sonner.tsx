@@ -114,7 +114,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           padding: '16px 20px',
           display: 'flex',
           flexDirection: 'row',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           gap: '16px',
           fontFamily: '"sofia-pro", sans-serif',
         },

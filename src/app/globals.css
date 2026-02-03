@@ -300,8 +300,13 @@ nextjs-portal {
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
   display: flex !important;
   flex-direction: row !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   gap: 16px !important;
+}
+
+/* When toast has description, align items at the top */
+[data-sonner-toaster] [data-sonner-toast]:has([data-description]) {
+  align-items: flex-start !important;
 }
 
 /* Icon wrapper - FORCE static positioning and add padding to content */

@@ -317,29 +317,31 @@ export default function TeamPage() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="invite-email">E-mailadres</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                placeholder="collega@bedrijf.nl"
-                value={inviteEmail}
-                onChange={(e) => {
-                  setInviteEmail(e.target.value)
-                  if (inviteError) setInviteError(null)
-                }}
-                onKeyDown={handleInviteKeyDown}
-                className={inviteError ? "border-red-500" : ""}
-              />
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="collega@bedrijf.nl"
+                  value={inviteEmail}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value)
+                    if (inviteError) setInviteError(null)
+                  }}
+                  onKeyDown={handleInviteKeyDown}
+                  className={`sm:max-w-sm ${inviteError ? "border-red-500" : ""}`}
+                />
+                <Button 
+                  onClick={handleInvite} 
+                  disabled={!inviteEmail.trim() || isInviting} 
+                  showArrow={false}
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  {isInviting ? "Bezig..." : "Uitnodigen"}
+                </Button>
+              </div>
               {inviteError && (
                 <p className="text-sm text-red-600">{inviteError}</p>
               )}
-              <Button 
-                onClick={handleInvite} 
-                disabled={!inviteEmail.trim() || isInviting} 
-                showArrow={false}
-              >
-                <UserPlus className="h-4 w-4 mr-1" />
-                {isInviting ? "Bezig..." : "Uitnodigen"}
-              </Button>
             </div>
             <p className="text-sm text-[#1F2D58]/60">
               De uitgenodigde ontvangt een e-mail met een link om zichzelf toe te voegen aan dit account.
