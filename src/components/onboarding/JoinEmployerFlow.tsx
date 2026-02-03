@@ -145,7 +145,9 @@ export function JoinEmployerFlow({
               Bevestig je e-mailadres<br />om verder te gaan
             </h3>
             <p className="p-regular text-slate-600">
-              We hebben een activatielink gestuurd naar <strong className="text-[#1F2D58]">{joinEmail}</strong> om je toe te voegen aan {joinEmployer?.company_name || joinEmployer?.display_name}.
+              We hebben een activatielink gestuurd naar<br />
+              <strong className="text-[#1F2D58]">{joinEmail}</strong><br />
+              om je toe te voegen aan {joinEmployer?.company_name || joinEmployer?.display_name}.
             </p>
             <p className="p-small text-slate-500 !mt-7">
               Geen mail gezien? Check je spam of{" "}

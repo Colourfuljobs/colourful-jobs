@@ -219,7 +219,8 @@ export default function LoginPage() {
                       Bevestig je e-mailadres<br />om verder te gaan
                     </h3>
                     <p className="p-regular text-slate-600">
-                      We hebben een activatielink gestuurd naar <strong className="text-[#1F2D58]">{email}</strong>.
+                      We hebben een activatielink gestuurd naar<br />
+                      <strong className="text-[#1F2D58]">{email}</strong>.
                     </p>
                     <p className="p-small text-slate-500 !mt-7">
                       Geen mail gezien? Check je spam of{" "}

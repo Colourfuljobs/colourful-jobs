@@ -140,36 +140,59 @@ export function AirtableAdapter(): Adapter {
       return account;
     },
     async createSession({ sessionToken, userId, expires }) {
-      // Use full ISO string for DateTime fields in Airtable
-      const expiresFormatted = expires.toISOString();
-      
-      const record = await getBase()(SESSIONS_TABLE).create({
-        sessionToken,
-        userId: [userId], // Link to Users requires array
-        expires: expiresFormatted,
-        "created-at": new Date().toISOString(),
+      console.log("[Auth:createSession] Starting session creation", { 
+        userId, 
+        expires: expires.toISOString(),
+        sessionTokenPrefix: sessionToken.substring(0, 8) + "..." 
       });
       
-      // Handle date parsing from Airtable
-      const expiresValue = record.fields.expires;
-      const expiresDate = expiresValue instanceof Date 
-        ? expiresValue 
-        : typeof expiresValue === 'string' 
-          ? new Date(expiresValue) 
-          : new Date(expiresValue as any);
-      
-      // Extract userId from linked record array
-      const userIdValue = Array.isArray(record.fields.userId)
-        ? record.fields.userId[0]
-        : record.fields.userId;
-      
-      return {
-        sessionToken: record.fields.sessionToken as string,
-        userId: userIdValue as string,
-        expires: expiresDate,
-      };
+      try {
+        // Use full ISO string for DateTime fields in Airtable
+        const expiresFormatted = expires.toISOString();
+        
+        const record = await getBase()(SESSIONS_TABLE).create({
+          sessionToken,
+          userId: [userId], // Link to Users requires array
+          expires: expiresFormatted,
+          "created-at": new Date().toISOString(),
+        });
+        
+        console.log("[Auth:createSession] Session created successfully", { 
+          recordId: record.id,
+          userId 
+        });
+        
+        // Handle date parsing from Airtable
+        const expiresValue = record.fields.expires;
+        const expiresDate = expiresValue instanceof Date 
+          ? expiresValue 
+          : typeof expiresValue === 'string' 
+            ? new Date(expiresValue) 
+            : new Date(expiresValue as any);
+        
+        // Extract userId from linked record array
+        const userIdValue = Array.isArray(record.fields.userId)
+          ? record.fields.userId[0]
+          : record.fields.userId;
+        
+        return {
+          sessionToken: record.fields.sessionToken as string,
+          userId: userIdValue as string,
+          expires: expiresDate,
+        };
+      } catch (error: unknown) {
+        console.error("[Auth:createSession] FAILED to create session", {
+          userId,
+          error: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        throw error; // Re-throw so NextAuth knows it failed
+      }
     },
     async getSessionAndUser(sessionToken) {
+      const tokenPrefix = sessionToken.substring(0, 8) + "...";
+      console.log("[Auth:getSessionAndUser] Looking up session", { tokenPrefix });
+      
       try {
         const records = await getBase()(SESSIONS_TABLE)
           .select({
@@ -178,11 +201,19 @@ export function AirtableAdapter(): Adapter {
           })
           .firstPage();
 
-        if (!records[0]) return null;
+        if (!records[0]) {
+          console.log("[Auth:getSessionAndUser] No session found", { tokenPrefix });
+          return null;
+        }
 
         const session = records[0];
         const expires = new Date(session.fields.expires as string);
+        
         if (expires < new Date()) {
+          console.log("[Auth:getSessionAndUser] Session expired, deleting", { 
+            tokenPrefix, 
+            expires: expires.toISOString() 
+          });
           await getBase()(SESSIONS_TABLE).destroy(session.id);
           return null;
         }
@@ -193,7 +224,19 @@ export function AirtableAdapter(): Adapter {
           : session.fields.userId;
 
         const user = await getUserById(userIdValue as string);
-        if (!user) return null;
+        if (!user) {
+          console.log("[Auth:getSessionAndUser] User not found for session", { 
+            tokenPrefix, 
+            userIdValue 
+          });
+          return null;
+        }
+
+        console.log("[Auth:getSessionAndUser] Session valid", { 
+          tokenPrefix, 
+          userId: userIdValue,
+          userEmail: user.email 
+        });
 
         return {
           session: {
@@ -203,7 +246,11 @@ export function AirtableAdapter(): Adapter {
           },
           user,
         };
-      } catch {
+      } catch (error: unknown) {
+        console.error("[Auth:getSessionAndUser] ERROR looking up session", {
+          tokenPrefix,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
         return null;
       }
     },
@@ -336,6 +383,11 @@ export function AirtableAdapter(): Adapter {
       }
     },
     async useVerificationToken({ identifier, token }) {
+      console.log("[Auth:useVerificationToken] Starting token verification", { 
+        identifier,
+        tokenPrefix: token.substring(0, 8) + "..." 
+      });
+      
       try {
         const escapedIdentifier = escapeAirtableString(identifier);
         const escapedToken = escapeAirtableString(token);
@@ -347,6 +399,7 @@ export function AirtableAdapter(): Adapter {
         let foundRecord = null;
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          console.log("[Auth:useVerificationToken] Attempt", attempt, "of", maxRetries);
           const results = await getBase()(VERIFICATION_TOKENS_TABLE)
             .select({
               filterByFormula: formula,
@@ -356,28 +409,36 @@ export function AirtableAdapter(): Adapter {
           
           if (results.length > 0) {
             foundRecord = results[0];
+            console.log("[Auth:useVerificationToken] Token found on attempt", attempt);
             break;
           }
           
           if (attempt < maxRetries) {
+            console.log("[Auth:useVerificationToken] Token not found, retrying in 1s...");
             await new Promise(resolve => setTimeout(resolve, retryDelay));
           }
         }
 
         if (!foundRecord) {
+          console.warn("[Auth:useVerificationToken] Token NOT FOUND after all retries", { identifier });
           return null;
         }
         
         // Check if token was already used or revoked (extra security)
         const tokenStatus = foundRecord.fields.status as string;
         if (tokenStatus === "used") {
-          console.warn("[Auth] Attempted to reuse verification token for:", identifier);
+          console.warn("[Auth:useVerificationToken] Token already USED", { identifier });
           return null;
         }
         if (tokenStatus === "revoked") {
-          console.warn("[Auth] Attempted to use revoked verification token for:", identifier);
+          console.warn("[Auth:useVerificationToken] Token was REVOKED", { identifier });
           return null;
         }
+        
+        console.log("[Auth:useVerificationToken] Token valid, marking as used", { 
+          identifier,
+          tokenStatus 
+        });
         
         const verificationToken = {
           identifier: foundRecord.fields.identifier as string,
@@ -397,15 +458,21 @@ export function AirtableAdapter(): Adapter {
           const user = await getUserByEmail(identifier);
           if (user?.id) {
             updateFields.user = [user.id];
+            console.log("[Auth:useVerificationToken] Linking user to token", { userId: user.id });
           }
         }
         
         // Update status instead of deleting (keeps record for support/audit)
         await getBase()(VERIFICATION_TOKENS_TABLE).update(foundRecord.id, updateFields);
         
+        console.log("[Auth:useVerificationToken] SUCCESS - token verified", { identifier });
         return verificationToken;
       } catch (error: unknown) {
-        console.error("[Auth] Error in useVerificationToken:", error instanceof Error ? error.message : "Unknown error");
+        console.error("[Auth:useVerificationToken] ERROR", {
+          identifier,
+          error: error instanceof Error ? error.message : "Unknown error",
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         return null;
       }
     },
