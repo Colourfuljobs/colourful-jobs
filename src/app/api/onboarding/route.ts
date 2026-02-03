@@ -274,25 +274,49 @@ export async function PATCH(request: Request) {
     
     // If user doesn't have an employer yet, create one (this happens in step 2)
     if (!employerId) {
-      const employer = await createEmployer(body);
-      employerId = employer.id;
-      
-      // Link user to the new employer
-      await updateUser(user.id, { employer_id: employerId });
-      
-      // Log employer_created event
-      await logEvent({
-        event_type: "employer_created",
-        actor_user_id: user.id,
-        employer_id: employerId,
-        source: "web",
-        ip_address: clientIP,
-        payload: {
-          created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
-        },
-      });
-      
-      return NextResponse.json(employer);
+      try {
+        const employer = await createEmployer(body);
+        employerId = employer.id;
+        
+        // Link user to the new employer
+        await updateUser(user.id, { employer_id: employerId });
+        
+        // Log employer_created event
+        await logEvent({
+          event_type: "employer_created",
+          actor_user_id: user.id,
+          employer_id: employerId,
+          source: "web",
+          ip_address: clientIP,
+          payload: {
+            created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+          },
+        });
+        
+        return NextResponse.json(employer);
+      } catch (createError: unknown) {
+        const errorMessage = getErrorMessage(createError);
+        console.error("[Onboarding PATCH] employer creation failed:", errorMessage, "body:", JSON.stringify(body));
+        
+        // Log employer_creation_failed event for debugging
+        await logEvent({
+          event_type: "employer_creation_failed",
+          actor_user_id: user.id,
+          source: "web",
+          ip_address: clientIP,
+          payload: {
+            error: errorMessage,
+            attempted_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+            company_name: body.company_name,
+            kvk: body.kvk,
+          },
+        });
+        
+        return NextResponse.json(
+          { error: errorMessage || "Er ging iets mis bij het aanmaken van je organisatie. Probeer het opnieuw." },
+          { status: 500 }
+        );
+      }
     }
 
     const updated = await updateEmployer(employerId, body);

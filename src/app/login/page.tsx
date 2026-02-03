@@ -8,9 +8,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Spinner } from "@/components/ui/spinner";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -180,40 +178,9 @@ export default function LoginPage() {
     }
   }
 
-  // Show loading state while signing out or redirecting active users
+  // While signing out or redirecting, show nothing to avoid ugly loading state
   if (isSigningOut || (sessionStatus === "authenticated" && session?.user?.status === "pending_onboarding") || (sessionStatus === "authenticated" && session?.user?.status === "active")) {
-    return (
-      <div className="min-h-screen flex">
-        {/* Left side - Loading state */}
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md">
-            <div className="flex justify-center mb-8">
-              <Link href="https://www.colourfuljobs.nl/">
-                <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-              </Link>
-            </div>
-            <Card className="p-6 sm:p-8">
-              <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-                <Spinner className="size-8 text-[#F86600] mb-4" />
-                <p className="p-regular text-[#1F2D58]">Even geduld...</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        
-        {/* Right side - Screenshot (hidden on mobile) */}
-        <div className="hidden lg:flex flex-shrink-0 items-center">
-          <Image
-            src="/onboarding-screenshot.png"
-            alt="Colourful jobs dashboard"
-            width={800}
-            height={900}
-            className="h-[80vh] w-auto"
-            priority
-          />
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

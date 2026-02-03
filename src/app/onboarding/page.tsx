@@ -633,8 +633,23 @@ export default function OnboardingPage() {
       });
 
       if (!companyResponse.ok) {
+        // Try to get specific error message from API
+        let errorMessage = "Er ging iets mis bij het opslaan van je organisatiegegevens.";
+        try {
+          const errorData = await companyResponse.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        
         toast.error("Fout bij opslaan", {
-          description: "Er ging iets mis bij het opslaan van je organisatiegegevens.",
+          description: errorMessage,
+          action: {
+            label: "Probeer opnieuw",
+            onClick: () => saveStep2Data(),
+          },
         });
         return false;
       }
@@ -659,15 +674,34 @@ export default function OnboardingPage() {
         router.push("/dashboard");
         return true;
       } else {
+        // Try to get specific error message from API
+        let errorMessage = "Er ging iets mis bij het activeren van je account.";
+        try {
+          const errorData = await activateResponse.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Ignore JSON parse errors
+        }
+        
         toast.error("Fout bij activeren", {
-          description: "Er ging iets mis bij het activeren van je account.",
+          description: errorMessage,
+          action: {
+            label: "Probeer opnieuw",
+            onClick: () => saveStep2Data(),
+          },
         });
         return false;
       }
     } catch (error) {
       console.error("Error saving step 2:", error);
       toast.error("Fout bij opslaan", {
-        description: "Er ging iets mis. Probeer het later opnieuw.",
+        description: "Er ging iets mis. Controleer je internetverbinding en probeer het opnieuw.",
+        action: {
+          label: "Probeer opnieuw",
+          onClick: () => saveStep2Data(),
+        },
       });
       return false;
     } finally {
