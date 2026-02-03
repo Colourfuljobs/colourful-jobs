@@ -233,8 +233,11 @@ export async function PATCH(request: Request) {
         },
       });
 
-      // If user is being activated and has an employer, create wallet and log onboarding completion
+      // If user is being activated and has an employer, activate employer, create wallet and log onboarding completion
       if (body.status === "active" && user.employer_id) {
+        // Activate the employer as well
+        await updateEmployer(user.employer_id, { status: "active" });
+        
         // Create wallet for the employer when user becomes active
         let walletId: string | null = null;
         try {

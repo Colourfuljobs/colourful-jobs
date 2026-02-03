@@ -25,13 +25,17 @@ export default async function middleware(req: NextRequest) {
 
   const hasSessionCookie = !!sessionToken;
 
+  // Never redirect API calls in middleware
+  // API routes handle their own auth via getServerSession()
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   // Public routes - always accessible
   const isPublic =
     pathname === "/" ||
     pathname.startsWith("/login") ||
-    pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/onboarding");
+    pathname.startsWith("/onboarding");
 
   // Protected routes - require session cookie
   // The actual session validation happens in the page/API via getServerSession()
@@ -39,12 +43,6 @@ export default async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = LOGIN_PATH;
     return NextResponse.redirect(url);
-  }
-
-  // Never redirect API calls in middleware
-  // API routes handle their own auth via getServerSession()
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
   }
 
   // If user has a session cookie, redirect home to dashboard
