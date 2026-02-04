@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
 import { 
   Coins,
@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Circle,
   ListChecks,
+  PartyPopper,
 } from "lucide-react"
 
 import { Button, ArrowIcon } from "@/components/ui/button"
@@ -141,7 +142,7 @@ interface TeamMember {
 
 export default function DashboardPage() {
   const { credits, isLoading: isCreditsLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
-  const { accountData } = useAccount()
+  const { accountData, refreshAccount } = useAccount()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [teamCount, setTeamCount] = useState(0)
@@ -151,10 +152,43 @@ export default function DashboardPage() {
   const [publishedCount, setPublishedCount] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
   const [hasMediaAssets, setHasMediaAssets] = useState(false)
+  const [isOnboardingFadingOut, setIsOnboardingFadingOut] = useState(false)
+
+  // Get onboarding dismissed state from account context (per employer)
+  const onboardingDismissed = accountData?.onboarding_dismissed ?? false
 
   // Get profile status from shared account context (no duplicate API call needed)
   const profileComplete = accountData?.profile_complete ?? true
   const profileMissingFields = accountData?.profile_missing_fields ?? []
+
+  // Check if all onboarding items are complete
+  const allOnboardingComplete = 
+    profileComplete && 
+    credits.total_purchased > 0 && 
+    vacancies.length > 0 && 
+    hasMediaAssets && 
+    (teamCount > 1 || invitedCount > 0)
+
+  // Handle dismissing the onboarding card (saves to employer record)
+  const handleDismissOnboarding = useCallback(async () => {
+    setIsOnboardingFadingOut(true)
+    
+    // Save to database via API
+    try {
+      await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: "onboarding",
+          data: { onboarding_dismissed: true },
+        }),
+      })
+      // Refresh account data to get the updated state
+      await refreshAccount()
+    } catch (error) {
+      console.error("Error dismissing onboarding:", error)
+    }
+  }, [refreshAccount])
 
   // Set page title
   useEffect(() => {
@@ -279,8 +313,8 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {/* Stats cards - 3 columns */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Stats cards - 3 columns when onboarding visible, 2 columns when dismissed */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${!onboardingDismissed ? "lg:grid-cols-3" : ""}`}>
         {/* Credit Wallet Card */}
         <div className="rounded-t-[0.75rem] rounded-bl-[2rem] rounded-br-[0.75rem] overflow-hidden flex flex-col">
           <div className="bg-white/50 px-6 py-4">
@@ -351,7 +385,11 @@ export default function DashboardPage() {
         </div>
 
         {/* Published Vacancies Card */}
-        <div className="rounded-[0.75rem] overflow-hidden flex flex-col">
+        <div className={`overflow-hidden flex flex-col ${
+          onboardingDismissed 
+            ? "rounded-t-[0.75rem] rounded-bl-[0.75rem] rounded-br-[2rem]" 
+            : "rounded-[0.75rem]"
+        }`}>
           <div className="bg-white/50 px-6 py-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
@@ -398,121 +436,166 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Action Checklist Card */}
-        <div className="rounded-t-[0.75rem] rounded-bl-[0.75rem] rounded-br-[2rem] overflow-hidden flex flex-col">
-          <div className="bg-white/50 px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                <ListChecks className="h-5 w-5 text-[#1F2D58]" />
+        {/* Action Checklist Card - Hidden when dismissed */}
+        {!onboardingDismissed && (
+          <div 
+            className={`rounded-t-[0.75rem] rounded-bl-[0.75rem] rounded-br-[2rem] overflow-hidden flex flex-col relative transition-all duration-300 ${
+              isOnboardingFadingOut ? "opacity-0 scale-95" : "opacity-100 scale-100"
+            }`}
+          >
+            <div className="bg-white/50 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                  <ListChecks className="h-5 w-5 text-[#1F2D58]" />
+                </div>
+                <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Aan de slag</h2>
               </div>
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Aan de slag</h2>
             </div>
-          </div>
-          <div className="bg-white p-6 flex-1 flex flex-col">
-            {isLoading || isCreditsLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-5 w-5 rounded-full" />
-                    <Skeleton className="h-4 flex-1" />
+            <div className="bg-white p-6 flex-1 flex flex-col">
+              {isLoading || isCreditsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <Skeleton className="h-5 w-5 rounded-full" />
+                      <Skeleton className="h-4 flex-1" />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <ul className="divide-y divide-[#E8EEF2]">
+                  {/* Werkgeversprofiel */}
+                  <li className="py-3 first:pt-0 last:pb-0">
+                    <Link 
+                      href="/dashboard/werkgeversprofiel"
+                      className="flex items-center gap-3 group"
+                    >
+                      {profileComplete ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
+                      )}
+                      <span className={`text-sm flex-1 ${profileComplete ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
+                        Stel je werkgeversprofiel in
+                      </span>
+                      <InfoTooltip content="Laat kandidaten kennismaken met jouw bedrijf, cultuur en missie. Een compleet profiel trekt meer geschikte sollicitanten aan." />
+                    </Link>
+                  </li>
+
+                  {/* Creditbundel */}
+                  <li className="py-3 first:pt-0 last:pb-0">
+                    <button 
+                      onClick={() => setCheckoutModalOpen(true)}
+                      className="flex items-center gap-3 group w-full text-left"
+                    >
+                      {credits.total_purchased > 0 ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
+                      )}
+                      <span className={`text-sm flex-1 ${credits.total_purchased > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
+                        Koop een creditbundel
+                      </span>
+                      <InfoTooltip content="Credits gebruik je voor vacatureplaatsingen. Grotere bundels geven meer korting per vacature." />
+                    </button>
+                  </li>
+
+                  {/* Eerste vacature */}
+                  <li className="py-3 first:pt-0 last:pb-0">
+                    <Link 
+                      href="/dashboard/vacatures/nieuw"
+                      className="flex items-center gap-3 group"
+                    >
+                      {vacancies.length > 0 ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
+                      )}
+                      <span className={`text-sm flex-1 ${vacancies.length > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
+                        Plaats je eerste vacature
+                      </span>
+                      <InfoTooltip content="Bereik direct een diverse groep kandidaten die actief op zoek zijn naar een nieuwe uitdaging." />
+                    </Link>
+                  </li>
+
+                  {/* Beeldbank */}
+                  <li className="py-3 first:pt-0 last:pb-0">
+                    <Link 
+                      href="/dashboard/media-library"
+                      className="flex items-center gap-3 group"
+                    >
+                      {hasMediaAssets ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
+                      )}
+                      <span className={`text-sm flex-1 ${hasMediaAssets ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
+                        Vul je beeldbank
+                      </span>
+                      <InfoTooltip content="Upload je foto's één keer en hergebruik ze eenvoudig in je werkgeversprofiel en vacatures." />
+                    </Link>
+                  </li>
+
+                  {/* Teamleden uitnodigen */}
+                  <li className="py-3 first:pt-0 last:pb-0">
+                    <Link 
+                      href="/dashboard/team"
+                      className="flex items-center gap-3 group"
+                    >
+                      {teamCount > 1 || invitedCount > 0 ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                      ) : (
+                        <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
+                      )}
+                      <span className={`text-sm flex-1 ${teamCount > 1 || invitedCount > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
+                        Nodig collega&apos;s uit
+                      </span>
+                      <InfoTooltip content="Geef collega's toegang zodat jullie samen vacatures kunnen beheren en kandidaten kunnen beoordelen." />
+                    </Link>
+                  </li>
+                </ul>
+              )}
+            </div>
+
+            {/* Completion overlay - shown when all items are complete */}
+            {allOnboardingComplete && !isLoading && !isCreditsLoading && (
+              <div className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center p-6 rounded-t-[0.75rem] rounded-bl-[0.75rem] rounded-br-[2rem] overflow-hidden">
+                {/* Confetti elements */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="confetti-piece confetti-1" />
+                  <div className="confetti-piece confetti-2" />
+                  <div className="confetti-piece confetti-3" />
+                  <div className="confetti-piece confetti-4" />
+                  <div className="confetti-piece confetti-5" />
+                  <div className="confetti-piece confetti-6" />
+                  <div className="confetti-piece confetti-7" />
+                  <div className="confetti-piece confetti-8" />
+                  <div className="confetti-piece confetti-9" />
+                  <div className="confetti-piece confetti-10" />
+                  <div className="confetti-piece confetti-11" />
+                  <div className="confetti-piece confetti-12" />
+                </div>
+                
+                {/* Content */}
+                <div className="relative z-10 text-center">
+                  <div className="w-14 h-14 rounded-full bg-[#193DAB]/12 flex items-center justify-center mx-auto mb-4">
+                    <PartyPopper className="h-7 w-7 text-[#1F2D58]" />
                   </div>
-                ))}
+                  <h3 className="text-xl font-semibold text-[#1F2D58] mb-2">Goed bezig!</h3>
+                  <p className="text-sm text-[#1F2D58]/70 mb-6">
+                    Je haalt nu het maximale uit Colourful jobs.
+                  </p>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleDismissOnboarding}
+                    showArrow={false}
+                  >
+                    Sluiten
+                  </Button>
+                </div>
               </div>
-            ) : (
-              <ul className="divide-y divide-[#E8EEF2]">
-                {/* Werkgeversprofiel */}
-                <li className="py-3 first:pt-0 last:pb-0">
-                  <Link 
-                    href="/dashboard/werkgeversprofiel"
-                    className="flex items-center gap-3 group"
-                  >
-                    {profileComplete ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
-                    )}
-                    <span className={`text-sm flex-1 ${profileComplete ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
-                      Stel je werkgeversprofiel in
-                    </span>
-                    <InfoTooltip content="Laat kandidaten kennismaken met jouw bedrijf, cultuur en missie. Een compleet profiel trekt meer geschikte sollicitanten aan." />
-                  </Link>
-                </li>
-
-                {/* Creditbundel */}
-                <li className="py-3 first:pt-0 last:pb-0">
-                  <button 
-                    onClick={() => setCheckoutModalOpen(true)}
-                    className="flex items-center gap-3 group w-full text-left"
-                  >
-                    {credits.total_purchased > 0 ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
-                    )}
-                    <span className={`text-sm flex-1 ${credits.total_purchased > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
-                      Koop een creditbundel
-                    </span>
-                    <InfoTooltip content="Credits gebruik je voor vacatureplaatsingen. Grotere bundels geven meer korting per vacature." />
-                  </button>
-                </li>
-
-                {/* Eerste vacature */}
-                <li className="py-3 first:pt-0 last:pb-0">
-                  <Link 
-                    href="/dashboard/vacatures/nieuw"
-                    className="flex items-center gap-3 group"
-                  >
-                    {vacancies.length > 0 ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
-                    )}
-                    <span className={`text-sm flex-1 ${vacancies.length > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
-                      Plaats je eerste vacature
-                    </span>
-                    <InfoTooltip content="Bereik direct een diverse groep kandidaten die actief op zoek zijn naar een nieuwe uitdaging." />
-                  </Link>
-                </li>
-
-                {/* Beeldbank */}
-                <li className="py-3 first:pt-0 last:pb-0">
-                  <Link 
-                    href="/dashboard/media-library"
-                    className="flex items-center gap-3 group"
-                  >
-                    {hasMediaAssets ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
-                    )}
-                    <span className={`text-sm flex-1 ${hasMediaAssets ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
-                      Vul je beeldbank
-                    </span>
-                    <InfoTooltip content="Upload je foto's één keer en hergebruik ze eenvoudig in je werkgeversprofiel en vacatures." />
-                  </Link>
-                </li>
-
-                {/* Teamleden uitnodigen */}
-                <li className="py-3 first:pt-0 last:pb-0">
-                  <Link 
-                    href="/dashboard/team"
-                    className="flex items-center gap-3 group"
-                  >
-                    {teamCount > 1 || invitedCount > 0 ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
-                    )}
-                    <span className={`text-sm flex-1 ${teamCount > 1 || invitedCount > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
-                      Nodig collega&apos;s uit
-                    </span>
-                    <InfoTooltip content="Geef collega's toegang zodat jullie samen vacatures kunnen beheren en kandidaten kunnen beoordelen." />
-                  </Link>
-                </li>
-              </ul>
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Latest Vacancies Section */}
@@ -535,7 +618,6 @@ export default function DashboardPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -544,7 +626,6 @@ export default function DashboardPage() {
                   <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                   </TableRow>
                 ))}
@@ -602,7 +683,6 @@ export default function DashboardPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -618,16 +698,6 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant={config.variant}>{config.label}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
-                          <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
-                            <Coins className="h-4 w-4 flex-shrink-0" />
-                            <span>{vacancy.credits_spent}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[#1F2D58]/40">-</span>
-                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1.5">

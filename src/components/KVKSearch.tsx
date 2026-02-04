@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -84,22 +85,33 @@ export function KVKSearch({ onSelect, onSkip, onSearchStart }: KVKSearchProps) {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        <label htmlFor="kvk-search" className="p-regular block mb-1 font-semibold">
-          Zoek op organisatienaam of KVK-nummer
-        </label>
         <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            id="kvk-search"
-            type="text"
-            placeholder="Organisatienaam of KVK-nummer (bijv. 12345678)"
-            value={query}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            className="sm:flex-1"
-          />
+          <div className="relative sm:flex-1">
+            <Input
+              id="kvk-search"
+              type="text"
+              placeholder=" "
+              value={query}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              className="peer h-12 pt-5 pb-1 px-4 text-sm w-full"
+            />
+            <Label
+              htmlFor="kvk-search"
+              className={`absolute left-4 transition-all duration-200 pointer-events-none
+                ${query.length > 0
+                  ? "top-1 text-xs text-[#1F2D58]/60"
+                  : "top-1/2 -translate-y-1/2 text-sm text-slate-500"
+                }
+                peer-focus:top-1 peer-focus:text-xs peer-focus:text-[#1F2D58]/60 peer-focus:translate-y-0`}
+            >
+              Organisatienaam of KVK-nummer
+            </Label>
+          </div>
           <Button 
             onClick={performSearch} 
             disabled={!query.trim() || loading}
+            className="h-12"
           >
             {loading ? (
               <Spinner className="size-4" />
@@ -136,8 +148,7 @@ export function KVKSearch({ onSelect, onSkip, onSearchStart }: KVKSearchProps) {
       )}
 
       {results.length > 0 && (
-        <div className="space-y-2">
-          <p className="p-small font-medium">Zoekresultaten:</p>
+        <div>
           <div className="space-y-2 max-h-52 overflow-y-auto rounded-lg bg-[#E8EEF2] border border-slate-200 p-3 sm:p-6">
             {results.map((result, index) => (
               <button

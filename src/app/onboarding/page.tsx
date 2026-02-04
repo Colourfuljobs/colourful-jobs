@@ -325,73 +325,117 @@ export default function OnboardingPage() {
   const handleSubmitStep1 = async () => {
     if (!contact.email || !contact.firstName || !contact.lastName) return;
     setEmailError(null);
+    setLoading(true);
     
-    // OPTIMISTIC UI: Show "check your email" immediately
-    // This provides instant feedback while user creation and email sending happen in background
-    setEmailSent(true);
-    saveOnboardingState(contact, true);
-    
-    // Run user creation and email sending in background
-    (async () => {
-      try {
-        const response = await fetch("/api/onboarding", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: contact.email,
-            first_name: contact.firstName,
-            last_name: contact.lastName,
-            role: contact.role,
-          }),
+    try {
+      // First check if email already exists and is active
+      // This prevents showing "check your email" only to revert it later
+      const checkResponse = await fetch("/api/auth/check-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: contact.email }),
+      });
+      
+      // Handle rate limiting from check-email
+      if (checkResponse.status === 429) {
+        const data = await checkResponse.json();
+        toast.error("Te veel pogingen", {
+          description: data.error || "Probeer het over een minuut opnieuw.",
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data.resend) {
-            toast.success("Verificatie e-mail opnieuw verstuurd", {
-              description: "Check je inbox voor de nieuwe verificatielink.",
-            });
-          }
-          
-          // Send magic link in background (don't await)
-          signIn("email", {
-            email: contact.email,
-            redirect: false,
-            callbackUrl: "/onboarding",
-          }).catch((signInError) => {
-            console.error("Error sending magic link:", signInError);
-            toast.error("Fout bij versturen", {
-              description: "De verificatie e-mail kon niet worden verstuurd. Klik op 'opnieuw versturen'.",
-            });
+        setLoading(false);
+        return;
+      }
+      
+      // If status 200 = email exists AND is active → show error immediately
+      if (checkResponse.ok) {
+        setEmailError("Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.");
+        toast.error("E-mailadres al in gebruik", {
+          description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Status 404 = email doesn't exist → proceed
+      // Status 403 = email exists but pending_onboarding → also OK (is a resend)
+      
+      // Now show optimistic UI
+      setEmailSent(true);
+      saveOnboardingState(contact, true);
+      setLoading(false);
+      
+      // Run user creation and email sending in background
+      (async () => {
+        try {
+          const response = await fetch("/api/onboarding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: contact.email,
+              first_name: contact.firstName,
+              last_name: contact.lastName,
+              role: contact.role,
+            }),
           });
-        } else {
-          // Error: revert optimistic UI
-          const data = await response.json();
-          setEmailSent(false);
-          clearOnboardingState();
-          
-          if (response.status === 409) {
-            setEmailError("Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.");
-            toast.error("E-mailadres al in gebruik", {
-              description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+
+          if (response.ok) {
+            const data = await response.json();
+            
+            if (data.resend) {
+              toast.success("Verificatie e-mail opnieuw verstuurd", {
+                description: "Check je inbox voor de nieuwe verificatielink.",
+              });
+            }
+            
+            // Send magic link in background (don't await)
+            signIn("email", {
+              email: contact.email,
+              redirect: false,
+              callbackUrl: "/onboarding",
+            }).catch((signInError) => {
+              console.error("Error sending magic link:", signInError);
+              toast.error("Fout bij versturen", {
+                description: "De verificatie e-mail kon niet worden verstuurd. Klik op 'opnieuw versturen'.",
+              });
             });
           } else {
-            toast.error("Fout bij aanmelden", {
-              description: data.error || "Er ging iets mis. Probeer het later opnieuw.",
-            });
+            // Error: revert optimistic UI
+            const data = await response.json();
+            setEmailSent(false);
+            clearOnboardingState();
+            
+            if (response.status === 429) {
+              toast.error("Te veel aanmeldpogingen", {
+                description: data.error || "Probeer het over een uur opnieuw.",
+              });
+            } else if (response.status === 409) {
+              setEmailError("Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.");
+              toast.error("E-mailadres al in gebruik", {
+                description: "Er bestaat al een account met dit e-mailadres. Log in om verder te gaan.",
+              });
+            } else {
+              toast.error("Fout bij aanmelden", {
+                description: data.error || "Er ging iets mis. Probeer het later opnieuw.",
+              });
+            }
           }
+        } catch (error) {
+          // Error: revert optimistic UI
+          console.error("Error submitting step 1:", error);
+          setEmailSent(false);
+          clearOnboardingState();
+          toast.error("Fout bij aanmelden", {
+            description: "Er ging iets mis. Probeer het later opnieuw.",
+          });
         }
-      } catch (error) {
-        // Error: revert optimistic UI
-        console.error("Error submitting step 1:", error);
-        setEmailSent(false);
-        clearOnboardingState();
-        toast.error("Fout bij aanmelden", {
-          description: "Er ging iets mis. Probeer het later opnieuw.",
-        });
-      }
-    })();
+      })();
+    } catch (error) {
+      console.error("Error checking email:", error);
+      setLoading(false);
+      toast.error("Fout bij controleren", {
+        description: "Er ging iets mis. Probeer het later opnieuw.",
+      });
+    }
   };
 
   const handleResendEmail = async () => {
@@ -971,22 +1015,19 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-[600px]">
+      <div className={`w-full ${step === 1 && !joinMode ? 'max-w-[440px]' : 'max-w-[600px]'}`}>
       <div className="flex justify-center mb-8">
         <Link href="https://www.colourfuljobs.nl/">
           <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
         </Link>
       </div>
       <Card className="p-0 overflow-hidden">
-        {/* Header */}
-        {!joinMode && (
+        {/* Header - step 1: full intro, hidden during email verification waiting state */}
+        {!joinMode && step === 1 && !(emailSent && !emailVerified) && (
           <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-6 sm:pb-8">
-            <CardTitle className="mb-3 contempora-small">Bouw aan je werkgeversmerk</CardTitle>
+            <CardTitle className="mb-3 contempora-small text-[1.75rem] sm:text-[2.5rem]">Bouw aan je werkgeversmerk</CardTitle>
             <p className="p-regular text-slate-600">
-              {step === 1 
-                ? "Maak een account aan en bereik geschikte kandidaten die passen bij jouw organisatie."
-                : "Vul je organisatie- en factuurgegevens in om je account te voltooien."
-              }
+              Maak een account aan en bereik geschikte kandidaten die passen bij jouw organisatie.
             </p>
           </div>
         )}
@@ -1022,7 +1063,10 @@ export default function OnboardingPage() {
 
           {/* Step 2 */}
           {step === 2 && !joinMode && (
-            <Step2Company
+            <>
+              <h2 className="text-base sm:text-lg font-semibold text-[#1F2D58] mb-4">Account aanmaken</h2>
+              <div className="border-b border-[#1F2D58]/10 mb-6" />
+              <Step2Company
               register={register}
               setValue={setValue}
               watch={watch}
@@ -1048,6 +1092,7 @@ export default function OnboardingPage() {
               onKVKSelect={handleKVKSelect}
               onKvkManualChange={handleKvkManualChange}
             />
+            </>
           )}
 
           {/* Join Flow */}
@@ -1073,10 +1118,10 @@ export default function OnboardingPage() {
         </CardContent>
       </Card>
 
-      {/* Login link */}
-      {!(joinMode && joinStep === "verification") && (
+      {/* Login link - hidden during email verification, join verification, and step 2 form */}
+      {!(joinMode && joinStep === "verification") && !(emailSent && !emailVerified) && !(step === 2 && !showKVKSearch) && (
         <div className="mt-4 text-center">
-          <p className="p-small text-[#1F2D58]">
+          <p className="text-sm text-[#1F2D58]">
             Heb je al een account?{" "}
             <button
               onClick={async () => {
@@ -1086,7 +1131,7 @@ export default function OnboardingPage() {
                 }
                 router.push("/login");
               }}
-              className="underline hover:text-[#193DAB]"
+              className="text-[#39ADE5] font-semibold hover:underline"
             >
               Log in
             </button>

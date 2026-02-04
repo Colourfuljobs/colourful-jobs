@@ -99,9 +99,7 @@ export interface EmployerProfileData {
 export interface ProfileCompleteResult {
   complete: boolean;
   missingFields: string[];
-}
-
-export function isProfileComplete(profile: EmployerProfileData): ProfileCompleteResult {
+}export function isProfileComplete(profile: EmployerProfileData): ProfileCompleteResult {
   const requiredFields = [
     { key: 'display_name', label: 'Weergavenaam' },
     { key: 'sector', label: 'Sector' },

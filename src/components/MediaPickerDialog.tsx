@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { uploadMedia, validateFile, ALLOWED_IMAGE_TYPES, MAX_IMAGE_SIZE } from "@/lib/cloudinary-upload"
 
 interface MediaAsset {
   id: string
@@ -83,21 +84,13 @@ export function MediaPickerDialog({
     }
   }, [])
 
-  // Handle file upload
+  // Handle file upload - direct to Cloudinary
   const handleUpload = async (file: File) => {
-    // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"]
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Ongeldig bestandstype", {
-        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
-      })
-      return
-    }
-
-    // Validate file size (10MB for gallery images)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Bestand te groot", {
-        description: "Afbeelding mag maximaal 10MB zijn",
+    // Validate file locally first
+    const validation = validateFile(file, "sfeerbeeld")
+    if (!validation.valid) {
+      toast.error("Ongeldig bestand", {
+        description: validation.error,
       })
       return
     }
@@ -111,31 +104,19 @@ export function MediaPickerDialog({
     }
 
     setIsUploading(true)
+    
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("type", "sfeerbeeld")
-
-      const response = await fetch("/api/media", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Upload failed")
-      }
-
-      const data = await response.json()
+      // Use direct Cloudinary upload (bypasses Vercel 4.5MB limit)
+      const result = await uploadMedia(file, "sfeerbeeld")
       
       // Add new image to list
-      setImages((prev) => [...prev, data.asset])
+      setImages((prev) => [...prev, result.asset])
       
       // Auto-select the new image if not at max selection
       if (!singleSelect && localSelection.length < maxSelection) {
-        setLocalSelection((prev) => [...prev, data.asset.id])
+        setLocalSelection((prev) => [...prev, result.asset.id])
       } else if (singleSelect) {
-        setLocalSelection([data.asset.id])
+        setLocalSelection([result.asset.id])
       }
 
       toast.success("Afbeelding geüpload", {

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { UserPlus, Pencil } from "lucide-react"
+import { UserPlus, Pencil, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,14 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Table,
   TableBody,
@@ -53,6 +61,11 @@ export default function TeamPage() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
   const [isInviting, setIsInviting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null)
 
   // Set page title
   useEffect(() => {
@@ -129,6 +142,70 @@ export default function TeamPage() {
       handleInvite()
     }
   }
+
+  // Open delete confirmation dialog
+  const openDeleteDialog = (member: TeamMember) => {
+    setMemberToDelete(member)
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle delete team member
+  const handleDelete = async () => {
+    if (!memberToDelete) return
+
+    setIsDeleting(true)
+
+    try {
+      const response = await fetch("/api/team", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: memberToDelete.id }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        const isSelf = currentUserEmail === memberToDelete.email.toLowerCase()
+        const isInvited = memberToDelete.status === "invited"
+
+        if (isSelf) {
+          // User deleted themselves - redirect to login
+          toast.success("Account losgekoppeld", {
+            description: "Je hebt geen toegang meer tot dit werkgeversaccount.",
+          })
+          window.location.href = "/login"
+        } else if (isInvited) {
+          toast.success("Uitnodiging ingetrokken", {
+            description: `De uitnodiging voor ${memberToDelete.email} is ingetrokken.`,
+          })
+        } else {
+          toast.success("Teamlid verwijderd", {
+            description: `${memberToDelete.first_name} ${memberToDelete.last_name} is verwijderd uit het team.`,
+          })
+        }
+
+        // Refresh team list
+        fetchTeamMembers()
+      } else {
+        toast.error("Fout bij verwijderen", {
+          description: data.error || "Er ging iets mis bij het verwijderen.",
+        })
+      }
+    } catch (error) {
+      console.error("Error deleting team member:", error)
+      toast.error("Fout bij verwijderen", {
+        description: "Er ging iets mis bij het verwijderen.",
+      })
+    } finally {
+      setIsDeleting(false)
+      setDeleteDialogOpen(false)
+      setMemberToDelete(null)
+    }
+  }
+
+  // Calculate if delete is allowed (more than 1 active member)
+  const activeMembers = teamMembers.filter((m) => m.status === "active")
+  const canDeleteActiveMembers = activeMembers.length > 1
 
   // Skeleton components
   const TableRowSkeleton = () => (
@@ -228,6 +305,7 @@ export default function TeamPage() {
               <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Naam</TableHead>
               <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">E-mailadres</TableHead>
               <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Status</TableHead>
+              <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right">Acties</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -283,18 +361,39 @@ export default function TeamPage() {
 
                   {/* Actions */}
                   <TableCell className="text-right">
-                    {isCurrentUser && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/dashboard/gegevens">
-                            <Button variant="tertiary" size="icon" className="w-[30px] h-[30px]" showArrow={false}>
-                              <Pencil className="h-4 w-4" />
+                    <div className="flex items-center justify-end gap-1">
+                      {isCurrentUser && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Link href="/dashboard/gegevens">
+                              <Button variant="tertiary" size="icon" className="w-[30px] h-[30px]" showArrow={false}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                          </TooltipTrigger>
+                          <TooltipContent>Wijzigen</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {/* Show delete button if: invited user OR (active user AND more than 1 active member) */}
+                      {(member.status === "invited" || canDeleteActiveMembers) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="tertiary"
+                              size="icon"
+                              className="w-[30px] h-[30px]"
+                              showArrow={false}
+                              onClick={() => openDeleteDialog(member)}
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          </Link>
-                        </TooltipTrigger>
-                        <TooltipContent>Wijzigen</TooltipContent>
-                      </Tooltip>
-                    )}
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {member.status === "invited" ? "Uitnodiging intrekken" : "Verwijderen"}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )})
@@ -350,6 +449,75 @@ export default function TeamPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          {/* Close button */}
+          <Button
+            variant="tertiary"
+            size="icon"
+            className="absolute right-4 top-4 w-[30px] h-[30px]"
+            onClick={() => setDeleteDialogOpen(false)}
+            showArrow={false}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+          <DialogHeader>
+            <DialogTitle>
+              {memberToDelete?.status === "invited"
+                ? "Uitnodiging intrekken"
+                : currentUserEmail === memberToDelete?.email.toLowerCase()
+                  ? "Jezelf verwijderen"
+                  : "Teamlid verwijderen"}
+            </DialogTitle>
+            <DialogDescription className="mb-4">
+              {memberToDelete?.status === "invited" ? (
+                <>
+                  Weet je zeker dat je de uitnodiging voor{" "}
+                  <strong>{memberToDelete.email}</strong> wilt intrekken?
+                </>
+              ) : currentUserEmail === memberToDelete?.email.toLowerCase() ? (
+                <>
+                  Weet je zeker dat je jezelf wilt verwijderen?{" "}
+                  <strong>Let op: je verliest hiermee toegang tot dit werkgeversaccount.</strong>
+                </>
+              ) : (
+                <>
+                  Weet je zeker dat je{" "}
+                  <strong>
+                    {memberToDelete?.first_name} {memberToDelete?.last_name}
+                  </strong>{" "}
+                  wilt verwijderen? Deze persoon verliest hiermee toegang tot dit werkgeversaccount.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={isDeleting}
+              showArrow={false}
+            >
+              Annuleren
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              showArrow={false}
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeleting
+                ? "Bezig..."
+                : memberToDelete?.status === "invited"
+                  ? "Intrekken"
+                  : "Verwijderen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

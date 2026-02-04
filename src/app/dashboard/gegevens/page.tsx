@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Pencil, User, Building2, FileText } from "lucide-react"
+import { User, Building2, FileText, Check } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Spinner } from "@/components/ui/spinner"
 import { DesktopHeader } from "@/components/dashboard"
 import { normalizeUrl } from "@/lib/utils"
 
@@ -80,30 +81,49 @@ const emptyBillingData: BillingData = {
   invoice_city: "",
 }
 
-// Section edit states
-type EditingSection = "personal" | "company" | "billing" | null
-
 export default function GegevensPage() {
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [justSaved, setJustSaved] = useState(false)
 
   // Set page title
   useEffect(() => {
     document.title = "Gegevens | Colourful jobs"
   }, [])
 
-  // Data states
+  // Data states - original saved data
   const [personalData, setPersonalData] = useState<PersonalData>(emptyPersonalData)
   const [companyData, setCompanyData] = useState<CompanyData>(emptyCompanyData)
   const [billingData, setBillingData] = useState<BillingData>(emptyBillingData)
 
-  // Edit states
-  const [editingSection, setEditingSection] = useState<EditingSection>(null)
+  // Edit states - current form values
   const [editPersonalData, setEditPersonalData] = useState<PersonalData>(emptyPersonalData)
   const [editCompanyData, setEditCompanyData] = useState<CompanyData>(emptyCompanyData)
   const [editBillingData, setEditBillingData] = useState<BillingData>(emptyBillingData)
+
+  // URL validation error
+  const [urlError, setUrlError] = useState<string | null>(null)
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useCallback(() => {
+    return (
+      editPersonalData.first_name !== personalData.first_name ||
+      editPersonalData.last_name !== personalData.last_name ||
+      editPersonalData.role !== personalData.role ||
+      editCompanyData.company_name !== companyData.company_name ||
+      editCompanyData.phone !== companyData.phone ||
+      editCompanyData.kvk !== companyData.kvk ||
+      editCompanyData.website_url !== companyData.website_url ||
+      editBillingData["reference-nr"] !== billingData["reference-nr"] ||
+      editBillingData.invoice_contact_name !== billingData.invoice_contact_name ||
+      editBillingData.invoice_email !== billingData.invoice_email ||
+      editBillingData.invoice_street !== billingData.invoice_street ||
+      editBillingData["invoice_postal-code"] !== billingData["invoice_postal-code"] ||
+      editBillingData.invoice_city !== billingData.invoice_city
+    )
+  }, [editPersonalData, editCompanyData, editBillingData, personalData, companyData, billingData])
 
   // Fetch account data from API
   const fetchAccountData = useCallback(async () => {
@@ -120,15 +140,18 @@ export default function GegevensPage() {
 
       const data = await response.json()
 
-      // Update all data states
+      // Update all data states (both saved and edit)
       if (data.personal) {
         setPersonalData(data.personal)
+        setEditPersonalData(data.personal)
       }
       if (data.company) {
         setCompanyData(data.company)
+        setEditCompanyData(data.company)
       }
       if (data.billing) {
         setBillingData(data.billing)
+        setEditBillingData(data.billing)
       }
     } catch (error) {
       console.error("Error fetching account data:", error)
@@ -143,77 +166,90 @@ export default function GegevensPage() {
     fetchAccountData()
   }, [fetchAccountData])
 
-  // Start editing a section
-  const startEditing = (section: EditingSection) => {
-    if (section === "personal") setEditPersonalData({ ...personalData })
-    if (section === "company") setEditCompanyData({ ...companyData })
-    if (section === "billing") setEditBillingData({ ...billingData })
-    setEditingSection(section)
+  // Reset changes - revert to last saved data
+  const resetChanges = () => {
+    setEditPersonalData({ ...personalData })
+    setEditCompanyData({ ...companyData })
+    setEditBillingData({ ...billingData })
+    setUrlError(null)
   }
 
-  // Cancel editing
-  const cancelEditing = () => {
-    setEditingSection(null)
-  }
-
-  // Save section to API
-  const saveSection = async (section: EditingSection) => {
-    if (!section) return
+  // Save all sections to API
+  const saveAllSections = async () => {
+    // Validate URL before saving
+    if (editCompanyData.website_url && !isValidUrl(editCompanyData.website_url)) {
+      setUrlError("Voer een geldige URL in (bijv. www.voorbeeld.nl)")
+      toast.error("Ongeldige URL", {
+        description: "Controleer of de website-URL correct is geschreven.",
+      })
+      return
+    }
+    setUrlError(null)
 
     setIsSaving(true)
 
     try {
-      let dataToSave: Record<string, any> = {}
-      let sectionName = ""
-
-      if (section === "personal") {
-        dataToSave = {
-          first_name: editPersonalData.first_name,
-          last_name: editPersonalData.last_name,
-          role: editPersonalData.role,
-        }
-        sectionName = "Persoonlijke gegevens"
-      }
-      if (section === "company") {
-        dataToSave = editCompanyData
-        sectionName = "Organisatiegegevens"
-      }
-      if (section === "billing") {
-        dataToSave = editBillingData
-        sectionName = "Factuurgegevens"
-      }
-
-      const response = await fetch("/api/account", {
+      // Save personal data
+      const personalResponse = await fetch("/api/account", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          section,
-          data: dataToSave,
+          section: "personal",
+          data: {
+            first_name: editPersonalData.first_name,
+            last_name: editPersonalData.last_name,
+            role: editPersonalData.role,
+          },
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Kon gegevens niet opslaan")
+      if (!personalResponse.ok) {
+        const errorData = await personalResponse.json()
+        throw new Error(errorData.error || "Kon persoonlijke gegevens niet opslaan")
+      }
+
+      // Save company data
+      const companyResponse = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: "company",
+          data: editCompanyData,
+        }),
+      })
+
+      if (!companyResponse.ok) {
+        const errorData = await companyResponse.json()
+        throw new Error(errorData.error || "Kon organisatiegegevens niet opslaan")
+      }
+
+      // Save billing data
+      const billingResponse = await fetch("/api/account", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section: "billing",
+          data: editBillingData,
+        }),
+      })
+
+      if (!billingResponse.ok) {
+        const errorData = await billingResponse.json()
+        throw new Error(errorData.error || "Kon factuurgegevens niet opslaan")
       }
 
       // Update local state with saved data
-      if (section === "personal") {
-        setPersonalData({ ...editPersonalData })
-      }
-      if (section === "company") {
-        setCompanyData({ ...editCompanyData })
-      }
-      if (section === "billing") {
-        setBillingData({ ...editBillingData })
-      }
+      setPersonalData({ ...editPersonalData })
+      setCompanyData({ ...editCompanyData })
+      setBillingData({ ...editBillingData })
 
-      toast.success(`${sectionName} opgeslagen`)
-      setEditingSection(null)
+      // Show success indicator
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 3000)
+
+      toast.success("Gegevens opgeslagen")
     } catch (error) {
-      console.error("Error saving section:", error)
+      console.error("Error saving data:", error)
       toast.error(error instanceof Error ? error.message : "Er is een fout opgetreden bij het opslaan")
     } finally {
       setIsSaving(false)
@@ -290,175 +326,103 @@ export default function GegevensPage() {
       {/* Personal Data Section */}
       <div className="rounded-[0.75rem] overflow-hidden">
         <div className="bg-white/50 px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                <User className="h-5 w-5 text-[#1F2D58]" />
-              </div>
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
-                Persoonlijke gegevens
-              </h2>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+              <User className="h-5 w-5 text-[#1F2D58]" />
             </div>
-            {editingSection !== "personal" && (
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => startEditing("personal")}
-                showArrow={false}
-              >
-                <Pencil className="h-4 w-4 mr-1" />
-                Bewerken
-              </Button>
-            )}
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              Persoonlijke gegevens
+            </h2>
           </div>
         </div>
         <div className="bg-white p-6">
-          {editingSection === "personal" ? (
-            <PersonalDataForm
-              data={editPersonalData}
-              onChange={setEditPersonalData}
-              onSave={() => saveSection("personal")}
-              onCancel={cancelEditing}
-              isSaving={isSaving}
-            />
-          ) : (
-            <PersonalDataView data={personalData} />
-          )}
+          <PersonalDataForm
+            data={editPersonalData}
+            onChange={setEditPersonalData}
+            isSaving={isSaving}
+          />
         </div>
       </div>
 
       {/* Company Data Section */}
       <div className="rounded-[0.75rem] overflow-hidden">
         <div className="bg-white/50 px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                <Building2 className="h-5 w-5 text-[#1F2D58]" />
-              </div>
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
-                Organisatiegegevens
-              </h2>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+              <Building2 className="h-5 w-5 text-[#1F2D58]" />
             </div>
-            {editingSection !== "company" && (
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => startEditing("company")}
-                showArrow={false}
-              >
-                <Pencil className="h-4 w-4 mr-1" />
-                Bewerken
-              </Button>
-            )}
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              Organisatiegegevens
+            </h2>
           </div>
         </div>
         <div className="bg-white p-6">
-          {editingSection === "company" ? (
-            <CompanyDataForm
-              data={editCompanyData}
-              onChange={setEditCompanyData}
-              onSave={() => saveSection("company")}
-              onCancel={cancelEditing}
-              isSaving={isSaving}
-            />
-          ) : (
-            <CompanyDataView data={companyData} />
-          )}
+          <CompanyDataForm
+            data={editCompanyData}
+            onChange={setEditCompanyData}
+            isSaving={isSaving}
+            urlError={urlError}
+            onUrlErrorClear={() => setUrlError(null)}
+          />
         </div>
       </div>
 
       {/* Billing Data Section */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
         <div className="bg-white/50 px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                <FileText className="h-5 w-5 text-[#1F2D58]" />
-              </div>
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
-                Factuurgegevens
-              </h2>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+              <FileText className="h-5 w-5 text-[#1F2D58]" />
             </div>
-            {editingSection !== "billing" && (
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => startEditing("billing")}
-                showArrow={false}
-              >
-                <Pencil className="h-4 w-4 mr-1" />
-                Bewerken
-              </Button>
-            )}
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              Factuurgegevens
+            </h2>
           </div>
         </div>
         <div className="bg-white p-6">
-          {editingSection === "billing" ? (
-            <BillingDataForm
-              data={editBillingData}
-              onChange={setEditBillingData}
-              onSave={() => saveSection("billing")}
-              onCancel={cancelEditing}
-              isSaving={isSaving}
-            />
-          ) : (
-            <BillingDataView data={billingData} />
-          )}
+          <BillingDataForm
+            data={editBillingData}
+            onChange={setEditBillingData}
+            isSaving={isSaving}
+          />
         </div>
       </div>
-    </div>
-  )
-}
 
-// ============================================
-// VIEW COMPONENTS
-// ============================================
+      {/* Spacer for sticky navigation bar */}
+      <div className="h-20" />
 
-function DataField({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-sm text-[#1F2D58]/60">{label}</p>
-      <p className="text-[#1F2D58] font-medium">{value || "-"}</p>
-    </div>
-  )
-}
-
-function PersonalDataView({ data }: { data: PersonalData }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <DataField label="Voornaam" value={data.first_name} />
-      <DataField label="Achternaam" value={data.last_name} />
-      <DataField label="E-mailadres" value={data.email} />
-      <DataField label="Functie" value={data.role} />
-    </div>
-  )
-}
-
-function CompanyDataView({ data }: { data: CompanyData }) {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <DataField label="Juridische organisatienaam" value={data.company_name} />
-      <DataField label="Telefoonnummer" value={data.phone} />
-      <DataField label="KVK-nummer" value={data.kvk} />
-      <DataField label="Website-URL" value={data.website_url} />
-    </div>
-  )
-}
-
-function BillingDataView({ data }: { data: BillingData }) {
-  const address = data.invoice_street
-  const cityPostal = [data["invoice_postal-code"], data.invoice_city].filter(Boolean).join(" ")
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <DataField label="Referentienummer" value={data["reference-nr"]} />
-      <DataField label="Contactpersoon" value={data.invoice_contact_name} />
-      <DataField label="E-mail facturatie" value={data.invoice_email} />
-      <div className="space-y-1">
-        <p className="text-sm text-[#1F2D58]/60">Adres</p>
-        <div className="text-[#1F2D58] font-medium">
-          <p>{address}</p>
-          <p>{cityPostal}</p>
+      {/* Sticky navigation bar */}
+      <div className="fixed bottom-0 left-0 sm:left-[var(--sidebar-width)] right-0 z-40 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
+        <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Button variant="secondary" onClick={resetChanges} showArrow={false} disabled={isSaving}>
+              Wijzigingen ongedaan maken
+            </Button>
+            <div className="flex items-center gap-4">
+              {/* Save status indicator */}
+              {isSaving ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-[#1F2D58]/60">
+                  <Spinner className="h-4 w-4" />
+                  <span>Opslaan...</span>
+                </div>
+              ) : justSaved ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-green-600">
+                  <span>Opgeslagen</span>
+                </div>
+              ) : hasUnsavedChanges() ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-red-500">
+                  <span>Niet opgeslagen</span>
+                </div>
+              ) : (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-green-600">
+                  <span>Opgeslagen</span>
+                </div>
+              )}
+              <Button onClick={saveAllSections} disabled={isSaving} showArrow={false}>
+                {isSaving ? "Opslaan..." : <><Check className="h-4 w-4" />Opslaan</>}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -469,39 +433,18 @@ function BillingDataView({ data }: { data: BillingData }) {
 // FORM COMPONENTS
 // ============================================
 
-interface FormActionsProps {
-  onSave: () => void
-  onCancel: () => void
-  isSaving?: boolean
-}
-
-function FormActions({ onSave, onCancel, isSaving = false }: FormActionsProps) {
-  return (
-    <div className="flex justify-end gap-2 pt-4">
-      <Button variant="secondary" onClick={onCancel} showArrow={false} disabled={isSaving}>
-        Annuleren
-      </Button>
-      <Button onClick={onSave} disabled={isSaving}>
-        {isSaving ? "Opslaan..." : "Opslaan"}
-      </Button>
-    </div>
-  )
-}
-
 interface PersonalDataFormProps {
   data: PersonalData
   onChange: (data: PersonalData) => void
-  onSave: () => void
-  onCancel: () => void
   isSaving?: boolean
 }
 
-function PersonalDataForm({ data, onChange, onSave, onCancel, isSaving }: PersonalDataFormProps) {
+function PersonalDataForm({ data, onChange, isSaving }: PersonalDataFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="first_name">Voornaam *</Label>
+          <Label htmlFor="first_name">Voornaam <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="first_name"
             value={data.first_name}
@@ -510,7 +453,7 @@ function PersonalDataForm({ data, onChange, onSave, onCancel, isSaving }: Person
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="last_name">Achternaam *</Label>
+          <Label htmlFor="last_name">Achternaam <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="last_name"
             value={data.last_name}
@@ -519,29 +462,30 @@ function PersonalDataForm({ data, onChange, onSave, onCancel, isSaving }: Person
           />
         </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">E-mailadres</Label>
-        <Input
-          id="email"
-          type="email"
-          value={data.email}
-          disabled
-          className="bg-slate-100 text-slate-600"
-        />
-        <p className="text-sm text-[#1F2D58]/60">
-          E-mailadres kan niet worden gewijzigd
-        </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="email">E-mailadres</Label>
+          <Input
+            id="email"
+            type="email"
+            value={data.email}
+            disabled
+            className="bg-slate-100 text-slate-600"
+          />
+          <p className="text-sm text-[#1F2D58]/60">
+            E-mailadres kan niet worden gewijzigd
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="role">Functie</Label>
+          <Input
+            id="role"
+            value={data.role}
+            onChange={(e) => onChange({ ...data, role: e.target.value })}
+            disabled={isSaving}
+          />
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="role">Functie</Label>
-        <Input
-          id="role"
-          value={data.role}
-          onChange={(e) => onChange({ ...data, role: e.target.value })}
-          disabled={isSaving}
-        />
-      </div>
-      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
@@ -549,32 +493,17 @@ function PersonalDataForm({ data, onChange, onSave, onCancel, isSaving }: Person
 interface CompanyDataFormProps {
   data: CompanyData
   onChange: (data: CompanyData) => void
-  onSave: () => void
-  onCancel: () => void
   isSaving?: boolean
+  urlError?: string | null
+  onUrlErrorClear?: () => void
 }
 
-function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: CompanyDataFormProps) {
-  const [urlError, setUrlError] = useState<string | null>(null);
-
-  const handleSave = () => {
-    // Validate URL before saving
-    if (data.website_url && !isValidUrl(data.website_url)) {
-      setUrlError("Voer een geldige URL in (bijv. www.voorbeeld.nl)");
-      toast.error("Ongeldige URL", {
-        description: "Controleer of de website-URL correct is geschreven.",
-      });
-      return;
-    }
-    setUrlError(null);
-    onSave();
-  };
-
+function CompanyDataForm({ data, onChange, isSaving, urlError, onUrlErrorClear }: CompanyDataFormProps) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="company_name">Juridische organisatienaam *</Label>
+          <Label htmlFor="company_name">Juridische organisatienaam <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="company_name"
             value={data.company_name}
@@ -593,7 +522,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="kvk">KVK-nummer *</Label>
+          <Label htmlFor="kvk">KVK-nummer <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="kvk"
             inputMode="numeric"
@@ -605,7 +534,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="website_url">Website-URL *</Label>
+          <Label htmlFor="website_url">Website-URL <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="website_url"
             type="url"
@@ -613,7 +542,7 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
             className={urlError ? "border-red-500" : ""}
             onChange={(e) => {
               onChange({ ...data, website_url: e.target.value });
-              if (urlError) setUrlError(null);
+              if (urlError && onUrlErrorClear) onUrlErrorClear();
             }}
             disabled={isSaving}
           />
@@ -622,7 +551,6 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
           )}
         </div>
       </div>
-      <FormActions onSave={handleSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }
@@ -630,48 +558,37 @@ function CompanyDataForm({ data, onChange, onSave, onCancel, isSaving }: Company
 interface BillingDataFormProps {
   data: BillingData
   onChange: (data: BillingData) => void
-  onSave: () => void
-  onCancel: () => void
   isSaving?: boolean
 }
 
-function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: BillingDataFormProps) {
+function BillingDataForm({ data, onChange, isSaving }: BillingDataFormProps) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-        {/* Row 1: Ref (1) | Contact (2) | Email (2) */}
-        <div className="space-y-2 sm:col-span-1">
-          <Label htmlFor="reference-nr">Ref.nr.</Label>
-          <Input
-            id="reference-nr"
-            value={data["reference-nr"]}
-            onChange={(e) => onChange({ ...data, "reference-nr": e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="invoice_contact_name">Contactpersoon facturatie *</Label>
-          <Input
-            id="invoice_contact_name"
-            value={data.invoice_contact_name}
-            onChange={(e) => onChange({ ...data, invoice_contact_name: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="invoice_email">E-mail facturatie *</Label>
-          <Input
-            id="invoice_email"
-            type="email"
-            value={data.invoice_email}
-            onChange={(e) => onChange({ ...data, invoice_email: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Row 1: Contact | Email */}
+      <div className="space-y-2">
+        <Label htmlFor="invoice_contact_name">Contactpersoon facturatie <span className="text-slate-400 text-sm">*</span></Label>
+        <Input
+          id="invoice_contact_name"
+          value={data.invoice_contact_name}
+          onChange={(e) => onChange({ ...data, invoice_contact_name: e.target.value })}
+          disabled={isSaving}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="invoice_email">E-mail facturatie <span className="text-slate-400 text-sm">*</span></Label>
+        <Input
+          id="invoice_email"
+          type="email"
+          value={data.invoice_email}
+          onChange={(e) => onChange({ ...data, invoice_email: e.target.value })}
+          disabled={isSaving}
+        />
+      </div>
 
-        {/* Row 2: Street (40% = 2 cols) | Postal (20% = 1 col) | City (40% = 2 cols) */}
+      {/* Row 2: Street (40%) | Postal (20%) | City (40%) */}
+      <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-5 gap-4">
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="invoice_street">Straat en huisnummer *</Label>
+          <Label htmlFor="invoice_street">Straat en huisnummer <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="invoice_street"
             placeholder="Voorbeeldstraat 123"
@@ -681,7 +598,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: Billing
           />
         </div>
         <div className="space-y-2 sm:col-span-1">
-          <Label htmlFor="invoice_postal-code">Postcode *</Label>
+          <Label htmlFor="invoice_postal-code">Postcode <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="invoice_postal-code"
             placeholder="1234 AB"
@@ -691,7 +608,7 @@ function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: Billing
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="invoice_city">Plaats *</Label>
+          <Label htmlFor="invoice_city">Plaats <span className="text-slate-400 text-sm">*</span></Label>
           <Input
             id="invoice_city"
             value={data.invoice_city}
@@ -700,7 +617,6 @@ function BillingDataForm({ data, onChange, onSave, onCancel, isSaving }: Billing
           />
         </div>
       </div>
-      <FormActions onSave={onSave} onCancel={onCancel} isSaving={isSaving} />
     </div>
   )
 }

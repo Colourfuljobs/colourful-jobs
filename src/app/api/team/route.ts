@@ -118,6 +118,20 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // Check if this would leave the team with no members
+    const allTeamMembers = await getUsersByEmployerId(currentUser.employer_id);
+    const activeMembers = allTeamMembers.filter(
+      (member) => member.status !== "invited"
+    );
+
+    // If removing an active member (not invited), check if at least one active member remains
+    if (targetUser.status !== "invited" && activeMembers.length <= 1) {
+      return NextResponse.json(
+        { error: "Er moet minimaal één actief teamlid overblijven" },
+        { status: 400 }
+      );
+    }
+
     // Handle removal based on status
     if (targetUser.status === "invited") {
       // For invited users, delete the record entirely

@@ -26,7 +26,7 @@ export const userRecordSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   employer_id: z.string().nullable().optional(),
-  status: z.enum(["pending_onboarding", "active", "invited"]).default("pending_onboarding"),
+  status: z.enum(["pending_onboarding", "active", "invited", "deleted"]).default("pending_onboarding"),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   role: z.string().optional(),
@@ -59,6 +59,7 @@ export const employerRecordSchema = z.object({
   video_url: z.string().optional(), // YouTube or Vimeo URL for company page
   status: z.enum(["draft", "active"]).default("draft"),
   role: z.array(z.string()).optional(), // Linked record to Roles table
+  onboarding_dismissed: z.boolean().optional(), // Whether the onboarding checklist has been dismissed
 });
 
 export const mediaAssetRecordSchema = z.object({
@@ -570,6 +571,7 @@ export async function updateEmployer(
   if (fields.faq !== undefined) airtableFields.faq = fields.faq; // FAQ order matters for Webflow
   if (fields.video_url !== undefined) airtableFields.video_url = fields.video_url;
   if (fields.status !== undefined) airtableFields.status = fields.status;
+  if (fields.onboarding_dismissed !== undefined) airtableFields.onboarding_dismissed = fields.onboarding_dismissed;
 
   const record = await base(EMPLOYERS_TABLE).update(id, airtableFields);
 
@@ -1411,6 +1413,7 @@ export async function unlinkUserFromEmployer(userId: string): Promise<UserRecord
 
   const record = await base(USERS_TABLE).update(userId, {
     employer_id: [],
+    status: "deleted",
     "updated-at": new Date().toISOString(),
   });
 
@@ -2429,5 +2432,54 @@ export async function createInvoiceTransaction(fields: {
   } catch (error: unknown) {
     console.error("Error creating invoice transaction:", getErrorMessage(error));
     throw new Error(`Failed to create invoice transaction: ${getErrorMessage(error)}`);
+  }
+}
+
+// ============================================
+// Sessions
+// ============================================
+
+const SESSIONS_TABLE = "Sessions";
+
+export interface SessionRecord {
+  sessionToken: string;
+  userId: string;
+  expires: Date;
+}
+
+/**
+ * Create a new session for a user
+ * Used for direct login after invitation acceptance
+ */
+export async function createSession(
+  userId: string,
+  sessionToken: string,
+  expires: Date
+): Promise<SessionRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    const record = await base(SESSIONS_TABLE).create({
+      sessionToken,
+      userId: [userId], // Link to Users requires array
+      expires: expires.toISOString(),
+      "created-at": new Date().toISOString(),
+    });
+
+    // Extract userId from linked record array
+    const userIdValue = Array.isArray(record.fields.userId)
+      ? record.fields.userId[0]
+      : record.fields.userId;
+
+    return {
+      sessionToken: record.fields.sessionToken as string,
+      userId: userIdValue as string,
+      expires: new Date(record.fields.expires as string),
+    };
+  } catch (error: unknown) {
+    console.error("Error creating session:", getErrorMessage(error));
+    throw new Error(`Failed to create session: ${getErrorMessage(error)}`);
   }
 }

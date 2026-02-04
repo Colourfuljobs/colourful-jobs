@@ -63,8 +63,8 @@ export async function processImage(
       throw new Error("Ongeldig afbeeldingsbestand");
     }
 
-    // Validate image format
-    if (!metadata.format || !["jpeg", "jpg", "png", "webp"].includes(metadata.format)) {
+    // Validate image format (SVG is handled separately, not processed by sharp)
+    if (!metadata.format || !["jpeg", "jpg", "png", "webp", "avif"].includes(metadata.format)) {
       throw new Error("Ongeldig afbeeldingsformaat");
     }
 
@@ -106,23 +106,47 @@ export async function processImage(
 }
 
 /**
- * Validate image file
+ * Validate image file for gallery/sfeerbeelden uploads
  */
 export function validateImage(file: File): { valid: boolean; error?: string } {
-  const maxSize = 5 * 1024 * 1024; // 5MB
-  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/svg+xml"];
+  const maxSize = 10 * 1024 * 1024; // 10MB for gallery images
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
 
   if (!allowedTypes.includes(file.type)) {
     return {
       valid: false,
-      error: "Alleen JPEG, PNG, WebP of SVG afbeeldingen zijn toegestaan",
+      error: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
     };
   }
 
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: "Afbeelding mag maximaal 5MB zijn",
+      error: "Afbeelding mag maximaal 10MB zijn",
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate logo file (PNG/SVG only for quality and transparency)
+ */
+export function validateLogo(file: File): { valid: boolean; error?: string } {
+  const maxSize = 5 * 1024 * 1024; // 5MB for logos
+  const allowedTypes = ["image/png", "image/svg+xml"];
+
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      valid: false,
+      error: "Upload je logo als PNG of SVG bestand. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden.",
+    };
+  }
+
+  if (file.size > maxSize) {
+    return {
+      valid: false,
+      error: "Logo mag maximaal 5MB zijn",
     };
   }
 

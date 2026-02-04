@@ -2,10 +2,12 @@ import {
   getUserByInviteToken,
   getEmployerById,
   updateUser,
+  createSession,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage } from "@/lib/utils";
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 
 /**
  * GET /api/team/accept?token=xxx
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { token, first_name, last_name, role } = body;
+    const { token, first_name, last_name } = body;
     const clientIP = getClientIP(request);
 
     if (!token) {
@@ -128,12 +130,17 @@ export async function POST(request: Request) {
     const updatedUser = await updateUser(invitedUser.id, {
       first_name,
       last_name,
-      role: role || undefined,
       status: "active",
       invite_token: null,
       invite_expires: null,
       // Keep invited_by for audit trail
     });
+
+    // Create a session for the user so they're logged in immediately
+    const sessionToken = randomUUID();
+    const sessionExpires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 days
+
+    await createSession(invitedUser.id, sessionToken, sessionExpires);
 
     // Log the event
     await logEvent({
@@ -150,7 +157,8 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({
+    // Create response with session cookie
+    const response = NextResponse.json({
       success: true,
       user: {
         id: updatedUser.id,
@@ -159,6 +167,23 @@ export async function POST(request: Request) {
         last_name: updatedUser.last_name,
       },
     });
+
+    // Set the session cookie
+    // NextAuth uses different cookie names based on environment
+    const isProduction = process.env.NODE_ENV === "production";
+    const cookieName = isProduction
+      ? "__Secure-next-auth.session-token"
+      : "next-auth.session-token";
+
+    response.cookies.set(cookieName, sessionToken, {
+      expires: sessionExpires,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+    });
+
+    return response;
   } catch (error: unknown) {
     console.error("[Team Accept POST] error:", getErrorMessage(error));
     return NextResponse.json(

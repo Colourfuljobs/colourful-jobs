@@ -364,3 +364,126 @@ nextjs-portal {
   margin: 0 !important;
   transform: none !important;
 }
+
+/* Confetti animation for onboarding completion */
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(350px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes confetti-sway {
+  0%, 100% {
+    margin-left: 0;
+  }
+  50% {
+    margin-left: 15px;
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  top: -10px;
+  animation: confetti-fall 4s ease-out forwards, confetti-sway 1s ease-in-out infinite;
+}
+
+.confetti-1 {
+  background: #F86600;
+  left: 8%;
+  animation-delay: 0s;
+}
+
+.confetti-2 {
+  background: #193DAB;
+  left: 20%;
+  animation-delay: 0.3s;
+  width: 8px;
+  height: 8px;
+}
+
+.confetti-3 {
+  background: #1F2D58;
+  left: 32%;
+  animation-delay: 0.6s;
+  border-radius: 50%;
+}
+
+.confetti-4 {
+  background: #F86600;
+  left: 45%;
+  animation-delay: 0.15s;
+  width: 6px;
+  height: 12px;
+}
+
+.confetti-5 {
+  background: #193DAB;
+  left: 58%;
+  animation-delay: 0.45s;
+}
+
+.confetti-6 {
+  background: #1F2D58;
+  left: 70%;
+  animation-delay: 0.75s;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.confetti-7 {
+  background: #F86600;
+  left: 82%;
+  animation-delay: 0.2s;
+  width: 6px;
+  height: 6px;
+}
+
+.confetti-8 {
+  background: #193DAB;
+  left: 92%;
+  animation-delay: 0.5s;
+  width: 12px;
+  height: 6px;
+}
+
+.confetti-9 {
+  background: #F86600;
+  left: 15%;
+  animation-delay: 0.9s;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.confetti-10 {
+  background: #193DAB;
+  left: 38%;
+  animation-delay: 1.1s;
+  width: 10px;
+  height: 6px;
+}
+
+.confetti-11 {
+  background: #1F2D58;
+  left: 62%;
+  animation-delay: 1.0s;
+  width: 6px;
+  height: 10px;
+}
+
+.confetti-12 {
+  background: #F86600;
+  left: 88%;
+  animation-delay: 0.85s;
+  border-radius: 50%;
+  width: 7px;
+  height: 7px;
+}

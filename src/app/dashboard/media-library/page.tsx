@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DesktopHeader } from "@/components/dashboard"
+import { uploadMedia, validateFile } from "@/lib/cloudinary-upload"
 
 // Types
 interface MediaAsset {
@@ -81,18 +82,11 @@ export default function MediaLibraryPage() {
   }, [fetchMedia])
 
   const handleImageUpload = async (file: File) => {
-    // Validate file
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"]
-    if (!allowedTypes.includes(file.type)) {
-      toast.error("Ongeldig bestandstype", {
-        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
-      })
-      return
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Bestand te groot", {
-        description: "Afbeelding mag maximaal 10MB zijn",
+    // Validate file locally first
+    const validation = validateFile(file, "sfeerbeeld")
+    if (!validation.valid) {
+      toast.error("Ongeldig bestand", {
+        description: validation.error,
       })
       return
     }
@@ -105,23 +99,12 @@ export default function MediaLibraryPage() {
     }
 
     setIsUploadingImage(true)
+    
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("type", "sfeerbeeld")
-
-      const response = await fetch("/api/media", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Upload failed")
-      }
-
-      const data = await response.json()
-      setImages((prev) => [...prev, data.asset])
+      // Use direct Cloudinary upload (bypasses Vercel 4.5MB limit)
+      const result = await uploadMedia(file, "sfeerbeeld")
+      
+      setImages((prev) => [...prev, result.asset])
       toast.success("Afbeelding geüpload", {
         description: "Je afbeelding is succesvol toegevoegd.",
       })
@@ -206,19 +189,16 @@ export default function MediaLibraryPage() {
   const ImagesSkeleton = () => (
     <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
       <div className="bg-white/50 px-6 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
-                Afbeeldingen
-              </h2>
-              <Skeleton className="h-6 w-12 rounded-full -mt-1" />
-            </div>
-            <p className="text-sm text-[#1F2D58]/60 max-w-[600px] mt-1">
-              Upload afbeeldingen in je beeldbank, zodat je deze kunt gebruiken in vacatures en in je werkgeversprofiel. Maximaal 10 afbeeldingen.
-            </p>
+        <div>
+          <div className="flex items-center gap-3">
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              Afbeeldingen
+            </h2>
+            <Skeleton className="h-6 w-12 rounded-full -mt-1" />
           </div>
-          <Skeleton className="h-9 w-28" />
+          <p className="text-sm text-[#1F2D58]/60 max-w-[600px] mt-1">
+            Upload afbeeldingen in je beeldbank, zodat je deze kunt gebruiken in vacatures en in je werkgeversprofiel. Maximaal 10 afbeeldingen.
+          </p>
         </div>
       </div>
       <div className="bg-white p-6">
@@ -258,40 +238,17 @@ export default function MediaLibraryPage() {
       {/* Images Section */}
       <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
         <div className="bg-white/50 px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
-                  Afbeeldingen
-                </h2>
-                <span className="bg-white px-2 py-0.5 rounded-full text-sm text-[#1F2D58]/60 -mt-1">
-                  {images.length}/{MAX_IMAGES}
-                </span>
-              </div>
-              <p className="text-sm text-[#1F2D58]/60 max-w-[600px] mt-1">
-                Upload afbeeldingen in je beeldbank, zodat je deze kunt gebruiken in vacatures en in je werkgeversprofiel. Maximaal 10 afbeeldingen.
-              </p>
-            </div>
-            <Button
-            variant="tertiary"
-            size="sm"
-            disabled={images.length >= MAX_IMAGES || isUploadingImage}
-            showArrow={false}
-            onClick={() => imageInputRef.current?.click()}
-          >
-            {isUploadingImage ? (
-              <>
-                <Spinner className="h-4 w-4 mr-1" />
-                Uploaden...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-1" />
-                Uploaden
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-3">
+            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+              Afbeeldingen
+            </h2>
+            <span className="bg-white px-2 py-0.5 rounded-full text-sm text-[#1F2D58]/60 -mt-1">
+              {images.length}/{MAX_IMAGES}
+            </span>
           </div>
+          <p className="text-sm text-[#1F2D58]/60 max-w-[600px] mt-1">
+            Upload afbeeldingen in je beeldbank, zodat je deze kunt gebruiken in vacatures en in je werkgeversprofiel. Maximaal 10 afbeeldingen.
+          </p>
         </div>
         <div className="bg-white p-6">
           {images.length > 0 ? (

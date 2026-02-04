@@ -16,14 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Info, X, ChevronDown, Coins, Check } from "lucide-react";
+import { X, ChevronDown, Coins, Check } from "lucide-react";
 import { ProductRecord } from "@/lib/airtable";
 import { cn } from "@/lib/utils";
 
@@ -131,6 +126,8 @@ export function CreditsCheckoutModal({
         city: billing.invoice_city || "",
         reference_nr: billing["reference-nr"] || "",
       });
+      // Automatically open the details section when data is loaded
+      setInvoiceDetailsOpen(true);
     } catch (error) {
       console.error("Error fetching account details:", error);
       toast.error("Fout", {
@@ -146,7 +143,7 @@ export function CreditsCheckoutModal({
     if (checked) {
       fetchAccountDetails();
     } else {
-      // Clear the form when unchecking
+      // Clear the form and close details when unchecking
       setInvoiceDetails({
         contact_name: "",
         email: "",
@@ -155,6 +152,7 @@ export function CreditsCheckoutModal({
         city: "",
         reference_nr: "",
       });
+      setInvoiceDetailsOpen(false);
     }
   };
 
@@ -245,21 +243,26 @@ export function CreditsCheckoutModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[900px] max-h-[90vh] overflow-y-auto rounded-t-[0.75rem] rounded-b-[2rem] p-0 gap-0 bg-[#E8EEF2]">
-        <DialogClose className="absolute right-3 top-3 z-10 w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 flex items-center justify-center hover:bg-[#1F2D58]/5 transition-colors">
-          <X className="h-4 w-4 text-[#1F2D58]" />
-          <span className="sr-only">Sluiten</span>
-        </DialogClose>
+      <DialogContent className="max-w-[900px] max-h-[90vh] rounded-t-[0.75rem] rounded-b-[2rem] p-0 gap-0 bg-[#E8EEF2] overflow-hidden">
+        {/* Fixed close button */}
+        <div className="sticky top-0 z-20 flex justify-end pointer-events-none">
+          <DialogClose className="pointer-events-auto mt-3 mr-3 w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 flex items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm">
+            <X className="h-4 w-4 text-[#1F2D58]" />
+            <span className="sr-only">Sluiten</span>
+          </DialogClose>
+        </div>
 
+        {/* Scrollable content */}
+        <div className="overflow-y-auto max-h-[calc(90vh-46px)] -mt-[46px]">
         {/* Header section with white/50 background */}
         <div className="bg-white/50 px-6 pt-6 pb-4 pr-12">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold text-[#1F2D58]">
-                Credit bundel kopen
+                Profiteer van bundelvoordeel
               </DialogTitle>
               <p className="text-[#1F2D58]/70 text-sm mt-1">
-                Koop credits in bulk en krijg korting
+                Grotere bundels, lagere prijs per plaatsing
               </p>
             </DialogHeader>
 
@@ -321,10 +324,10 @@ export function CreditsCheckoutModal({
                     <div
                       key={product.id}
                       className={cn(
-                        "relative flex flex-col transition-all cursor-pointer overflow-hidden rounded-[0.75rem]",
+                        "relative flex flex-col transition-all cursor-pointer overflow-hidden rounded-[0.75rem] border",
                         isSelected
-                          ? "bg-white shadow-lg"
-                          : "bg-transparent border border-[#1F2D58]/10 hover:border-[#1F2D58]/40"
+                          ? "bg-white shadow-lg border-transparent"
+                          : "bg-transparent border-[#1F2D58]/10 hover:border-[#1F2D58]/40"
                       )}
                       onClick={() => handleSelectProduct(product)}
                     >
@@ -347,39 +350,23 @@ export function CreditsCheckoutModal({
                           {product.credits} credits
                         </p>
 
-                        {/* Vacancy estimate with tooltip */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="inline-flex items-center gap-2 mt-3 cursor-help">
-                                <span className="text-sm leading-4 text-[#1F2D58]">
-                                  Plaats {vacancyEstimate} vacatures
-                                </span>
-                                <span className={cn(
-                                  "flex items-center justify-center w-5 h-5 rounded-full",
-                                  isSelected ? "bg-[#E8EEF2]" : "bg-white"
-                                )}>
-                                  <Info className="h-3 w-3 text-[#1F2D58]/60" />
-                                </span>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              <p className="text-sm">
-                                Dit is een indicatie gebaseerd op basis vacatures
-                                (16 credits). Credits zijn vrij inzetbaar voor
-                                vacatures, boosts, verlengingen en andere acties.
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-
                       </div>
 
-                      {/* Divider */}
-                      <div className="border-t border-[#1F2D58]/10 mx-4" />
+                      {/* Vacancy estimate with tooltip */}
+                      <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-[#1F2D58]/10">
+                        <div className="flex flex-col">
+                          <span className="text-sm leading-5 text-[#1F2D58]">
+                            Plaats {vacancyEstimate} vacatures
+                          </span>
+                          <span className="text-sm leading-5 text-[#1F2D58]/60">
+                            Vanaf {formatPrice(Math.round(product.price / vacancyEstimate))} p/st
+                          </span>
+                        </div>
+                        <InfoTooltip content="Dit is een indicatie gebaseerd op basis vacatures (16 credits). Credits zijn vrij inzetbaar voor vacatures, boosts, verlengingen en andere acties." />
+                      </div>
 
                       {/* Bottom section - Pricing & Button */}
-                      <div className="p-4 pt-2 mt-auto">
+                      <div className="px-4 pb-4 pt-3 mt-auto border-t border-[#1F2D58]/10">
                         {/* Pricing */}
                         <div className="space-y-1.5">
                           {/* Price row: old price → new price */}
@@ -480,25 +467,8 @@ export function CreditsCheckoutModal({
               {/* Collapsible invoice details content */}
               {useAccountDetails && invoiceDetails.contact_name && invoiceDetailsOpen && (
                 <div className="mt-4 space-y-4">
-                      {/* Row 1: Ref nr (1/3) - Contact person (1/3) - Email (1/3) */}
+                      {/* Row 1: Contact person (1/3) - Email (1/3) - Ref nr (1/3) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="reference_nr" className="text-[#1F2D58]">
-                            Referentienummer (optioneel)
-                          </Label>
-                          <Input
-                            id="reference_nr"
-                            value={invoiceDetails.reference_nr}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                reference_nr: e.target.value,
-                              })
-                            }
-                            placeholder="Uw referentie"
-                          />
-                        </div>
-
                         <div className="space-y-2">
                           <Label htmlFor="contact_name" className="text-[#1F2D58]">
                             Contactpersoon
@@ -531,6 +501,23 @@ export function CreditsCheckoutModal({
                               })
                             }
                             placeholder="factuur@bedrijf.nl"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="reference_nr" className="text-[#1F2D58]">
+                            Referentie/Inkooporder nr
+                          </Label>
+                          <Input
+                            id="reference_nr"
+                            value={invoiceDetails.reference_nr}
+                            onChange={(e) =>
+                              setInvoiceDetails({
+                                ...invoiceDetails,
+                                reference_nr: e.target.value,
+                              })
+                            }
+                            placeholder="Uw referentie"
                           />
                         </div>
                       </div>
@@ -622,6 +609,7 @@ export function CreditsCheckoutModal({
             </div>
           </div>
           )}
+        </div>
         </div>
       </DialogContent>
     </Dialog>

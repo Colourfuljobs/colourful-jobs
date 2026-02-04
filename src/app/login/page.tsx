@@ -185,16 +185,15 @@ export default function LoginPage() {
             </Link>
           </div>
           <Card className="p-0 overflow-hidden">
-            {/* Intro section with title - 50% opacity background */}
-            <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">
-              <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
-              <CardDescription className="p-regular text-[#1F2D58]/70">
-                {sent 
-                  ? "We hebben je een e-mail gestuurd met een link om in te loggen."
-                  : "Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen."
-                }
-              </CardDescription>
-            </div>
+            {/* Intro section with title - only shown when email not sent yet */}
+            {!sent && (
+              <div className="bg-white/50 px-6 sm:px-8 pt-6 pb-6 sm:pb-8">
+                <CardTitle className="contempora-small mb-2">Inloggen</CardTitle>
+                <CardDescription className="p-regular text-[#1F2D58]/70">
+                  Vul je e-mailadres in en ontvang in je mailbox een link om in te loggen.
+                </CardDescription>
+              </div>
+            )}
             
             {/* Form content - 100% white background */}
             <CardContent className="p-6 sm:p-8 bg-white">
@@ -239,39 +238,51 @@ export default function LoginPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mailadres</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      required
-                      className={emailError ? "border-red-500" : ""}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (emailError) setEmailError(null);
-                        // Clear browser validation error when user types
-                        e.target.setCustomValidity("");
-                      }}
-                      onInvalid={(e) => {
-                        e.preventDefault();
-                        const target = e.target as HTMLInputElement;
-                        const errorMessage = target.validity.valueMissing
-                          ? "E-mailadres is verplicht"
-                          : target.validity.typeMismatch
-                          ? "Voer een geldig e-mailadres in"
-                          : "Ongeldig e-mailadres";
-                        
-                        setEmailError(errorMessage);
-                        toast.error("Ongeldig e-mailadres", {
-                          description: errorMessage,
-                        });
-                        
-                        // Prevent default browser validation message
-                        target.setCustomValidity(errorMessage);
-                      }}
-                      placeholder="jouw@email.nl"
-                    />
+                  <div>
+                    <div className="relative">
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        required
+                        placeholder=" "
+                        className={`peer h-12 pt-5 pb-1 px-4 text-sm ${emailError ? "border-red-500" : ""}`}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (emailError) setEmailError(null);
+                          // Clear browser validation error when user types
+                          e.target.setCustomValidity("");
+                        }}
+                        onInvalid={(e) => {
+                          e.preventDefault();
+                          const target = e.target as HTMLInputElement;
+                          const errorMessage = target.validity.valueMissing
+                            ? "E-mailadres is verplicht"
+                            : target.validity.typeMismatch
+                            ? "Voer een geldig e-mailadres in"
+                            : "Ongeldig e-mailadres";
+                          
+                          setEmailError(errorMessage);
+                          toast.error("Ongeldig e-mailadres", {
+                            description: errorMessage,
+                          });
+                          
+                          // Prevent default browser validation message
+                          target.setCustomValidity(errorMessage);
+                        }}
+                      />
+                      <Label
+                        htmlFor="email"
+                        className={`absolute left-4 transition-all duration-200 pointer-events-none
+                          ${email.length > 0
+                            ? "top-1 text-xs text-[#1F2D58]/60"
+                            : "top-1/2 -translate-y-1/2 text-sm text-slate-500"
+                          }
+                          peer-focus:top-1 peer-focus:text-xs peer-focus:text-[#1F2D58]/60 peer-focus:translate-y-0`}
+                      >
+                        E-mailadres
+                      </Label>
+                    </div>
                     {emailError && (
                       <p className="text-sm text-red-500">
                         {emailError.includes("bestaat") ? (
@@ -303,31 +314,35 @@ export default function LoginPage() {
               )}
             </CardContent>
           </Card>
-          <div className="mt-4 text-center">
-            <p className="p-small text-[#1F2D58]">
-              Nog geen account?{" "}
-              <Link 
-                href="/onboarding" 
-                className="underline hover:text-[#193DAB]"
-              >
-                Maak een account aan
-              </Link>
-            </p>
-          </div>
+          {!sent && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-[#1F2D58]">
+                Nog geen account?{" "}
+                <Link 
+                  href="/onboarding" 
+                  className="text-[#39ADE5] font-semibold hover:underline"
+                >
+                  Maak een account aan
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
       </div>
       
-      {/* Right side - Screenshot (hidden on mobile) */}
-      <div className="hidden lg:flex flex-shrink-0 items-center">
-        <Image
-          src="/onboarding-screenshot.png"
-          alt="Colourful jobs dashboard"
-          width={800}
-          height={900}
-          className="h-[80vh] w-auto"
-          priority
-        />
-      </div>
+      {/* Right side - Screenshot (hidden on mobile and when email is sent) */}
+      {!sent && (
+        <div className="hidden lg:flex flex-shrink-0 items-center">
+          <Image
+            src="/onboarding-screenshot.png"
+            alt="Colourful jobs dashboard"
+            width={800}
+            height={900}
+            className="h-[80vh] w-auto"
+            priority
+          />
+        </div>
+      )}
     </div>
   );
 }

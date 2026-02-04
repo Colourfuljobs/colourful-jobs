@@ -16,6 +16,58 @@ function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email);
 }
 
+// Floating label input component for step 1
+interface FloatingInputProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  required?: boolean;
+  disabled?: boolean;
+  error?: boolean;
+  className?: string;
+}
+
+function FloatingInput({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+  disabled = false,
+  error = false,
+  className = "",
+}: FloatingInputProps) {
+  const hasValue = value.length > 0;
+  
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        placeholder=" "
+        className={`peer h-12 pt-5 pb-1 px-4 text-sm ${disabled ? "bg-slate-100 text-slate-600" : ""} ${error ? "border-red-500" : ""} ${className}`}
+      />
+      <Label
+        htmlFor={id}
+        className={`absolute left-4 transition-all duration-200 pointer-events-none
+          ${hasValue || disabled
+            ? "top-1 text-xs text-[#1F2D58]/60"
+            : "top-1/2 -translate-y-1/2 text-sm text-slate-500"
+          }
+          peer-focus:top-1 peer-focus:text-xs peer-focus:text-[#1F2D58]/60 peer-focus:translate-y-0`}
+      >
+        {label}
+      </Label>
+    </div>
+  );
+}
+
 export function Step1Personal({
   contact,
   setContact,
@@ -49,42 +101,35 @@ export function Step1Personal({
   if (!emailSent && !emailVerified) {
     return (
       <div className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-3">
-            <Label htmlFor="firstName">Voornaam <span className="text-slate-400 text-sm">*</span></Label>
-            <Input
-              id="firstName"
-              value={contact.firstName}
-              onChange={(e) =>
-                setContact((c) => ({ ...c, firstName: e.target.value }))
-              }
-            />
-          </div>
-          <div className="space-y-3">
-            <Label htmlFor="lastName">Achternaam <span className="text-slate-400 text-sm">*</span></Label>
-            <Input
-              id="lastName"
-              value={contact.lastName}
-              onChange={(e) =>
-                setContact((c) => ({ ...c, lastName: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-        <div className="space-y-3">
-          <Label htmlFor="email-step1">E-mailadres <span className="text-slate-400 text-sm">*</span></Label>
-          <Input
+        <FloatingInput
+          id="firstName"
+          label="Voornaam"
+          value={contact.firstName}
+          onChange={(e) => setContact((c) => ({ ...c, firstName: e.target.value }))}
+          required
+        />
+        <FloatingInput
+          id="lastName"
+          label="Achternaam"
+          value={contact.lastName}
+          onChange={(e) => setContact((c) => ({ ...c, lastName: e.target.value }))}
+          required
+        />
+        <div>
+          <FloatingInput
             id="email-step1"
+            label="E-mailadres"
             type="email"
             value={contact.email}
-            className={emailError ? "border-red-500" : ""}
             onChange={(e) => {
               setContact((c) => ({ ...c, email: e.target.value }));
               if (emailError) setEmailError(null);
             }}
+            error={!!emailError}
+            required
           />
           {emailError && (
-            <p className="text-sm text-red-500">
+            <p className="text-sm text-red-500 mt-2">
               {emailError.includes("bestaat al") ? (
                 <>
                   Er bestaat al een account met dit e-mailadres.{" "}
@@ -98,16 +143,6 @@ export function Step1Personal({
               )}
             </p>
           )}
-        </div>
-        <div className="space-y-3">
-          <Label htmlFor="role">Functie</Label>
-          <Input
-            id="role"
-            value={contact.role}
-            onChange={(e) =>
-              setContact((c) => ({ ...c, role: e.target.value }))
-            }
-          />
         </div>
         <div className="mt-4 flex justify-end">
           <Button
@@ -166,38 +201,31 @@ export function Step1Personal({
   // Email verified - show editable form with read-only email
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-3">
-          <Label htmlFor="firstName">Voornaam <span className="text-slate-400 text-sm">*</span></Label>
-          <Input
-            id="firstName"
-            value={contact.firstName}
-            onChange={(e) =>
-              setContact((c) => ({ ...c, firstName: e.target.value }))
-            }
-          />
-        </div>
-        <div className="space-y-3">
-          <Label htmlFor="lastName">Achternaam <span className="text-slate-400 text-sm">*</span></Label>
-          <Input
-            id="lastName"
-            value={contact.lastName}
-            onChange={(e) =>
-              setContact((c) => ({ ...c, lastName: e.target.value }))
-            }
-          />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email-verified">E-mailadres <span className="text-slate-400 text-sm">*</span></Label>
-        <Input
+      <FloatingInput
+        id="firstName-verified"
+        label="Voornaam"
+        value={contact.firstName}
+        onChange={(e) => setContact((c) => ({ ...c, firstName: e.target.value }))}
+        required
+      />
+      <FloatingInput
+        id="lastName-verified"
+        label="Achternaam"
+        value={contact.lastName}
+        onChange={(e) => setContact((c) => ({ ...c, lastName: e.target.value }))}
+        required
+      />
+      <div>
+        <FloatingInput
           id="email-verified"
+          label="E-mailadres"
           type="email"
           value={contact.email}
+          onChange={() => {}}
           disabled
-          className="bg-slate-100 text-slate-600"
+          required
         />
-        <p className="p-small text-slate-500">
+        <p className="p-small text-slate-500 mt-2">
           E-mail kan niet meer gewijzigd worden, omdat deze al gevalideerd is.
           <br />
           Wil je toch wijzigen?{" "}
@@ -210,16 +238,6 @@ export function Step1Personal({
           </button>
           .
         </p>
-      </div>
-      <div className="space-y-3">
-        <Label htmlFor="role">Functie</Label>
-        <Input
-          id="role"
-          value={contact.role}
-          onChange={(e) =>
-            setContact((c) => ({ ...c, role: e.target.value }))
-          }
-        />
       </div>
       <div className="mt-4 flex justify-end">
         <Button

@@ -19,6 +19,7 @@ interface AccountData {
   profile_complete: boolean
   profile_missing_fields: string[]
   credits: CreditsData
+  onboarding_dismissed: boolean
 }
 
 interface AccountContextType {
@@ -49,6 +50,7 @@ const defaultAccountData: AccountData = {
   profile_complete: true,
   profile_missing_fields: [],
   credits: defaultCredits,
+  onboarding_dismissed: false,
 }
 
 export function AccountProvider({ children }: { children: ReactNode }) {
@@ -76,6 +78,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             total_purchased: data.credits?.total_purchased ?? 0,
             total_spent: data.credits?.total_spent ?? 0,
           },
+          onboarding_dismissed: data.onboarding_dismissed ?? false,
         })
       }
     } catch (error) {

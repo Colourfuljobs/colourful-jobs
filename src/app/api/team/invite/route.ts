@@ -3,6 +3,7 @@ import {
   getUserByEmail,
   getEmployerById,
   createUser,
+  updateUser,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage } from "@/lib/utils";
@@ -193,6 +194,12 @@ export async function POST(request: Request) {
     // Check if email already exists as a user
     const existingUser = await getUserByEmail(email.toLowerCase());
 
+    // Generate invitation token and expiry (24 hours)
+    const inviteToken = randomUUID();
+    const inviteExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    let invitedUser;
+
     if (existingUser) {
       // Check if already a team member of this employer
       if (existingUser.employer_id === currentUser.employer_id) {
@@ -202,34 +209,53 @@ export async function POST(request: Request) {
             { status: 409 }
           );
         }
-        return NextResponse.json(
-          { error: "Dit e-mailadres is al een teamlid." },
-          { status: 409 }
-        );
+        if (existingUser.status === "active") {
+          return NextResponse.json(
+            { error: "Dit e-mailadres is al een teamlid." },
+            { status: 409 }
+          );
+        }
       }
 
-      // User exists but belongs to another employer or has no employer
-      if (existingUser.status === "active") {
+      // User exists and is active at another employer
+      if (existingUser.status === "active" && existingUser.employer_id) {
         return NextResponse.json(
           { error: "Dit e-mailadres heeft al een account bij Colourful jobs." },
           { status: 409 }
         );
       }
+
+      // User was deleted or is in pending_onboarding - reactivate with new invitation
+      if (existingUser.status === "deleted" || existingUser.status === "pending_onboarding") {
+        invitedUser = await updateUser(existingUser.id, {
+          employer_id: currentUser.employer_id,
+          status: "invited",
+          invite_token: inviteToken,
+          invite_expires: inviteExpires,
+          invited_by: currentUser.id,
+        });
+      } else {
+        // Fallback: create new user (shouldn't happen but just in case)
+        invitedUser = await createUser({
+          email: email.toLowerCase(),
+          employer_id: currentUser.employer_id,
+          status: "invited",
+          invite_token: inviteToken,
+          invite_expires: inviteExpires,
+          invited_by: currentUser.id,
+        });
+      }
+    } else {
+      // No existing user, create new invited user record
+      invitedUser = await createUser({
+        email: email.toLowerCase(),
+        employer_id: currentUser.employer_id,
+        status: "invited",
+        invite_token: inviteToken,
+        invite_expires: inviteExpires,
+        invited_by: currentUser.id,
+      });
     }
-
-    // Generate invitation token and expiry (24 hours)
-    const inviteToken = randomUUID();
-    const inviteExpires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-    // Create invited user record
-    const invitedUser = await createUser({
-      email: email.toLowerCase(),
-      employer_id: currentUser.employer_id,
-      status: "invited",
-      invite_token: inviteToken,
-      invite_expires: inviteExpires,
-      invited_by: currentUser.id,
-    });
 
     // Send invitation email
     const inviteUrl = `${process.env.NEXTAUTH_URL}/invitation/${inviteToken}`;

@@ -171,6 +171,9 @@ export async function GET() {
         
         response.profile_complete = profileStatus.complete;
         response.profile_missing_fields = profileStatus.missingFields;
+        
+        // Onboarding checklist dismissed state (per employer)
+        response.onboarding_dismissed = employer.onboarding_dismissed || false;
       }
     }
 
@@ -371,6 +374,33 @@ export async function PATCH(request: Request) {
           logo: updatedEmployer.logo || [],
           header_image: updatedEmployer.header_image || [],
           gallery: updatedEmployer.gallery || [],
+        },
+      });
+    }
+
+    // Handle onboarding settings updates (Employers table)
+    if (section === "onboarding") {
+      const updatedEmployer = await updateEmployer(user.employer_id, {
+        onboarding_dismissed: data.onboarding_dismissed,
+      });
+
+      // Log event
+      await logEvent({
+        event_type: "employer_updated",
+        actor_user_id: user.id,
+        employer_id: user.employer_id,
+        source: "web",
+        ip_address: clientIP,
+        payload: {
+          section: "onboarding",
+          onboarding_dismissed: data.onboarding_dismissed,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          onboarding_dismissed: updatedEmployer.onboarding_dismissed || false,
         },
       });
     }

@@ -25,7 +25,7 @@ cloudinary.config({
 });
 
 // File size limits
-const MAX_LOGO_SIZE = 1 * 1024 * 1024; // 1MB for logos
+const MAX_LOGO_SIZE = 5 * 1024 * 1024; // 5MB for logos
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for gallery images
 const MAX_GALLERY_IMAGES = 10;
 
@@ -147,7 +147,8 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/media
- * Upload a new image (logo or gallery image)
+ * Register a new image after direct Cloudinary upload
+ * Accepts JSON body with Cloudinary upload result data
  */
 export async function POST(request: NextRequest) {
   const clientIP = getClientIP(request);
@@ -158,25 +159,27 @@ export async function POST(request: NextRequest) {
 
     const { userId, employerId } = sessionData;
 
-    // Check Cloudinary configuration
-    if (
-      !process.env.CLOUDINARY_CLOUD_NAME ||
-      !process.env.CLOUDINARY_API_KEY ||
-      !process.env.CLOUDINARY_API_SECRET
-    ) {
-      return NextResponse.json(
-        { error: "Cloudinary niet geconfigureerd" },
-        { status: 500 }
-      );
-    }
+    // Parse JSON body (Cloudinary upload result from frontend)
+    const body = await request.json();
+    const { 
+      type,
+      cloudinaryResult,
+      fileType: originalFileType,
+    } = body as {
+      type: "logo" | "sfeerbeeld";
+      cloudinaryResult: {
+        secure_url: string;
+        public_id: string;
+        bytes: number;
+        format: string;
+      };
+      fileType: string;
+    };
 
-    const formData = await request.formData();
-    const file = formData.get("file") as File;
-    const type = formData.get("type") as "logo" | "sfeerbeeld";
-
-    if (!file || !type) {
+    // Validate required fields
+    if (!type || !cloudinaryResult?.secure_url) {
       return NextResponse.json(
-        { error: "Bestand en type zijn verplicht" },
+        { error: "Type en Cloudinary upload result zijn verplicht" },
         { status: 400 }
       );
     }
@@ -189,38 +192,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type (logos: PNG/SVG only, gallery: all formats)
-    if (type === "logo") {
-      if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
-        return NextResponse.json(
-          { error: "Upload je logo als PNG of SVG bestand. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden." },
-          { status: 400 }
-        );
-      }
-    } else {
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        return NextResponse.json(
-          { error: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan" },
-          { status: 400 }
-        );
-      }
-    }
-
-    // Validate file size
-    const maxSize = type === "logo" ? MAX_LOGO_SIZE : MAX_IMAGE_SIZE;
-    const maxSizeMB = type === "logo" ? "1MB" : "10MB";
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: `Afbeelding mag maximaal ${maxSizeMB} zijn` },
-        { status: 400 }
-      );
-    }
-
-    // For gallery images, check max limit
+    // For gallery images, check max limit (double-check, signature endpoint also checks)
     if (type === "sfeerbeeld") {
-      const employer = await getEmployerById(employerId);
-      const currentGalleryCount = employer?.gallery?.length || 0;
-      if (currentGalleryCount >= MAX_GALLERY_IMAGES) {
+      const allSfeerbeelden = await getMediaAssetsByEmployerId(employerId, { type: "sfeerbeeld" });
+      if (allSfeerbeelden.length >= MAX_GALLERY_IMAGES) {
         return NextResponse.json(
           { error: `Je kunt maximaal ${MAX_GALLERY_IMAGES} afbeeldingen uploaden` },
           { status: 400 }
@@ -230,42 +205,6 @@ export async function POST(request: NextRequest) {
 
     // Get employer for alt text generation
     const employer = await getEmployerById(employerId);
-
-    // Convert file to base64 for Cloudinary
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Data = buffer.toString("base64");
-    const dataUri = `data:${file.type};base64,${base64Data}`;
-
-    // Generate unique public_id
-    const timestamp = Date.now();
-    const publicId = type === "logo" ? "logo" : `gallery_${timestamp}`;
-
-    // Upload to Cloudinary
-    // Logo: keep original format (SVG/PNG) for quality and transparency
-    // Gallery images: optimize to AVIF/WebP for performance
-    const isSvg = file.type === "image/svg+xml";
-    const isLogo = type === "logo";
-    
-    const uploadResult = await cloudinary.uploader.upload(dataUri, {
-      folder: `colourful-jobs/employers/${employerId}`,
-      public_id: publicId,
-      overwrite: isLogo, // Only overwrite for logo
-      resource_type: "image",
-      // For logos: only resize, keep original format (SVG/PNG)
-      // For gallery: optimize format to AVIF/WebP
-      ...(!isSvg && isLogo && {
-        transformation: [
-          { width: 400, height: 400, crop: "limit" },
-        ],
-      }),
-      ...(!isSvg && !isLogo && {
-        transformation: [
-          { quality: "auto:good", fetch_format: "auto" },
-          { width: 1920, height: 1080, crop: "limit" },
-        ],
-      }),
-    });
 
     // Generate alt text
     const altText = generateAltText(
@@ -287,9 +226,9 @@ export async function POST(request: NextRequest) {
     const mediaAsset = await createMediaAsset({
       employer_id: employerId,
       type: type,
-      file: [{ url: uploadResult.secure_url }],
+      file: [{ url: cloudinaryResult.secure_url }],
       alt_text: altText,
-      file_size: Math.round(uploadResult.bytes / 1024), // Convert to KB
+      file_size: Math.round(cloudinaryResult.bytes / 1024), // Convert to KB
       show_on_company_page: false,
     });
 
@@ -310,45 +249,47 @@ export async function POST(request: NextRequest) {
       payload: {
         type,
         media_asset_id: mediaAsset.id,
-        public_id: uploadResult.public_id,
-        url: uploadResult.secure_url,
+        public_id: cloudinaryResult.public_id,
+        url: cloudinaryResult.secure_url,
       },
     });
 
     // Determine file type for display
-    // Logo: keep original format name, Gallery: show as AVIF (auto-optimized)
+    const isLogo = type === "logo";
+    const isSvg = cloudinaryResult.format === "svg" || originalFileType === "image/svg+xml";
+    
     const getFileTypeDisplay = () => {
       if (isSvg) return "SVG";
       if (isLogo) {
         // Return original format for logos
-        const mimeToFormat: Record<string, string> = {
-          "image/png": "PNG",
-          "image/jpeg": "JPEG",
-          "image/jpg": "JPEG",
-          "image/webp": "WEBP",
-          "image/avif": "AVIF",
+        const formatMap: Record<string, string> = {
+          "png": "PNG",
+          "jpg": "JPEG",
+          "jpeg": "JPEG",
+          "webp": "WEBP",
+          "avif": "AVIF",
         };
-        return mimeToFormat[file.type] || "IMG";
+        return formatMap[cloudinaryResult.format] || "IMG";
       }
       // Gallery images are auto-optimized to AVIF/WebP
-      return "AVIF";
+      return cloudinaryResult.format?.toUpperCase() || "AVIF";
     };
 
     return NextResponse.json({
       success: true,
       asset: {
         id: mediaAsset.id,
-        url: uploadResult.secure_url,
+        url: cloudinaryResult.secure_url,
         fileType: getFileTypeDisplay(),
-        fileSize: formatFileSize(uploadResult.bytes),
+        fileSize: formatFileSize(cloudinaryResult.bytes),
         isHeader: false,
         altText,
       },
     });
   } catch (error) {
-    console.error("Error uploading media:", getErrorMessage(error));
+    console.error("Error registering media:", getErrorMessage(error));
     return NextResponse.json(
-      { error: "Fout bij uploaden van afbeelding" },
+      { error: "Fout bij registreren van afbeelding" },
       { status: 500 }
     );
   }

@@ -26,6 +26,7 @@ import { nl } from "react-day-picker/locale";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { InfoTooltip } from "@/components/ui/tooltip";
+import { uploadMedia, validateFile } from "@/lib/cloudinary-upload";
 import type { VacancyFormProps } from "./types";
 
 interface MediaAsset {
@@ -200,43 +201,23 @@ export function VacancyForm({
     [onChange]
   );
 
-  // Handle logo upload
+  // Handle logo upload - direct to Cloudinary
   const handleLogoUpload = async (file: File) => {
-    // Validate file type (PNG/SVG only for logos)
-    const allowedLogoTypes = ["image/png", "image/svg+xml"];
-    if (!allowedLogoTypes.includes(file.type)) {
-      toast.error("Ongeldig bestandstype", {
-        description: "Upload je logo als PNG of SVG. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden.",
-      });
-      return;
-    }
-
-    // Validate file size (1MB for logos)
-    if (file.size > 1 * 1024 * 1024) {
-      toast.error("Bestand te groot", {
-        description: "Logo mag maximaal 1MB zijn",
+    // Validate file locally first
+    const validation = validateFile(file, "logo");
+    if (!validation.valid) {
+      toast.error("Ongeldig bestand", {
+        description: validation.error,
       });
       return;
     }
 
     setIsUploadingLogo(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "logo");
-
-      const response = await fetch("/api/media", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Upload failed");
-      }
-
-      const data = await response.json();
-      setEmployerLogo({ id: data.asset.id, url: data.asset.url });
+      // Use direct Cloudinary upload (bypasses Vercel 4.5MB limit)
+      const result = await uploadMedia(file, "logo");
+      
+      setEmployerLogo({ id: result.asset.id, url: result.asset.url });
       toast.success("Logo geüpload", {
         description: "Je nieuwe logo is opgeslagen.",
       });

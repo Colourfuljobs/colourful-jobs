@@ -15,6 +15,10 @@ interface ImageUploadProps {
   uploading?: boolean;
   onFileSelect: (file: File) => void;
   error?: string;
+  /** Maximum file size in MB (default: 10MB) */
+  maxSizeMB?: number;
+  /** Restrict to logo formats only (PNG/SVG) */
+  logoOnly?: boolean;
 }
 
 export function ImageUpload({
@@ -26,25 +30,37 @@ export function ImageUpload({
   uploading = false,
   onFileSelect,
   error,
+  maxSizeMB = 10,
+  logoOnly = false,
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Define allowed types based on logoOnly prop
+  const allowedTypes = logoOnly
+    ? ["image/png", "image/svg+xml"]
+    : ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
+
+  const allowedTypesText = logoOnly
+    ? "PNG of SVG"
+    : "JPEG, PNG, WebP, AVIF of SVG";
+
   const handleFile = (file: File) => {
     // Validate file type
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
     if (!allowedTypes.includes(file.type)) {
       toast.error("Ongeldig bestandstype", {
-        description: "Alleen JPEG, PNG, WebP, AVIF of SVG afbeeldingen zijn toegestaan",
+        description: logoOnly
+          ? "Upload je logo als PNG of SVG bestand. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden."
+          : `Alleen ${allowedTypesText} afbeeldingen zijn toegestaan`,
       });
       return;
     }
 
-    // Validate file size (5MB)
-    const maxSize = 5 * 1024 * 1024;
+    // Validate file size
+    const maxSize = maxSizeMB * 1024 * 1024;
     if (file.size > maxSize) {
       toast.error("Bestand te groot", {
-        description: "Afbeelding mag maximaal 5MB zijn",
+        description: `Afbeelding mag maximaal ${maxSizeMB}MB zijn`,
       });
       return;
     }
@@ -121,7 +137,7 @@ export function ImageUpload({
           ref={fileInputRef}
           id={id}
           type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"
+          accept={logoOnly ? "image/png,image/svg+xml" : "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"}
           onChange={handleFileInputChange}
           className="hidden"
           disabled={uploading}
@@ -161,7 +177,7 @@ export function ImageUpload({
               <span className="hidden sm:inline"><span className="font-medium underline">Klik om te uploaden</span> of sleep hierheen</span>
             </p>
             <p className="mt-1 p-small text-slate-500">
-              PNG, JPG, WebP, AVIF, SVG tot 5MB
+              {logoOnly ? `PNG, SVG tot ${maxSizeMB}MB` : `PNG, JPG, WebP, AVIF, SVG tot ${maxSizeMB}MB`}
             </p>
           </div>
         )}

@@ -36,6 +36,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { MediaPickerDialog } from "@/components/MediaPickerDialog"
 import { SortableGallery } from "@/components/SortableGallery"
 import { DesktopHeader } from "@/components/dashboard"
+import { uploadMedia, validateFile } from "@/lib/cloudinary-upload"
 
 // Types for form data
 interface GalleryImage {
@@ -103,6 +104,10 @@ export default function WerkgeversprofielPage() {
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // FAQ state (lifted from ProfileForm for validation)
+  const [newFaqQuestion, setNewFaqQuestion] = useState("")
+  const [newFaqAnswer, setNewFaqAnswer] = useState("")
 
   // Example profile modal
   const [showExampleModal, setShowExampleModal] = useState(false)
@@ -350,6 +355,11 @@ export default function WerkgeversprofielPage() {
     if (!editData.header_image) {
       newErrors.header_image = "Headerbeeld is verplicht"
     }
+    
+    // Check for unsaved FAQ content
+    if (newFaqQuestion.trim() || newFaqAnswer.trim()) {
+      newErrors.unsavedFaq = "Sla de vraag nog op of maak de velden leeg."
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -517,30 +527,6 @@ export default function WerkgeversprofielPage() {
                 </button>
               </p>
             </div>
-            {/* Save status indicator */}
-            <div className="flex-shrink-0 self-end sm:self-auto">
-              {isSaving ? (
-                <div className="flex items-center gap-2 text-sm text-[#1F2D58]/60">
-                  <Spinner className="h-4 w-4" />
-                  <span>Opslaan...</span>
-                </div>
-              ) : justSaved ? (
-                <div className="flex items-center gap-2 text-sm text-green-600">
-                  <Check className="h-4 w-4" />
-                  <span>Opgeslagen</span>
-                </div>
-              ) : hasUnsavedChanges() ? (
-                <div className="flex items-center gap-2 text-sm text-orange-600">
-                  <span className="w-2 h-2 rounded-full bg-orange-500" />
-                  <span>Niet opgeslagen</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-green-600">
-                  <Check className="h-4 w-4" />
-                  <span>Opgeslagen</span>
-                </div>
-              )}
-            </div>
           </div>
         </div>
         <div className="bg-white p-6">
@@ -556,6 +542,10 @@ export default function WerkgeversprofielPage() {
             })}
             sectors={sectors}
             loadingSectors={loadingSectors}
+            newFaqQuestion={newFaqQuestion}
+            setNewFaqQuestion={setNewFaqQuestion}
+            newFaqAnswer={newFaqAnswer}
+            setNewFaqAnswer={setNewFaqAnswer}
           />
         </div>
       </div>
@@ -570,9 +560,30 @@ export default function WerkgeversprofielPage() {
             <Button variant="secondary" onClick={resetChanges} showArrow={false} disabled={isSaving}>
               Wijzigingen ongedaan maken
             </Button>
-            <Button onClick={saveProfile} disabled={isSaving} showArrow={false}>
-              {isSaving ? "Opslaan..." : <><Check className="h-4 w-4" />Opslaan</>}
-            </Button>
+            <div className="flex items-center gap-4">
+              {/* Save status indicator */}
+              {isSaving ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-[#1F2D58]/60">
+                  <Spinner className="h-4 w-4" />
+                  <span>Opslaan...</span>
+                </div>
+              ) : justSaved ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-green-600">
+                  <span>Opgeslagen</span>
+                </div>
+              ) : hasUnsavedChanges() ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-red-500">
+                  <span>Niet opgeslagen</span>
+                </div>
+              ) : (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-green-600">
+                  <span>Opgeslagen</span>
+                </div>
+              )}
+              <Button onClick={saveProfile} disabled={isSaving} showArrow={false}>
+                {isSaving ? "Opslaan..." : <><Check className="h-4 w-4" />Opslaan</>}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -799,6 +810,10 @@ interface ProfileFormProps {
   onClearError: (field: string) => void
   sectors: Sector[]
   loadingSectors: boolean
+  newFaqQuestion: string
+  setNewFaqQuestion: (value: string) => void
+  newFaqAnswer: string
+  setNewFaqAnswer: (value: string) => void
 }
 
 function ProfileForm({ 
@@ -809,6 +824,10 @@ function ProfileForm({
   onClearError,
   sectors,
   loadingSectors,
+  newFaqQuestion,
+  setNewFaqQuestion,
+  newFaqAnswer,
+  setNewFaqAnswer,
 }: ProfileFormProps) {
   // Dialog states for media pickers
   const [headerPickerOpen, setHeaderPickerOpen] = useState(false)
@@ -818,42 +837,21 @@ function ProfileForm({
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
 
-  // Handle logo upload
+  // Handle logo upload - direct to Cloudinary
   const handleLogoUpload = async (file: File) => {
-    // Validate file type (PNG/SVG only for logos)
-    const allowedLogoTypes = ["image/png", "image/svg+xml"]
-    if (!allowedLogoTypes.includes(file.type)) {
-      toast.error("Ongeldig bestandstype", {
-        description: "Upload je logo als PNG of SVG. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden.",
-      })
-      return
-    }
-
-    // Validate file size (1MB for logo)
-    if (file.size > 1 * 1024 * 1024) {
-      toast.error("Bestand te groot", {
-        description: "Logo mag maximaal 1MB zijn",
+    // Validate file locally first
+    const validation = validateFile(file, "logo")
+    if (!validation.valid) {
+      toast.error("Ongeldig bestand", {
+        description: validation.error,
       })
       return
     }
 
     setIsUploadingLogo(true)
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("type", "logo")
-
-      const response = await fetch("/api/media", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Upload failed")
-      }
-
-      const result = await response.json()
+      // Use direct Cloudinary upload (bypasses Vercel 4.5MB limit)
+      const result = await uploadMedia(file, "logo")
       
       // Update form data with new logo
       onChange({ ...data, logo: result.asset.url, logo_id: result.asset.id })
@@ -910,9 +908,7 @@ function ProfileForm({
     })
   }
 
-  // FAQ state
-  const [newFaqQuestion, setNewFaqQuestion] = useState("")
-  const [newFaqAnswer, setNewFaqAnswer] = useState("")
+  // FAQ state (newFaqQuestion and newFaqAnswer are now props)
   const [isSavingFaq, setIsSavingFaq] = useState(false)
   const [isReorderingFaq, setIsReorderingFaq] = useState(false)
   const [editingFaqId, setEditingFaqId] = useState<string | null>(null)
@@ -1410,17 +1406,32 @@ function ProfileForm({
           <p className="text-sm font-medium text-[#1F2D58]">Nieuwe vraag toevoegen</p>
           <Input
             value={newFaqQuestion}
-            onChange={(e) => setNewFaqQuestion(e.target.value)}
+            onChange={(e) => {
+              setNewFaqQuestion(e.target.value)
+              if (errors.unsavedFaq) {
+                onClearError("unsavedFaq")
+              }
+            }}
             placeholder="Vraag (bijv. Hoe ziet het sollicitatieproces eruit?)"
             disabled={isSaving || isSavingFaq}
+            className={errors.unsavedFaq ? "border-red-500" : ""}
           />
           <Textarea
             value={newFaqAnswer}
-            onChange={(e) => setNewFaqAnswer(e.target.value)}
+            onChange={(e) => {
+              setNewFaqAnswer(e.target.value)
+              if (errors.unsavedFaq) {
+                onClearError("unsavedFaq")
+              }
+            }}
             placeholder="Antwoord"
             rows={3}
             disabled={isSaving || isSavingFaq}
+            className={errors.unsavedFaq ? "border-red-500" : ""}
           />
+          {errors.unsavedFaq && (
+            <p className="text-sm text-red-500">{errors.unsavedFaq}</p>
+          )}
           <Button
             type="button"
             variant="secondary"
@@ -1432,12 +1443,12 @@ function ProfileForm({
             {isSavingFaq ? (
               <>
                 <Spinner className="h-4 w-4 mr-1" />
-                Toevoegen...
+                Opslaan...
               </>
             ) : (
               <>
-                <Plus className="h-4 w-4 mr-1" />
-                Vraag toevoegen
+                <Check className="h-4 w-4 mr-1" />
+                Vraag opslaan
               </>
             )}
           </Button>

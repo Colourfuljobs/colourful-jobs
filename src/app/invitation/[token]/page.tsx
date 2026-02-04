@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
@@ -20,7 +20,6 @@ interface InvitationData {
 }
 
 export default function InvitationPage() {
-  const router = useRouter();
   const params = useParams();
   const token = params.token as string;
 
@@ -32,7 +31,6 @@ export default function InvitationPage() {
   // Form state
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [role, setRole] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Set page title
@@ -93,7 +91,6 @@ export default function InvitationPage() {
           token,
           first_name: firstName.trim(),
           last_name: lastName.trim(),
-          role: role.trim() || undefined,
         }),
       });
 
@@ -103,8 +100,8 @@ export default function InvitationPage() {
         toast.success("Welkom bij Colourful jobs!", {
           description: `Je bent toegevoegd aan ${invitationData?.company_name || "het werkgeversaccount"}.`,
         });
-        // Redirect to login page
-        router.push("/login?message=invitation_accepted");
+        // User is now logged in via session cookie, do a hard refresh to ensure cookie is sent
+        window.location.href = "/dashboard";
       } else {
         toast.error("Fout bij accepteren", {
           description: data.error || "Er ging iets mis. Probeer het later opnieuw.",
@@ -214,76 +211,100 @@ export default function InvitationPage() {
             </Alert>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mailadres</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={invitationData.email}
-                  disabled
-                  className="bg-slate-50"
-                />
-                <p className="text-xs text-[#1F2D58]/60">
+              {/* Email field - disabled, floating label style */}
+              <div>
+                <div className="relative">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={invitationData.email}
+                    disabled
+                    placeholder=" "
+                    className="peer h-12 pt-5 pb-1 px-4 text-sm bg-slate-50"
+                  />
+                  <Label
+                    htmlFor="email"
+                    className="absolute left-4 top-1 text-xs text-[#1F2D58]/60 pointer-events-none"
+                  >
+                    E-mailadres
+                  </Label>
+                </div>
+                <p className="text-xs text-[#1F2D58]/60 mt-1">
                   Je e-mailadres kan niet worden gewijzigd.
                 </p>
               </div>
 
+              {/* Name fields with floating labels */}
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">Voornaam *</Label>
-                  <Input
-                    id="firstName"
-                    value={firstName}
-                    onChange={(e) => {
-                      setFirstName(e.target.value);
-                      if (formErrors.firstName) {
-                        setFormErrors((prev) => {
-                          const newErrors = { ...prev };
-                          delete newErrors.firstName;
-                          return newErrors;
-                        });
-                      }
-                    }}
-                    placeholder="Je voornaam"
-                    className={formErrors.firstName ? "border-red-500" : ""}
-                  />
+                <div>
+                  <div className="relative">
+                    <Input
+                      id="firstName"
+                      value={firstName}
+                      onChange={(e) => {
+                        setFirstName(e.target.value);
+                        if (formErrors.firstName) {
+                          setFormErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.firstName;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      placeholder=" "
+                      className={`peer h-12 pt-5 pb-1 px-4 text-sm ${formErrors.firstName ? "border-red-500" : ""}`}
+                    />
+                    <Label
+                      htmlFor="firstName"
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none
+                        ${firstName.length > 0
+                          ? "top-1 text-xs text-[#1F2D58]/60"
+                          : "top-1/2 -translate-y-1/2 text-sm text-slate-500"
+                        }
+                        peer-focus:top-1 peer-focus:text-xs peer-focus:text-[#1F2D58]/60 peer-focus:translate-y-0`}
+                    >
+                      Voornaam <span className="text-slate-400">*</span>
+                    </Label>
+                  </div>
                   {formErrors.firstName && (
-                    <p className="text-xs text-red-600">{formErrors.firstName}</p>
+                    <p className="text-xs text-red-600 mt-1">{formErrors.firstName}</p>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Achternaam *</Label>
-                  <Input
-                    id="lastName"
-                    value={lastName}
-                    onChange={(e) => {
-                      setLastName(e.target.value);
-                      if (formErrors.lastName) {
-                        setFormErrors((prev) => {
-                          const newErrors = { ...prev };
-                          delete newErrors.lastName;
-                          return newErrors;
-                        });
-                      }
-                    }}
-                    placeholder="Je achternaam"
-                    className={formErrors.lastName ? "border-red-500" : ""}
-                  />
+                <div>
+                  <div className="relative">
+                    <Input
+                      id="lastName"
+                      value={lastName}
+                      onChange={(e) => {
+                        setLastName(e.target.value);
+                        if (formErrors.lastName) {
+                          setFormErrors((prev) => {
+                            const newErrors = { ...prev };
+                            delete newErrors.lastName;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      placeholder=" "
+                      className={`peer h-12 pt-5 pb-1 px-4 text-sm ${formErrors.lastName ? "border-red-500" : ""}`}
+                    />
+                    <Label
+                      htmlFor="lastName"
+                      className={`absolute left-4 transition-all duration-200 pointer-events-none
+                        ${lastName.length > 0
+                          ? "top-1 text-xs text-[#1F2D58]/60"
+                          : "top-1/2 -translate-y-1/2 text-sm text-slate-500"
+                        }
+                        peer-focus:top-1 peer-focus:text-xs peer-focus:text-[#1F2D58]/60 peer-focus:translate-y-0`}
+                    >
+                      Achternaam <span className="text-slate-400">*</span>
+                    </Label>
+                  </div>
                   {formErrors.lastName && (
-                    <p className="text-xs text-red-600">{formErrors.lastName}</p>
+                    <p className="text-xs text-red-600 mt-1">{formErrors.lastName}</p>
                   )}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Functie</Label>
-                <Input
-                  id="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  placeholder="Bijv. HR Manager"
-                />
               </div>
 
               <Button
