@@ -161,11 +161,14 @@ export default function DashboardPage() {
   const profileComplete = accountData?.profile_complete ?? true
   const profileMissingFields = accountData?.profile_missing_fields ?? []
 
+  // Check if user has submitted vacancies (not just concepts)
+  const hasSubmittedVacancies = vacancies.some(v => v.status !== "concept")
+
   // Check if all onboarding items are complete
   const allOnboardingComplete = 
     profileComplete && 
     credits.total_purchased > 0 && 
-    vacancies.length > 0 && 
+    hasSubmittedVacancies && 
     hasMediaAssets && 
     (teamCount > 1 || invitedCount > 0)
 
@@ -499,18 +502,18 @@ export default function DashboardPage() {
                     </button>
                   </li>
 
-                  {/* Eerste vacature */}
+                  {/* Eerste vacature - alleen afgevinkt bij ingediende vacatures (niet concept) */}
                   <li className="py-3 first:pt-0 last:pb-0">
                     <Link 
                       href="/dashboard/vacatures/nieuw"
                       className="flex items-center gap-3 group"
                     >
-                      {vacancies.length > 0 ? (
+                      {hasSubmittedVacancies ? (
                         <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
                       ) : (
                         <Circle className="h-5 w-5 text-[#1F2D58]/30 flex-shrink-0 group-hover:text-[#1F2D58]/50" />
                       )}
-                      <span className={`text-sm flex-1 ${vacancies.length > 0 ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
+                      <span className={`text-sm flex-1 ${hasSubmittedVacancies ? "text-[#1F2D58]/50 line-through" : "text-[#1F2D58] group-hover:text-[#193DAB]"}`}>
                         Plaats je eerste vacature
                       </span>
                       <InfoTooltip content="Bereik direct een diverse groep kandidaten die actief op zoek zijn naar een nieuwe uitdaging." />

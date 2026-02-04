@@ -84,6 +84,7 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
 
   const {
     register: registerOriginal,
@@ -207,7 +208,8 @@ export default function OnboardingPage() {
     if (status === "authenticated" && session) {
       // If user is already active, redirect to dashboard
       // They shouldn't be on the onboarding page
-      if (session.user?.status === "active") {
+      // Skip if we just activated in this session (to avoid duplicate toast)
+      if (session.user?.status === "active" && !isActivating) {
         toast.success("Je account is al aangemaakt!", {
           description: "Je wordt doorgestuurd naar het dashboard.",
         });
@@ -302,7 +304,7 @@ export default function OnboardingPage() {
     } else if (status === "unauthenticated" && emailSent) {
       setStep(1);
     }
-  }, [status, session, emailSent, step, setValue, clearOnboardingState, initialRedirectDone, router, update]);
+  }, [status, session, emailSent, step, setValue, clearOnboardingState, initialRedirectDone, router, update, isActivating]);
 
   // Handle step navigation click (used for going back from step 2 to step 1)
   const handleStepClick = useCallback((targetStep: Step) => {
@@ -760,6 +762,7 @@ export default function OnboardingPage() {
       }
       
       if (activateResponse.ok) {
+        setIsActivating(true);
         await update();
         toast.success("Welkom bij Colourful jobs!", {
           description: "Je werkgeversaccount is succesvol aangemaakt.",
@@ -975,6 +978,27 @@ export default function OnboardingPage() {
   };
 
   // Loading states
+  if (isActivating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="w-full max-w-[600px]">
+        <div className="flex justify-center mb-8">
+          <Link href="https://www.colourfuljobs.nl/">
+            <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+          </Link>
+        </div>
+        <Card className="p-6 sm:p-8 bg-white">
+          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
+            <Spinner className="size-12 text-[#F86600] mb-4" />
+            <p className="p-large text-[#1F2D58]">Je account wordt aangemaakt...</p>
+            <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
+          </CardContent>
+        </Card>
+        </div>
+      </div>
+    );
+  }
+
   if (joinCompleting || isJoinCallback) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">

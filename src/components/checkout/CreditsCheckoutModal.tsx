@@ -255,7 +255,7 @@ export function CreditsCheckoutModal({
         {/* Scrollable content */}
         <div className="overflow-y-auto max-h-[calc(90vh-46px)] -mt-[46px]">
         {/* Header section with white/50 background */}
-        <div className="bg-white/50 px-6 pt-6 pb-4 pr-12">
+        <div className="bg-white/50 px-6 pt-14 pb-4 pr-12">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <DialogHeader>
               <DialogTitle className="text-2xl font-bold text-[#1F2D58]">
