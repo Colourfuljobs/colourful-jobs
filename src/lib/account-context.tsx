@@ -132,6 +132,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
       return {
         ...prev,
         credits: {
+          ...prev.credits, // Preserve expiring_soon
           available: newBalance,
           total_purchased: purchasedAmount
             ? prev.credits.total_purchased + purchasedAmount

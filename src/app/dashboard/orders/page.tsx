@@ -297,7 +297,7 @@ function TableSkeleton() {
 
 export default function OrdersPage() {
   // Get refetch from context to sync header credits after purchase
-  const { refetch: refetchCreditsContext } = useCredits()
+  const { credits: contextCredits, refetch: refetchCreditsContext } = useCredits()
   
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -436,14 +436,14 @@ export default function OrdersPage() {
                 </p>
                 
                 {/* Credit expiry warning */}
-                {credits.expiring_soon && credits.expiring_soon.total > 0 && (
+                {contextCredits.expiring_soon && contextCredits.expiring_soon.total > 0 && (
                   <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2">
                     <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
                       <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
                     </div>
                     <span className="flex-1 pt-0.5">
-                      Let op: over {credits.expiring_soon.days_until} {credits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
-                      <strong>{credits.expiring_soon.total} credits</strong>. Gebruik ze snel!
+                      Let op: over {contextCredits.expiring_soon.days_until} {contextCredits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
+                      <strong>{contextCredits.expiring_soon.total} credits</strong>. Gebruik ze snel!
                     </span>
                     <div className="pt-0.5">
                       <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
