@@ -10,10 +10,17 @@
 import { ReactNode } from "react";
 import { useAccount } from "./account-context";
 
+interface ExpiringCredits {
+  total: number;
+  days_until: number | null;
+  earliest_date: string | null;
+}
+
 interface CreditsData {
   available: number;
   total_purchased: number;
   total_spent: number;
+  expiring_soon: ExpiringCredits | null;
 }
 
 interface CreditsContextType {
@@ -30,6 +37,7 @@ const defaultCredits: CreditsData = {
   available: 0,
   total_purchased: 0,
   total_spent: 0,
+  expiring_soon: null,
 };
 
 // CreditsProvider is now just a pass-through - children render directly

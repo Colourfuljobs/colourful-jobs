@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { 
   Plus,
   AlertTriangle,
@@ -191,6 +192,9 @@ interface Vacancy {
   "last-published-at"?: string
   closing_date?: string
   "created-at"?: string
+  package_id?: string
+  intro_txt?: string
+  description?: string
 }
 
 // Multi-select filter component
@@ -243,6 +247,7 @@ function StatusFilter({
 }
 
 export default function VacaturesPage() {
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedStatuses, setSelectedStatuses] = useState<VacancyStatus[]>(
@@ -286,9 +291,46 @@ export default function VacaturesPage() {
     fetchVacancies()
   }, [])
 
+  // Determine the furthest step for a vacancy based on its data
+  const getFurthestStep = (vacancy: Vacancy): 1 | 2 | 3 | 4 => {
+    // If no package selected yet, start at step 1
+    if (!vacancy.package_id) return 1
+    
+    // If package selected but no basic content, start at step 2
+    if (!vacancy.title || !vacancy.description) return 2
+    
+    // If submitted/published, show step 4 (review/summary)
+    if (vacancy.status === "wacht_op_goedkeuring" || vacancy.status === "gepubliceerd") return 4
+    
+    // If content is filled, go to step 3 (preview) or 4 (submit)
+    // For concepts with content, let them continue from step 2 to make edits
+    return 2
+  }
+
   const handleVacancyAction = (action: string, vacancyId: string) => {
-    console.log(`Action: ${action}, Vacancy: ${vacancyId}`)
-    // TODO: Implement actual actions
+    const vacancy = vacancies.find((v) => v.id === vacancyId)
+    if (!vacancy) return
+
+    switch (action) {
+      case "wijzigen": {
+        const step = getFurthestStep(vacancy)
+        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=${step}`)
+        break
+      }
+      case "bekijken": {
+        // Navigate to preview step (step 3)
+        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
+        break
+      }
+      case "boosten":
+        // TODO: Implement boost functionality
+        console.log("Boosten:", vacancyId)
+        break
+      case "publiceren":
+        // TODO: Implement publish functionality
+        console.log("Publiceren:", vacancyId)
+        break
+    }
   }
 
   // Split vacancies into two sections

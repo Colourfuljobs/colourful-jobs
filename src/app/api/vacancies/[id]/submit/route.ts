@@ -9,6 +9,7 @@ import {
   deductCreditsFromWallet,
   createSpendTransaction,
   getProductById,
+  spendCreditsWithFIFO,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
@@ -168,9 +169,12 @@ export async function POST(
     // Collect all product IDs (package + upsells)
     const allProductIds = [vacancy.package_id, ...upsellIds];
 
-    // Deduct available credits from wallet (if any)
+    // Deduct available credits from wallet using FIFO (if any)
+    // This uses credits from the oldest non-expired batches first
+    let fifoResult = null;
     if (creditsToDeduct > 0) {
-      await deductCreditsFromWallet(wallet.id, creditsToDeduct);
+      fifoResult = await spendCreditsWithFIFO(user.employer_id, wallet.id, creditsToDeduct);
+      console.log("[Submit] FIFO spend result:", fifoResult);
     }
 
     // Create a single spend transaction (with optional invoice details for partial payment)

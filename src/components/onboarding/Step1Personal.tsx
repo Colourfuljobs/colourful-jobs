@@ -226,9 +226,7 @@ export function Step1Personal({
           required
         />
         <p className="p-small text-slate-500 mt-2">
-          E-mail kan niet meer gewijzigd worden, omdat deze al gevalideerd is.
-          <br />
-          Wil je toch wijzigen?{" "}
+          E-mail kan niet meer gewijzigd worden, omdat deze al gevalideerd is. Wil je toch wijzigen?{" "}
           <button
             type="button"
             onClick={onOpenRestartDialog}

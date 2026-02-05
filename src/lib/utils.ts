@@ -82,30 +82,26 @@ export function normalizeUrl(url: string): string {
 /**
  * Check if an employer's profile is complete
  * Required fields for a complete profile:
- * - display_name
+ * - display_name (weergavenaam)
  * - sector
- * - short_description
  * - logo (URL)
- * - header_image (URL)
  */
 export interface EmployerProfileData {
   display_name?: string | null;
   sector?: string | null;
-  short_description?: string | null;
   logo?: string | null;
-  header_image?: string | null;
 }
 
 export interface ProfileCompleteResult {
   complete: boolean;
   missingFields: string[];
-}export function isProfileComplete(profile: EmployerProfileData): ProfileCompleteResult {
+}
+
+export function isProfileComplete(profile: EmployerProfileData): ProfileCompleteResult {
   const requiredFields = [
     { key: 'display_name', label: 'Weergavenaam' },
     { key: 'sector', label: 'Sector' },
-    { key: 'short_description', label: 'Omschrijving' },
     { key: 'logo', label: 'Logo' },
-    { key: 'header_image', label: 'Headerbeeld' },
   ] as const;
 
   const missingFields: string[] = [];
@@ -115,7 +111,9 @@ export interface ProfileCompleteResult {
     if (!value || (typeof value === 'string' && value.trim() === '')) {
       missingFields.push(field.label);
     }
-  }  return {
+  }
+
+  return {
     complete: missingFields.length === 0,
     missingFields,
   };

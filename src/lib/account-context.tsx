@@ -3,10 +3,17 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react"
 import { useSession } from "next-auth/react"
 
+interface ExpiringCredits {
+  total: number
+  days_until: number | null
+  earliest_date: string | null
+}
+
 interface CreditsData {
   available: number
   total_purchased: number
   total_spent: number
+  expiring_soon: ExpiringCredits | null
 }
 
 interface AccountData {
@@ -38,6 +45,7 @@ const defaultCredits: CreditsData = {
   available: 0,
   total_purchased: 0,
   total_spent: 0,
+  expiring_soon: null,
 }
 
 const defaultAccountData: AccountData = {
@@ -77,6 +85,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             available: data.credits?.available ?? 0,
             total_purchased: data.credits?.total_purchased ?? 0,
             total_spent: data.credits?.total_spent ?? 0,
+            expiring_soon: data.credits?.expiring_soon ?? null,
           },
           onboarding_dismissed: data.onboarding_dismissed ?? false,
         })

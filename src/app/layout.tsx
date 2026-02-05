@@ -4,6 +4,7 @@ import "./globals.css";
 import { SessionProvider } from "@/components/SessionProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SentryInit } from "@/components/SentryInit";
 
 export const metadata: Metadata = {
   title: "Werkgeversportaal",
@@ -21,6 +22,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://use.typekit.net/ywx2cuu.css" />
       </head>
       <body className="antialiased bg-[#E8EEF2]">
+        <SentryInit />
         <Script
           id="marker-config"
           strategy="beforeInteractive"

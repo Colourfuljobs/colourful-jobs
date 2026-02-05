@@ -111,7 +111,7 @@ export const transactionRecordSchema = z.object({
   vacancy_id: z.string().nullable().optional(), // Linked record to Vacancies
   user_id: z.string().nullable().optional(), // Linked record to Users
   product_ids: z.array(z.string()).optional(), // Linked records to Products (package + upsells)
-  type: z.enum(["purchase", "spend", "refund", "adjustment"]),
+  type: z.enum(["purchase", "spend", "refund", "adjustment", "expiration"]),
   reference_type: z.enum(["vacancy", "order", "admin", "system"]).nullable().optional(),
   context: z.enum(["dashboard", "vacancy", "boost", "renew", "transactions"]).nullable().optional(),
   status: z.enum(["paid", "failed", "refunded", "open"]),
@@ -127,6 +127,9 @@ export const transactionRecordSchema = z.object({
   invoice: z.array(airtableAttachmentSchema).nullable().optional(), // Attachment field
   invoice_details_snapshot: z.string().nullable().optional(), // JSON string with invoice details at time of purchase
   invoice_trigger: z.enum(["on_vacancy_publish"]).nullable().optional(), // When to send invoice (null = no invoice needed)
+  // Credit expiration fields (for purchase transactions)
+  expires_at: z.string().nullable().optional(), // When credits from this purchase expire
+  remaining_credits: z.number().int().nullable().optional(), // Credits remaining from this purchase batch
   "created-at": z.string().optional(),
 });
 
@@ -142,6 +145,9 @@ export const productRecordSchema = z.object({
   is_active: z.boolean().default(true),
   sort_order: z.number().int().default(0),
   features: z.array(z.string()).optional(), // Linked records to Features
+  included_upsells: z.array(z.string()).optional(), // Linked records to Products (upsells included in this package)
+  validity_months: z.number().int().nullable().optional(), // Months until credits expire (for credit_bundle type)
+  credit_expiry_warning_days: z.number().int().nullable().optional(), // Days before expiry to show warning (for credit_bundle type)
 });
 
 export const featurePackageCategoryEnum = z.enum([
@@ -892,6 +898,8 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
         invoice: fields.invoice || null,
         invoice_details_snapshot: (fields.invoice_details_snapshot as string) || null,
         invoice_trigger: (fields.invoice_trigger as "on_vacancy_publish") || null,
+        expires_at: (fields.expires_at as string) || null,
+        remaining_credits: (fields.remaining_credits as number) || null,
         "created-at": fields["created-at"] as string | undefined,
       });
     });
@@ -1459,8 +1467,9 @@ export async function getActiveProductsByType(
     return records.map((record) => {
       const fields = record.fields;
       
-      // Extract linked record IDs from array (features)
+      // Extract linked record IDs from arrays
       const features = Array.isArray(fields.features) ? fields.features : [];
+      const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
 
       return productRecordSchema.parse({
         id: record.id,
@@ -1474,6 +1483,9 @@ export async function getActiveProductsByType(
         is_active: fields.is_active || false,
         sort_order: fields.sort_order || 0,
         features,
+        included_upsells,
+        validity_months: fields.validity_months || null,
+        credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
       });
     });
   } catch (error: unknown) {
@@ -1497,6 +1509,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
 
     const fields = record.fields;
     const features = Array.isArray(fields.features) ? fields.features : [];
+    const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
 
     return productRecordSchema.parse({
       id: record.id,
@@ -1510,6 +1523,9 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       is_active: fields.is_active || false,
       sort_order: fields.sort_order || 0,
       features,
+      included_upsells,
+      validity_months: fields.validity_months || null,
+      credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
     });
   } catch (error: unknown) {
     console.error("Error getting product by ID:", getErrorMessage(error));
@@ -1658,6 +1674,7 @@ export async function addCreditsToWallet(
 
 /**
  * Create a new transaction for credit purchase
+ * Includes expiration date calculation based on product's validity_months
  */
 export async function createPurchaseTransaction(fields: {
   employer_id: string;
@@ -1668,10 +1685,17 @@ export async function createPurchaseTransaction(fields: {
   money_amount: number;
   context: TransactionRecord["context"];
   invoice_details_snapshot: string; // JSON string
+  validity_months?: number | null; // Months until credits expire (from product)
 }): Promise<TransactionRecord> {
   if (!baseId || !apiKey) {
     throw new Error("Airtable not configured");
   }
+
+  // Calculate expiration date based on months
+  const createdAt = new Date();
+  const monthsToExpire = fields.validity_months ?? 12; // Default to 1 year (12 months)
+  const expiresAt = new Date(createdAt);
+  expiresAt.setMonth(expiresAt.getMonth() + monthsToExpire);
 
   const airtableFields: Record<string, any> = {
     employer: [fields.employer_id], // Linked record requires array
@@ -1685,7 +1709,10 @@ export async function createPurchaseTransaction(fields: {
     context: fields.context,
     invoice_details_snapshot: fields.invoice_details_snapshot,
     reference_type: "order",
-    "created-at": new Date().toISOString(),
+    "created-at": createdAt.toISOString(),
+    // Credit expiration fields
+    expires_at: expiresAt.toISOString(),
+    remaining_credits: fields.credits_amount, // Start with full amount
   };
 
   try {
@@ -1729,6 +1756,8 @@ export async function createPurchaseTransaction(fields: {
       invoice: recordFields.invoice || null,
       invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
       invoice_trigger: null, // Purchase transactions don't need invoice trigger
+      expires_at: (recordFields.expires_at as string) || null,
+      remaining_credits: (recordFields.remaining_credits as number) || null,
       "created-at": recordFields["created-at"] as string | undefined,
     });
   } catch (error: unknown) {
@@ -2481,5 +2510,360 @@ export async function createSession(
   } catch (error: unknown) {
     console.error("Error creating session:", getErrorMessage(error));
     throw new Error(`Failed to create session: ${getErrorMessage(error)}`);
+  }
+}
+
+// ============================================
+// CREDIT EXPIRATION & FIFO FUNCTIONS
+// ============================================
+
+/**
+ * Credit batch type for FIFO operations
+ */
+export interface CreditBatch {
+  id: string;
+  employer_id: string | null;
+  wallet_id: string | null;
+  remaining_credits: number;
+  expires_at: string;
+  "created-at"?: string;
+}
+
+/**
+ * Get all active (non-expired) credit batches for an employer
+ * Returns purchase transactions sorted by expires_at ASC (FIFO - oldest first)
+ * Only returns batches with remaining_credits > 0 and expires_at > now
+ */
+export async function getActiveCreditBatches(employerId: string): Promise<CreditBatch[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const now = new Date().toISOString();
+    
+    // Find purchase transactions with remaining credits that haven't expired
+    const records = await base(TRANSACTIONS_TABLE)
+      .select({
+        filterByFormula: `AND(
+          FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer})),
+          {type} = 'purchase',
+          {remaining_credits} > 0,
+          IS_AFTER({expires_at}, '${now}')
+        )`,
+        sort: [{ field: "expires_at", direction: "asc" }], // FIFO: oldest expires first
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      const employer_id = Array.isArray(fields.employer)
+        ? fields.employer[0] || null
+        : fields.employer || null;
+      const wallet_id = Array.isArray(fields.wallet)
+        ? fields.wallet[0] || null
+        : fields.wallet || null;
+
+      return {
+        id: record.id,
+        employer_id: employer_id as string | null,
+        wallet_id: wallet_id as string | null,
+        remaining_credits: (fields.remaining_credits as number) || 0,
+        expires_at: fields.expires_at as string,
+        "created-at": fields["created-at"] as string | undefined,
+      };
+    });
+  } catch (error: unknown) {
+    console.error("Error getting active credit batches:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Get credits that are expiring soon for an employer
+ * Returns the total credits expiring and the earliest expiration date
+ * 
+ * @param employerId - The employer's ID
+ * @param withinDays - Number of days to look ahead (default 30)
+ * @returns Object with total expiring credits, days until earliest expiry, and earliest date
+ */
+export async function getExpiringCredits(
+  employerId: string,
+  withinDays: number = 30
+): Promise<{
+  total: number;
+  days_until: number | null;
+  earliest_date: string | null;
+}> {
+  if (!baseId || !apiKey) {
+    return { total: 0, days_until: null, earliest_date: null };
+  }
+
+  try {
+    const now = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + withinDays);
+    
+    const nowISO = now.toISOString();
+    const futureDateISO = futureDate.toISOString();
+    
+    // Find purchase transactions that:
+    // - Belong to this employer
+    // - Are purchase type
+    // - Have remaining credits > 0
+    // - Expire after now but before the future date (within X days)
+    const records = await base(TRANSACTIONS_TABLE)
+      .select({
+        filterByFormula: `AND(
+          FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer})),
+          {type} = 'purchase',
+          {remaining_credits} > 0,
+          IS_AFTER({expires_at}, '${nowISO}'),
+          IS_BEFORE({expires_at}, '${futureDateISO}')
+        )`,
+        sort: [{ field: "expires_at", direction: "asc" }],
+      })
+      .all();
+
+    if (records.length === 0) {
+      return { total: 0, days_until: null, earliest_date: null };
+    }
+
+    // Calculate total expiring credits
+    let total = 0;
+    for (const record of records) {
+      total += (record.fields.remaining_credits as number) || 0;
+    }
+
+    // Get earliest expiration date
+    const earliestExpiresAt = records[0].fields.expires_at as string;
+    const earliestDate = new Date(earliestExpiresAt);
+    const daysUntil = Math.ceil((earliestDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    return {
+      total,
+      days_until: daysUntil,
+      earliest_date: earliestExpiresAt,
+    };
+  } catch (error: unknown) {
+    console.error("Error getting expiring credits:", getErrorMessage(error));
+    return { total: 0, days_until: null, earliest_date: null };
+  }
+}
+
+/**
+ * Get the credit expiry warning days setting
+ * Returns the first credit_expiry_warning_days found from active credit bundles
+ * Falls back to 30 days if not configured
+ */
+export async function getCreditExpiryWarningDays(): Promise<number> {
+  if (!baseId || !apiKey) {
+    return 30; // Default fallback
+  }
+
+  try {
+    const products = await getActiveProductsByType("credit_bundle");
+    
+    // Find the first product with credit_expiry_warning_days set
+    for (const product of products) {
+      if (product.credit_expiry_warning_days && product.credit_expiry_warning_days > 0) {
+        return product.credit_expiry_warning_days;
+      }
+    }
+    
+    return 30; // Default fallback
+  } catch (error: unknown) {
+    console.error("Error getting credit expiry warning days:", getErrorMessage(error));
+    return 30;
+  }
+}
+
+/**
+ * Update remaining_credits on a transaction
+ * Used when spending credits from a batch
+ */
+export async function updateTransactionRemainingCredits(
+  transactionId: string,
+  newRemainingCredits: number
+): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    await base(TRANSACTIONS_TABLE).update(transactionId, {
+      remaining_credits: newRemainingCredits,
+    });
+  } catch (error: unknown) {
+    console.error("Error updating transaction remaining credits:", getErrorMessage(error));
+    throw new Error(`Failed to update remaining credits: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Spend credits using FIFO (First In, First Out)
+ * Deducts credits from the oldest non-expired batches first
+ * Also updates the wallet balance
+ * 
+ * @param employerId - The employer's ID
+ * @param walletId - The wallet's ID
+ * @param amount - Number of credits to spend
+ * @returns Object with details about which batches were used
+ */
+export async function spendCreditsWithFIFO(
+  employerId: string,
+  walletId: string,
+  amount: number
+): Promise<{
+  totalSpent: number;
+  batchesUsed: { id: string; creditsUsed: number }[];
+}> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  // Get active credit batches sorted by expiration (FIFO)
+  const batches = await getActiveCreditBatches(employerId);
+  
+  // Calculate total available
+  const totalAvailable = batches.reduce((sum, batch) => sum + batch.remaining_credits, 0);
+  
+  if (totalAvailable < amount) {
+    throw new Error(`Insufficient credits. Available: ${totalAvailable}, Required: ${amount}`);
+  }
+
+  let remaining = amount;
+  const batchesUsed: { id: string; creditsUsed: number }[] = [];
+
+  // Deduct from batches in FIFO order
+  for (const batch of batches) {
+    if (remaining <= 0) break;
+
+    const creditsToDeduct = Math.min(remaining, batch.remaining_credits);
+    const newRemaining = batch.remaining_credits - creditsToDeduct;
+
+    // Update the batch
+    await updateTransactionRemainingCredits(batch.id, newRemaining);
+
+    batchesUsed.push({
+      id: batch.id,
+      creditsUsed: creditsToDeduct,
+    });
+
+    remaining -= creditsToDeduct;
+  }
+
+  // Update wallet balance
+  await deductCreditsFromWallet(walletId, amount);
+
+  return {
+    totalSpent: amount,
+    batchesUsed,
+  };
+}
+
+/**
+ * Get all expired credit batches that still have remaining credits
+ * Used by the cron job to process expired credits
+ */
+export async function getExpiredCreditBatches(): Promise<CreditBatch[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const now = new Date().toISOString();
+    
+    // Find purchase transactions that have expired but still have remaining credits
+    const records = await base(TRANSACTIONS_TABLE)
+      .select({
+        filterByFormula: `AND(
+          {type} = 'purchase',
+          {remaining_credits} > 0,
+          IS_BEFORE({expires_at}, '${now}')
+        )`,
+        sort: [{ field: "expires_at", direction: "asc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      const employer_id = Array.isArray(fields.employer)
+        ? fields.employer[0] || null
+        : fields.employer || null;
+      const wallet_id = Array.isArray(fields.wallet)
+        ? fields.wallet[0] || null
+        : fields.wallet || null;
+
+      return {
+        id: record.id,
+        employer_id: employer_id as string | null,
+        wallet_id: wallet_id as string | null,
+        remaining_credits: (fields.remaining_credits as number) || 0,
+        expires_at: fields.expires_at as string,
+        "created-at": fields["created-at"] as string | undefined,
+      };
+    });
+  } catch (error: unknown) {
+    console.error("Error getting expired credit batches:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Process a single expired credit batch
+ * - Sets remaining_credits to 0
+ * - Deducts from wallet balance
+ * - Creates an expiration transaction for audit
+ */
+export async function processExpiredCreditBatch(batch: CreditBatch): Promise<{
+  success: boolean;
+  creditsExpired: number;
+  error?: string;
+}> {
+  if (!baseId || !apiKey) {
+    return { success: false, creditsExpired: 0, error: "Airtable not configured" };
+  }
+
+  if (!batch.wallet_id || !batch.employer_id) {
+    return { success: false, creditsExpired: 0, error: "Missing wallet or employer ID" };
+  }
+
+  const creditsToExpire = batch.remaining_credits;
+
+  try {
+    // 1. Set remaining_credits to 0 on the original purchase transaction
+    await updateTransactionRemainingCredits(batch.id, 0);
+
+    // 2. Deduct expired credits from wallet balance
+    // First get current wallet balance
+    const wallet = await base(WALLETS_TABLE).find(batch.wallet_id);
+    if (!wallet) {
+      return { success: false, creditsExpired: 0, error: "Wallet not found" };
+    }
+
+    const currentBalance = (wallet.fields.balance as number) || 0;
+    const newBalance = Math.max(0, currentBalance - creditsToExpire);
+
+    await base(WALLETS_TABLE).update(batch.wallet_id, {
+      balance: newBalance,
+      "last-updated": new Date().toISOString(),
+    });
+
+    // 3. Create an expiration transaction for audit trail
+    await base(TRANSACTIONS_TABLE).create({
+      employer: [batch.employer_id],
+      wallet: [batch.wallet_id],
+      type: "expiration",
+      status: "paid", // Expiration is always "completed"
+      total_credits: creditsToExpire,
+      reference_type: "system",
+      "created-at": new Date().toISOString(),
+    });
+
+    return { success: true, creditsExpired: creditsToExpire };
+  } catch (error: unknown) {
+    console.error("Error processing expired credit batch:", getErrorMessage(error));
+    return { success: false, creditsExpired: 0, error: getErrorMessage(error) };
   }
 }

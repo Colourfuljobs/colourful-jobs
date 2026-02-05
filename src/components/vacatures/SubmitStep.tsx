@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, AlertCircle, Building2 } from "lucide-react";
+import { Check, ChevronDown, AlertCircle, Building2, Pencil } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ export function SubmitStep({
   onToggleUpsell,
   onBuyCredits,
   onInvoiceDetailsChange,
+  onChangePackage,
   showInvoiceError = false,
   profileComplete = true,
   profileEditUrl,
@@ -121,8 +122,8 @@ export function SubmitStep({
         </p>
       </div>
 
-      {/* Profile status message */}
-      {!profileComplete ? (
+      {/* Profile status message - only show when profile is incomplete */}
+      {!profileComplete && (
         <Alert className="bg-[#F86600]/10 border-none p-6">
           <AlertDescription className="text-[#1F2D58]">
             <div className="flex items-start gap-3">
@@ -145,28 +146,27 @@ export function SubmitStep({
             </div>
           </AlertDescription>
         </Alert>
-      ) : (
-        <Alert className="bg-[#2F9D07]/10 border-none p-6">
-          <AlertDescription className="text-[#1F2D58]">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-                <Check className="w-5 h-5 text-[#2F9D07]" />
-              </div>
-              <div className="flex-1">
-                <strong className="block mb-1">Je werkgeversprofiel is compleet</strong>
-                <p className="text-sm">
-                  Je kunt nu je vacature indienen.
-                </p>
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
       )}
 
       {/* Package summary */}
       <div className={`bg-white p-6 ${availableUpsells.length === 0 ? "rounded-t-[0.75rem] rounded-b-[2rem]" : "rounded-[0.75rem]"}`}>
-        <p className="text-xs text-[#1F2D58]/60 mb-1">Gekozen pakket</p>
-        <h3 className="text-lg font-bold text-[#1F2D58] mb-4">{selectedPackage.display_name}</h3>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs text-[#1F2D58]/60 mb-1">Gekozen pakket</p>
+            <h3 className="text-lg font-bold text-[#1F2D58] mb-4">{selectedPackage.display_name}</h3>
+          </div>
+          {onChangePackage && (
+            <Button
+              variant="link"
+              onClick={onChangePackage}
+              showArrow={false}
+              className="shrink-0"
+            >
+              <Pencil className="h-4 w-4" />
+              Wijzigen
+            </Button>
+          )}
+        </div>
 
         <ul className="space-y-1.5 text-sm text-[#1F2D58]">
           {features.map((feature) => (

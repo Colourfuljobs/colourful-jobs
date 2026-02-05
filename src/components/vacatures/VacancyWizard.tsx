@@ -5,7 +5,6 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Badge } from "@/components/ui/badge";
 import { CreditsCheckoutModal } from "@/components/checkout";
 import {
   Dialog,
@@ -79,6 +78,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails | null>(null);
   const [showInvoiceError, setShowInvoiceError] = useState(false);
   const [profileComplete, setProfileComplete] = useState(true);
+  const [contactPhotoUrl, setContactPhotoUrl] = useState<string | null>(null);
+  const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  
+  // Track if package was changed to one with new features (for scrolling in VacancyForm)
+  const [shouldScrollToNewFeatures, setShouldScrollToNewFeatures] = useState(false);
+  const previousPackageFeaturesRef = useRef<string[]>([]);
 
   // Auto-save ref
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -191,6 +197,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 const pkg = pkgData.products?.find((p: ProductWithFeatures) => p.id === vacancy.package_id);
                 if (pkg) {
                   setState((prev) => ({ ...prev, selectedPackage: pkg }));
+                  // Initialize the features ref so we don't scroll on first load
+                  const featureTags = pkg.populatedFeatures?.flatMap((f: { action_tags?: string }) => f.action_tags?.split(',') || []) || [];
+                  previousPackageFeaturesRef.current = featureTags;
                 }
               }
             }
@@ -231,10 +240,25 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Handle package selection
   const handleSelectPackage = useCallback((pkg: ProductWithFeatures) => {
+    // Check if new package has features that the previous package didn't have
+    const newFeatureTags = pkg.populatedFeatures?.flatMap(f => f.action_tags?.split(',') || []) || [];
+    const previousFeatureTags = previousPackageFeaturesRef.current;
+    
+    // Check if cj_social_post is newly available
+    const hadSocialPost = previousFeatureTags.some(tag => tag.includes('cj_social_post'));
+    const hasSocialPost = newFeatureTags.some(tag => tag.includes('cj_social_post'));
+    
+    if (!hadSocialPost && hasSocialPost) {
+      setShouldScrollToNewFeatures(true);
+    }
+    
+    // Update the ref with the new package's features
+    previousPackageFeaturesRef.current = newFeatureTags;
+    
     setState((prev) => ({
       ...prev,
       selectedPackage: pkg,
-      isDirty: true,
+      // Don't set isDirty here - package selection is saved separately, not as part of vacancyData
     }));
   }, []);
 
@@ -318,7 +342,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     if (!state.vacancyId || !state.isDirty) return;
 
     const currentData = JSON.stringify(state.vacancyData);
-    if (currentData === lastSavedData) return;
+    if (currentData === lastSavedData) {
+      // No actual changes, but isDirty was true - reset it
+      setState((prev) => ({ ...prev, isDirty: false }));
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -712,6 +740,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 onChange={handleVacancyChange}
                 validationErrors={validationErrors}
                 selectedPackage={state.selectedPackage}
+                onContactPhotoChange={setContactPhotoUrl}
+                onHeaderImageChange={setHeaderImageUrl}
+                onLogoChange={setLogoUrl}
+                shouldScrollToNewFeatures={shouldScrollToNewFeatures}
+                onScrollToNewFeaturesComplete={() => setShouldScrollToNewFeatures(false)}
               />
             )}
           </div>
@@ -723,6 +756,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             selectedPackage={state.selectedPackage}
             selectedUpsells={state.selectedUpsells}
             lookups={lookups}
+            contactPhotoUrl={contactPhotoUrl || undefined}
+            headerImageUrl={headerImageUrl || undefined}
+            logoUrl={logoUrl || undefined}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -730,15 +766,20 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           </div>
         );
       case 4:
+        // Filter out upsells that are already included in the selected package
+        const filteredUpsells = upsells.filter(
+          (upsell) => !state.selectedPackage?.included_upsells?.includes(upsell.id)
+        );
         return state.selectedPackage ? (
           <SubmitStep
             selectedPackage={state.selectedPackage}
             selectedUpsells={state.selectedUpsells}
-            availableUpsells={upsells}
+            availableUpsells={filteredUpsells}
             availableCredits={availableCredits}
             onToggleUpsell={handleToggleUpsell}
             onBuyCredits={() => setShowCheckoutModal(true)}
             onInvoiceDetailsChange={handleInvoiceDetailsChange}
+            onChangePackage={() => handleStepClick(1)}
             showInvoiceError={showInvoiceError}
             profileComplete={profileComplete}
             profileEditUrl={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}&step=4` : ''))}`}
@@ -757,34 +798,44 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     <>
       {/* Top header bar - full width */}
       <div className="bg-[#E8EEF2] border-b border-[#193DAB]/[0.12]">
-        <div className="relative flex items-center justify-between px-4 sm:px-8 py-6">
-          {/* Left: Logo */}
-          <img 
-            src="/logo.svg" 
-            alt="Colourful jobs" 
-            className="h-6 w-auto"
-          />
+        <div className="px-4 sm:px-8 py-4 sm:py-6">
+          {/* Logo and Dashboard row */}
+          <div className="flex items-center justify-between">
+            {/* Left: Logo */}
+            <img 
+              src="/logo.svg" 
+              alt="Colourful jobs" 
+              className="h-6 w-auto"
+            />
 
-          {/* Center: Step indicator - constrained to content width */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-full max-w-[62.5rem] px-4 sm:px-6 pointer-events-auto">
+            {/* Center: Step indicator - only visible on larger screens */}
+            <div className="hidden md:block flex-1 max-w-[500px] mx-8">
               <StepIndicator
                 currentStep={state.currentStep}
                 completedSteps={getCompletedSteps()}
                 onStepClick={handleStepClick}
               />
             </div>
+
+            {/* Right: Cancel link */}
+            <Button
+              variant="link"
+              onClick={handleBack}
+              showArrow={false}
+              className="whitespace-nowrap"
+            >
+              Annuleren
+            </Button>
           </div>
 
-          {/* Right: Dashboard link */}
-          <Button
-            variant="link"
-            onClick={handleBack}
-            showArrow={true}
-            className="whitespace-nowrap z-10"
-          >
-            Dashboard
-          </Button>
+          {/* Mobile: Step indicator below logo row */}
+          <div className="md:hidden mt-4">
+            <StepIndicator
+              currentStep={state.currentStep}
+              completedSteps={getCompletedSteps()}
+              onStepClick={handleStepClick}
+            />
+          </div>
         </div>
       </div>
 
@@ -838,22 +889,26 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                     disabled={isSaving}
                     showArrow={false}
                   >
-                    Vorige
+                    {state.currentStep === 4 ? "Vacature bekijken" : state.currentStep === 3 ? "Vacature aanpassen" : "Vorige"}
                   </Button>
                 )}
               </div>
               <div className="flex items-center gap-3">
-                {/* Save status badge - only show in step 2 */}
+                {/* Save status indicator - only show in step 2 */}
                 {state.currentStep === 2 && (
                   isSaving ? (
-                    <Badge variant="muted" className="flex items-center gap-1.5">
-                      <Spinner className="w-3 h-3" />
+                    <div className="hidden sm:flex items-center gap-2 text-sm text-[#1F2D58]/60">
+                      <Spinner className="h-4 w-4" />
                       <span>Opslaan...</span>
-                    </Badge>
+                    </div>
                   ) : state.isDirty ? (
-                    <Badge variant="muted">Niet opgeslagen</Badge>
+                    <div className="hidden sm:flex items-center gap-2 text-sm text-red-500">
+                      <span>Niet opgeslagen</span>
+                    </div>
                   ) : state.vacancyId ? (
-                    <Badge variant="success">Opgeslagen</Badge>
+                    <div className="hidden sm:flex items-center gap-2 text-sm text-green-600">
+                      <span>Opgeslagen</span>
+                    </div>
                   ) : null
                 )}
                 {state.currentStep < 4 ? (

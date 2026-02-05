@@ -43,6 +43,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { DesktopHeader } from "@/components/dashboard"
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
+import { InfoTooltip } from "@/components/ui/tooltip"
 import { useCredits } from "@/lib/credits-context"
 import type { TransactionRecord } from "@/lib/airtable"
 
@@ -429,11 +430,26 @@ export default function OrdersPage() {
           ) : (
             <div>
               {/* Available credits - prominent */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <p className="text-4xl font-bold text-[#1F2D58]">
-                  {credits.available}
+                  {credits.available} <span className="text-base font-normal text-[#1F2D58]/70">beschikbare credits</span>
                 </p>
-                <p className="text-sm text-[#1F2D58]/70">beschikbare credits</p>
+                
+                {/* Credit expiry warning */}
+                {credits.expiring_soon && credits.expiring_soon.total > 0 && (
+                  <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2">
+                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
+                    </div>
+                    <span className="flex-1 pt-0.5">
+                      Let op: over {credits.expiring_soon.days_until} {credits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
+                      <strong>{credits.expiring_soon.total} credits</strong>. Gebruik ze snel!
+                    </span>
+                    <div className="pt-0.5">
+                      <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Progress bar and stats */}
@@ -455,7 +471,7 @@ export default function OrdersPage() {
                     {credits.total_spent} <span className="font-normal text-[#1F2D58]/70">gebruikt</span>
                   </span>
                   <span className="font-medium text-[#1F2D58]">
-                    {credits.total_purchased} <span className="font-normal text-[#1F2D58]/70">totaal aangeschaft</span>
+                    {credits.available} <span className="font-normal text-[#1F2D58]/70">beschikbaar</span>
                   </span>
                 </div>
               </div>

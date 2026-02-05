@@ -66,6 +66,11 @@ export interface VacancyFormProps {
   onChange: (updates: Partial<VacancyRecord>) => void;
   validationErrors?: Record<string, string>;
   selectedPackage?: ProductWithFeatures | null;
+  onContactPhotoChange?: (url: string | null) => void;
+  onHeaderImageChange?: (url: string | null) => void;
+  onLogoChange?: (url: string | null) => void;
+  shouldScrollToNewFeatures?: boolean;
+  onScrollToNewFeaturesComplete?: () => void;
 }
 
 export interface VacancyPreviewProps {
@@ -79,6 +84,9 @@ export interface VacancyPreviewProps {
     regions: LookupRecord[];
     sectors: LookupRecord[];
   };
+  contactPhotoUrl?: string;
+  headerImageUrl?: string;
+  logoUrl?: string;
 }
 
 export interface InvoiceDetails {
@@ -98,6 +106,7 @@ export interface SubmitStepProps {
   onToggleUpsell: (upsell: ProductRecord) => void;
   onBuyCredits: () => void;
   onInvoiceDetailsChange: (details: InvoiceDetails | null) => void;
+  onChangePackage?: () => void;
   showInvoiceError?: boolean;
   profileComplete?: boolean;
   profileEditUrl?: string;

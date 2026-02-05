@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, MapPin, Clock, Briefcase, GraduationCap, Building2, Calendar } from "lucide-react";
+import { CheckCircle, MapPin, Clock, Briefcase, GraduationCap, Building2, Calendar, Wallet, LayoutGrid } from "lucide-react";
 import type { VacancyPreviewProps } from "./types";
 
 export function VacancyPreview({
@@ -9,6 +9,9 @@ export function VacancyPreview({
   selectedPackage,
   selectedUpsells,
   lookups,
+  contactPhotoUrl,
+  headerImageUrl,
+  logoUrl,
 }: VacancyPreviewProps) {
   // Helper to get lookup name by ID
   const getLookupName = (
@@ -63,18 +66,44 @@ export function VacancyPreview({
 
       {/* Preview card */}
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
-        {/* Header section */}
+        {/* Header image */}
+        {headerImageUrl && (
+          <div className="aspect-[21/9] w-full overflow-hidden">
+            <img
+              src={headerImageUrl}
+              alt="Header"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
+        {/* Title section */}
         <div className="p-6 border-b border-[#E8EEF2]">
-          {/* Title and basic info */}
-          <h3 className="text-2xl font-bold text-[#1F2D58] mb-2">
-            {vacancy.title || "Vacaturetitel"}
-          </h3>
-          
-          {vacancy.closing_date && (
-            <p className="text-sm text-[#1F2D58]/70">
-              Solliciteer voor {formatDate(vacancy.closing_date)}
-            </p>
-          )}
+          <div className="flex items-center justify-between gap-4">
+            {/* Title and basic info */}
+            <div>
+              <h1 className="contempora-small mb-2">
+                {vacancy.title || "Vacaturetitel"}
+              </h1>
+              
+              {vacancy.closing_date && (
+                <p className="text-sm text-[#1F2D58]/70">
+                  Solliciteer voor {formatDate(vacancy.closing_date)}
+                </p>
+              )}
+            </div>
+
+            {/* Logo */}
+            {logoUrl && (
+              <div className="w-24 h-20 rounded-lg bg-white border border-gray-200 flex items-center justify-center p-2 flex-shrink-0">
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Intro text */}
@@ -120,7 +149,7 @@ export function VacancyPreview({
             )}
             {vacancy.function_type_id && (
               <DetailItem
-                icon={Briefcase}
+                icon={LayoutGrid}
                 label="Functietype"
                 value={getLookupName(vacancy.function_type_id, lookups.functionTypes)}
               />
@@ -147,7 +176,7 @@ export function VacancyPreview({
               />
             )}
             {vacancy.salary && (
-              <DetailItem icon={Briefcase} label="Salaris" value={vacancy.salary} />
+              <DetailItem icon={Wallet} label="Salaris" value={vacancy.salary} />
             )}
             {vacancy.closing_date && (
               <DetailItem
@@ -164,55 +193,48 @@ export function VacancyPreview({
           <div className="p-6 border-b border-[#E8EEF2]">
             <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Contactpersoon</h4>
             <div className="flex items-start gap-4">
-              {vacancy.contact_photo_id && (
-                <div className="w-16 h-16 rounded-full bg-[#E8EEF2] flex items-center justify-center">
+              {contactPhotoUrl ? (
+                <img
+                  src={contactPhotoUrl}
+                  alt={vacancy.contact_name || "Contactpersoon"}
+                  className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                />
+              ) : vacancy.contact_photo_id ? (
+                <div className="w-16 h-16 rounded-full bg-[#E8EEF2] flex items-center justify-center flex-shrink-0">
                   <span className="text-[#1F2D58]/50 text-xl">
                     {vacancy.contact_name?.charAt(0) || "?"}
                   </span>
                 </div>
-              )}
-              <div>
-                {vacancy.contact_name && (
-                  <p className="font-bold text-[#1F2D58]">{vacancy.contact_name}</p>
-                )}
-                {vacancy.contact_role && (
-                  <p className="text-sm text-[#1F2D58]/70">{vacancy.contact_role}</p>
-                )}
-                {vacancy.contact_company && (
-                  <p className="text-sm text-[#1F2D58]/70">{vacancy.contact_company}</p>
-                )}
-                {vacancy.contact_email && (
-                  <p className="text-sm text-[#1F2D58] mt-2">{vacancy.contact_email}</p>
-                )}
-                {vacancy.contact_phone && (
-                  <p className="text-sm text-[#1F2D58]">{vacancy.contact_phone}</p>
+              ) : null}
+              <div className="flex flex-col sm:flex-row sm:gap-8 sm:items-end">
+                <div>
+                  {vacancy.contact_name && (
+                    <p className="font-bold text-[#1F2D58]">{vacancy.contact_name}</p>
+                  )}
+                  {vacancy.contact_role && (
+                    <p className="text-sm text-[#1F2D58]/70">{vacancy.contact_role}</p>
+                  )}
+                  {vacancy.contact_company && (
+                    <p className="text-sm text-[#1F2D58]/70">{vacancy.contact_company}</p>
+                  )}
+                </div>
+                {(vacancy.contact_email || vacancy.contact_phone) && (
+                  <div className="mt-2 sm:mt-0">
+                    {vacancy.contact_email && (
+                      <p className="text-sm text-[#1F2D58]">{vacancy.contact_email}</p>
+                    )}
+                    {vacancy.contact_phone && (
+                      <p className="text-sm text-[#1F2D58]">{vacancy.contact_phone}</p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Recommendations */}
-        {recommendations.length > 0 && (
-          <div className="p-6 border-b border-[#E8EEF2]">
-            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Aanbevolen door collega's</h4>
-            <div className="flex flex-wrap gap-3">
-              {recommendations.map(
-                (rec: { firstName: string; lastName: string }, index: number) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-[#193DAB]/[0.12] rounded-full text-sm text-[#1F2D58]"
-                  >
-                    {rec.firstName} {rec.lastName}
-                  </span>
-                )
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Application method */}
-        <div className="p-6">
+        <div className={`p-6 ${recommendations.length > 0 ? "border-b border-[#E8EEF2]" : ""}`}>
           <h4 className="text-lg font-bold text-[#1F2D58] mb-3">Solliciteren</h4>
           {vacancy.show_apply_form ? (
             <p className="text-sm text-[#1F2D58]/70">
@@ -232,6 +254,25 @@ export function VacancyPreview({
             </p>
           )}
         </div>
+
+        {/* Recommendations */}
+        {recommendations.length > 0 && (
+          <div className="p-6">
+            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Aanbevolen door collega's</h4>
+            <div className="flex flex-wrap gap-3">
+              {recommendations.map(
+                (rec: { firstName: string; lastName: string }, index: number) => (
+                  <span
+                    key={index}
+                    className="px-3 pt-0.5 pb-1.5 bg-[#193DAB]/[0.12] rounded-full text-sm text-[#1F2D58]"
+                  >
+                    {rec.firstName} {rec.lastName}
+                  </span>
+                )
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -248,9 +289,11 @@ function DetailItem({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-3">
-      <Icon className="w-5 h-5 text-[#1F2D58]/50 mt-0.5" />
-      <div>
+    <div className="flex items-center gap-3">
+      <div className="w-8 h-8 rounded-full bg-[#193DAB]/12 flex items-center justify-center flex-shrink-0">
+        <Icon className="w-4 h-4 text-[#1F2D58]" />
+      </div>
+      <div className="-mt-0.5">
         <p className="text-xs text-[#1F2D58]/60">{label}</p>
         <p className="text-sm text-[#1F2D58] font-medium">{value}</p>
       </div>

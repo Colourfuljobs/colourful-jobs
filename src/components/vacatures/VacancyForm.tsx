@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MediaPickerDialog } from "@/components/MediaPickerDialog";
-import { Plus, Trash2, Image as ImageIcon, Pencil, Upload, ChevronDownIcon } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, Pencil, Upload, User, CalendarDays } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -26,6 +26,7 @@ import { nl } from "react-day-picker/locale";
 import { toast } from "sonner";
 import { Spinner } from "@/components/ui/spinner";
 import { InfoTooltip } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { uploadMedia, validateFile } from "@/lib/cloudinary-upload";
 import type { VacancyFormProps } from "./types";
 
@@ -56,6 +57,11 @@ export function VacancyForm({
   onChange,
   validationErrors = {},
   selectedPackage,
+  onContactPhotoChange,
+  onHeaderImageChange,
+  onLogoChange,
+  shouldScrollToNewFeatures,
+  onScrollToNewFeaturesComplete,
 }: VacancyFormProps) {
   // Helper to check if selected package has a specific feature by action_tag
   const hasFeature = (actionTag: string) => {
@@ -63,6 +69,28 @@ export function VacancyForm({
       (feature) => feature.action_tags?.includes(actionTag)
     ) ?? false;
   };
+
+  // Ref for the social proof section (to scroll to when package changes)
+  const socialProofSectionRef = useRef<HTMLDivElement>(null);
+  
+  // Check if social post feature is available
+  const hasSocialPostFeature = hasFeature("cj_social_post");
+  
+  // Scroll to social proof section when triggered by parent (after package change)
+  useEffect(() => {
+    if (shouldScrollToNewFeatures && hasSocialPostFeature && socialProofSectionRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        socialProofSectionRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center" 
+        });
+        // Notify parent that scroll is complete
+        onScrollToNewFeaturesComplete?.();
+      }, 100);
+    }
+  }, [shouldScrollToNewFeatures, hasSocialPostFeature, onScrollToNewFeaturesComplete]);
+
   const [showHeaderDialog, setShowHeaderDialog] = useState(false);
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   const [showContactPhotoDialog, setShowContactPhotoDialog] = useState(false);
@@ -92,6 +120,7 @@ export function VacancyForm({
           // Set employer logo
           if (data.logo) {
             setEmployerLogo({ id: data.logo.id, url: data.logo.url });
+            onLogoChange?.(data.logo.url);
           }
           
           // Only set header image on initial load, not when user changes selection
@@ -138,6 +167,7 @@ export function VacancyForm({
               
               if (foundHeader) {
                 setHeaderImage(foundHeader);
+                onHeaderImageChange?.(foundHeader.url);
                 // If vacancy doesn't have header_image yet, set the default header
                 if (!vacancy.header_image) {
                   onChange({ header_image: foundHeader.id });
@@ -152,6 +182,7 @@ export function VacancyForm({
               );
               if (contactAsset) {
                 setContactPhoto({ id: contactAsset.id, url: contactAsset.url });
+                onContactPhotoChange?.(contactAsset.url);
               }
             }
             
@@ -218,6 +249,7 @@ export function VacancyForm({
       const result = await uploadMedia(file, "logo");
       
       setEmployerLogo({ id: result.asset.id, url: result.asset.url });
+      onLogoChange?.(result.asset.url);
       toast.success("Logo geüpload", {
         description: "Je nieuwe logo is opgeslagen.",
       });
@@ -319,6 +351,7 @@ export function VacancyForm({
             if (assets.length > 0) {
               setHeaderImage({ id: assets[0].id, url: assets[0].url });
               updateField("header_image", assets[0].id);
+              onHeaderImageChange?.(assets[0].url);
             }
           }}
           singleSelect={true}
@@ -411,17 +444,17 @@ export function VacancyForm({
           {/* Gallery */}
           <div>
             <Label className="mb-2 block">Gallery afbeeldingen</Label>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            <div className="flex flex-wrap gap-3 items-end">
               {/* Selected gallery images */}
               {galleryImages.map((img) => (
                 <div
                   key={img.id}
-                  className="group relative aspect-square rounded-lg overflow-hidden bg-[#1F2D58]/5"
+                  className="group relative"
                 >
                   <img
                     src={img.url}
                     alt="Gallery"
-                    className="w-full h-full object-cover"
+                    className="h-20 sm:h-24 w-auto rounded-lg"
                   />
                   <button
                     type="button"
@@ -437,17 +470,19 @@ export function VacancyForm({
                 </div>
               ))}
               
-              {/* Add/upload tile */}
-              <button
-                type="button"
-                onClick={() => setShowGalleryDialog(true)}
-                className="aspect-square rounded-lg border-2 border-dashed border-[#1F2D58]/20 flex flex-col items-center justify-center gap-1.5 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
-                  <Plus className="h-5 w-5 text-[#1F2D58]" />
-                </div>
-                <span className="text-xs text-[#1F2D58]/60">Toevoegen</span>
-              </button>
+              {/* Add/upload tile - only show if less than 2 images */}
+              {galleryImages.length < 2 && (
+                <button
+                  type="button"
+                  onClick={() => setShowGalleryDialog(true)}
+                  className="h-20 sm:h-24 w-20 sm:w-24 rounded-lg border-2 border-dashed border-[#1F2D58]/20 flex flex-col items-center justify-center gap-1.5 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
+                    <Plus className="h-4 w-4 text-[#1F2D58]" />
+                  </div>
+                  <span className="text-xs text-[#1F2D58]/60">Toevoegen</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -637,7 +672,7 @@ export function VacancyForm({
                         })
                       : "Selecteer datum"}
                   </span>
-                  <ChevronDownIcon className="h-4 w-4 opacity-50" />
+                  <CalendarDays className="h-4 w-4 opacity-50" />
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-white" align="start">
@@ -733,18 +768,51 @@ export function VacancyForm({
           {/* Row 3: Foto */}
           <div>
             <Label>Foto</Label>
-            <MediaPreviewButton
+            <button
+              type="button"
               onClick={() => setShowContactPhotoDialog(true)}
-              imageUrl={contactPhoto?.url}
-              label="Selecteer foto"
-            />
+              className="mt-1.5 w-20 h-20 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-1 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group"
+            >
+              {contactPhoto?.url ? (
+                <img
+                  src={contactPhoto.url}
+                  alt="Contactpersoon"
+                  className="w-full h-full object-cover rounded-md"
+                />
+              ) : (
+                <>
+                  <User className="h-6 w-6 text-[#1F2D58]/40" />
+                  <span className="text-[10px] text-[#1F2D58]/50">Foto kiezen</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </FormSection>
 
-      {/* Section 5: Social Proof - only show if package has cj_social_post feature */}
-      {hasFeature("cj_social_post") && (
-        <FormSection title="Aanbevolen door collega's" description="Tag collega's die deze vacature kunnen aanbevelen. Zij worden vermeld in de LinkedIn-post, zo krijgt de post meer bereik.">
+      {/* Section 5: Solliciteren */}
+      <FormSection title="Sollicitatiemethode" description="Kies hoe kandidaten op deze vacature kunnen reageren." isLast={!hasSocialPostFeature}>
+        <ApplicationMethodFields
+          showApplyForm={vacancy.show_apply_form || false}
+          applyUrl={vacancy.apply_url || ""}
+          applicationEmail={vacancy.application_email || ""}
+          onShowApplyFormChange={(value) => updateField("show_apply_form", value)}
+          onApplyUrlChange={(value) => updateField("apply_url", value)}
+          onApplicationEmailChange={(value) => updateField("application_email", value)}
+          validationErrors={validationErrors}
+        />
+      </FormSection>
+
+      {/* Section 6: Social Proof - only show if package has cj_social_post feature */}
+      {hasSocialPostFeature && (
+        <FormSection 
+          title="Aanbevolen door collega's" 
+          description="Tag collega's die deze vacature kunnen aanbevelen. Zij worden vermeld in de LinkedIn-post, zo krijgt de post meer bereik."
+          packageBadge={selectedPackage?.display_name}
+          sectionRef={socialProofSectionRef}
+          highlighted
+          isLast
+        >
           <div className="space-y-3">
             {recommendations.map((rec, index) => (
               <div key={index} className="flex items-center gap-3">
@@ -786,19 +854,6 @@ export function VacancyForm({
         </FormSection>
       )}
 
-      {/* Section 6: Solliciteren */}
-      <FormSection title="Sollicitatiemethode" description="Kies hoe kandidaten op deze vacature kunnen reageren." isLast={true}>
-        <ApplicationMethodFields
-          showApplyForm={vacancy.show_apply_form || false}
-          applyUrl={vacancy.apply_url || ""}
-          applicationEmail={vacancy.application_email || ""}
-          onShowApplyFormChange={(value) => updateField("show_apply_form", value)}
-          onApplyUrlChange={(value) => updateField("apply_url", value)}
-          onApplicationEmailChange={(value) => updateField("application_email", value)}
-          validationErrors={validationErrors}
-        />
-      </FormSection>
-
       {/* Media picker dialogs */}
       <MediaPickerDialog
         open={showHeaderDialog}
@@ -810,6 +865,7 @@ export function VacancyForm({
           if (assets.length > 0) {
             setHeaderImage({ id: assets[0].id, url: assets[0].url });
             updateField("header_image", assets[0].id);
+            onHeaderImageChange?.(assets[0].url);
           }
         }}
         singleSelect={true}
@@ -826,6 +882,7 @@ export function VacancyForm({
           if (assets.length > 0) {
             setContactPhoto({ id: assets[0].id, url: assets[0].url });
             updateField("contact_photo_id", assets[0].id);
+            onContactPhotoChange?.(assets[0].url);
           }
         }}
         singleSelect={true}
@@ -836,7 +893,7 @@ export function VacancyForm({
         open={showGalleryDialog}
         onOpenChange={setShowGalleryDialog}
         title="Gallery afbeeldingen"
-        description="Selecteer afbeeldingen voor de vacature gallery"
+        description="Selecteer maximaal 2 afbeeldingen voor de vacature gallery"
         selectedIds={galleryImages.map((img) => img.id)}
         onSelect={(assets) => {
           setGalleryImages(assets.map((a) => ({ id: a.id, url: a.url })));
@@ -844,7 +901,7 @@ export function VacancyForm({
         }}
         singleSelect={false}
         filter="gallery"
-        maxSelection={10}
+        maxSelection={2}
       />
     </div>
   );
@@ -856,26 +913,36 @@ function FormSection({
   description,
   children,
   statusElement,
+  packageBadge,
+  sectionRef,
   isLast = false,
+  highlighted = false,
 }: {
   title: string;
   description: string;
   children: React.ReactNode;
   statusElement?: React.ReactNode;
+  packageBadge?: string;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
   isLast?: boolean;
+  highlighted?: boolean;
 }) {
   return (
-    <div className={`bg-white p-6 ${isLast ? "rounded-t-[0.75rem] rounded-b-[2rem]" : "rounded-[0.75rem]"}`}>
+    <div 
+      ref={sectionRef}
+      className={`bg-white p-6 ${isLast ? "rounded-t-[0.75rem] rounded-b-[2rem]" : "rounded-[0.75rem]"} ${highlighted ? "border border-[#39ade5]/50" : ""}`}
+    >
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-lg font-bold text-[#1F2D58] mb-1">{title}</h3>
           <p className="text-sm text-[#1F2D58]/70">{description}</p>
         </div>
-        {statusElement && (
-          <div className="flex-shrink-0">
-            {statusElement}
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {packageBadge && (
+            <Badge variant="package">{packageBadge}</Badge>
+          )}
+          {statusElement}
+        </div>
       </div>
       <Separator className="my-4 bg-[#193DAB]/12" />
       {children}
@@ -922,7 +989,7 @@ function LogoUploadButton({
         type="button"
         onClick={handleClick}
         disabled={isUploading}
-        className="mt-1.5 w-full h-44 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+        className={`mt-1.5 w-full h-44 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center ${logoUrl && !isUploading ? 'justify-between pt-4 pb-3' : 'justify-center gap-2'} hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed`}
       >
         {isUploading ? (
           <div className="flex flex-col items-center gap-2">
@@ -930,20 +997,22 @@ function LogoUploadButton({
             <span className="text-sm text-[#1F2D58]/70">Uploaden...</span>
           </div>
         ) : logoUrl ? (
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center p-3">
-              <img
-                src={logoUrl}
-                alt="Logo"
-                className="max-h-full max-w-full object-contain"
-              />
+          <>
+            <div className="flex flex-col items-center gap-2 flex-1 justify-center">
+              <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center p-3">
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <p className="text-xs text-[#1F2D58]/50">Zo verschijnt je logo op de vacaturepagina</p>
             </div>
-            <p className="text-xs text-[#1F2D58]/50">Zo ziet het eruit op de website</p>
             <div className="flex items-center gap-1.5 text-sm text-[#1F2D58]/70 group-hover:text-[#1F2D58]">
               <Upload className="h-4 w-4" />
               <span>Vervangen</span>
             </div>
-          </div>
+          </>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <Upload className="h-6 w-6 text-[#1F2D58]/50" />
@@ -969,15 +1038,15 @@ function MediaPreviewButton({
     <button
       type="button"
       onClick={onClick}
-      className="mt-1.5 w-full h-40 p-4 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group"
+      className={`mt-1.5 w-full h-44 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center ${imageUrl ? 'justify-between pt-4 pb-3 px-4' : 'justify-center gap-2'} hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group`}
     >
       {imageUrl ? (
         <>
-          <div className="h-28 w-40 flex items-center justify-center overflow-hidden rounded">
+          <div className="flex-1 flex items-center justify-center">
             <img
               src={imageUrl}
               alt="Header"
-              className="h-full w-full object-cover"
+              className="h-28 w-auto rounded-lg"
             />
           </div>
           <div className="flex items-center gap-1.5 text-sm text-[#1F2D58]/70 group-hover:text-[#1F2D58]">
@@ -1020,7 +1089,10 @@ function ApplicationMethodFields({
             type="radio"
             name="applyMethod"
             checked={!showApplyForm}
-            onChange={() => onShowApplyFormChange(false)}
+            onChange={() => {
+              onShowApplyFormChange(false);
+              onApplicationEmailChange(""); // Clear email when switching to external link
+            }}
             className="w-4 h-4 text-[#1F2D58]"
           />
           <span className="text-sm text-[#1F2D58]">Externe link — Kandidaten solliciteren via je eigen website</span>
@@ -1030,7 +1102,10 @@ function ApplicationMethodFields({
             type="radio"
             name="applyMethod"
             checked={showApplyForm}
-            onChange={() => onShowApplyFormChange(true)}
+            onChange={() => {
+              onShowApplyFormChange(true);
+              onApplyUrlChange(""); // Clear URL when switching to Colourful jobs
+            }}
             className="w-4 h-4 text-[#1F2D58]"
           />
           <span className="text-sm text-[#1F2D58]">Via Colourful jobs — Kandidaten solliciteren direct op dit platform</span>

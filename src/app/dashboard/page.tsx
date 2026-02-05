@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { 
   Coins,
   Briefcase, 
@@ -60,6 +61,8 @@ interface Vacancy {
   credits_spent?: number
   money_invoiced?: number
   "created-at"?: string
+  package_id?: string
+  description?: string
 }
 
 // Status configuration
@@ -141,6 +144,7 @@ interface TeamMember {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const { credits, isLoading: isCreditsLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
   const { accountData, refreshAccount } = useAccount()
   const [isLoading, setIsLoading] = useState(true)
@@ -264,9 +268,45 @@ export default function DashboardPage() {
     fetchData()
   }, [])
 
+  // Determine the furthest step for a vacancy based on its data
+  const getFurthestStep = (vacancy: Vacancy): 1 | 2 | 3 | 4 => {
+    // If no package selected yet, start at step 1
+    if (!vacancy.package_id) return 1
+    
+    // If package selected but no basic content, start at step 2
+    if (!vacancy.title || !vacancy.description) return 2
+    
+    // If submitted/published, show step 4 (review/summary)
+    if (vacancy.status === "wacht_op_goedkeuring" || vacancy.status === "gepubliceerd") return 4
+    
+    // If content is filled, go to step 2 to make edits
+    return 2
+  }
+
   const handleVacancyAction = (action: string, vacancyId: string) => {
-    console.log(`Action: ${action}, Vacancy: ${vacancyId}`)
-    // TODO: Implement actual actions
+    const vacancy = vacancies.find((v) => v.id === vacancyId)
+    if (!vacancy) return
+
+    switch (action) {
+      case "wijzigen": {
+        const step = getFurthestStep(vacancy)
+        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=${step}`)
+        break
+      }
+      case "bekijken": {
+        // Navigate to preview step (step 3)
+        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
+        break
+      }
+      case "boosten":
+        // TODO: Implement boost functionality
+        console.log("Boosten:", vacancyId)
+        break
+      case "publiceren":
+        // TODO: Implement publish functionality
+        console.log("Publiceren:", vacancyId)
+        break
+    }
   }
 
   const handleCheckoutSuccess = (newBalance: number, purchasedAmount?: number) => {
@@ -339,7 +379,7 @@ export default function DashboardPage() {
             ) : (
               <>
                 <div>
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {isPendingUpdate ? (
                       <div className="flex items-center gap-2">
                         <Spinner className="h-6 w-6" />
@@ -347,10 +387,25 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <p className="text-3xl font-bold text-[#1F2D58]">
-                        {credits.available}
+                        {credits.available} <span className="text-base font-normal text-[#1F2D58]/70">beschikbare credits</span>
                       </p>
                     )}
-                    <p className="text-sm text-[#1F2D58]/70">beschikbare credits</p>
+                    
+                    {/* Credit expiry warning */}
+                    {credits.expiring_soon && credits.expiring_soon.total > 0 && (
+                      <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2">
+                        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                          <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
+                        </div>
+                        <span className="flex-1 pt-0.5">
+                          Let op: over {credits.expiring_soon.days_until} {credits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
+                          <strong>{credits.expiring_soon.total} credits</strong>. Gebruik ze snel!
+                        </span>
+                        <div className="pt-0.5">
+                          <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="mt-4 space-y-2">
                     {/* Progress bar */}
@@ -366,7 +421,7 @@ export default function DashboardPage() {
                         {credits.total_spent} <span className="font-normal text-[#1F2D58]/70">gebruikt</span>
                       </span>
                       <span className="font-medium text-[#1F2D58]">
-                        {credits.total_purchased} <span className="font-normal text-[#1F2D58]/70">totaal</span>
+                        {credits.available} <span className="font-normal text-[#1F2D58]/70">beschikbaar</span>
                       </span>
                     </div>
                   </div>

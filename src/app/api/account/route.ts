@@ -11,6 +11,8 @@ import {
   updateFAQ,
   deleteFAQ,
   getSectorById,
+  getExpiringCredits,
+  getCreditExpiryWarningDays,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage, isProfileComplete } from "@/lib/utils";
@@ -52,7 +54,7 @@ export async function GET() {
       },
       // Default profile status (will be overwritten if employer exists)
       profile_complete: false,
-      profile_missing_fields: ["Weergavenaam", "Sector", "Omschrijving", "Logo", "Headerbeeld"],
+      profile_missing_fields: ["Weergavenaam", "Sector", "Logo"],
     };
 
     // Get employer data if user has an employer
@@ -147,26 +149,36 @@ export async function GET() {
 
         // Process wallet/credits
         if (wallet) {
+          // Get expiry warning days from product settings
+          const warningDays = await getCreditExpiryWarningDays();
+          
+          // Check for credits expiring soon
+          const expiringCredits = await getExpiringCredits(user.employer_id, warningDays);
+          
           response.credits = {
             available: wallet.balance,
             total_purchased: wallet.total_purchased,
             total_spent: wallet.total_spent,
+            expiring_soon: expiringCredits.total > 0 ? {
+              total: expiringCredits.total,
+              days_until: expiringCredits.days_until,
+              earliest_date: expiringCredits.earliest_date,
+            } : null,
           };
         } else {
           response.credits = {
             available: 0,
             total_purchased: 0,
             total_spent: 0,
+            expiring_soon: null,
           };
         }
 
-        // Check if employer profile is complete
+        // Check if employer profile is complete (only requires display_name, sector, logo)
         const profileStatus = isProfileComplete({
           display_name: employer.display_name,
           sector: sectorName || null,
-          short_description: employer.short_description,
           logo: logoUrl,
-          header_image: headerImageUrl,
         });
         
         response.profile_complete = profileStatus.complete;

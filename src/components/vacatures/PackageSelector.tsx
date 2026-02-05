@@ -70,7 +70,7 @@ export function PackageSelector({
   return (
     <div className="space-y-6">
       <div className="pt-6">
-        <h2 className="text-xl font-bold text-[#1F2D58] mb-2">1. Kies je pakket</h2>
+        <h2 className="text-xl font-bold text-[#1F2D58] mb-2">Kies je vacaturepakket</h2>
         <p className="text-[#1F2D58]/70">
           Selecteer het vacaturepakket dat het beste past bij jouw wensen
         </p>

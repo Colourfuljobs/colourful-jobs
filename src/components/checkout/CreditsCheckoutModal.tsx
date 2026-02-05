@@ -241,41 +241,48 @@ export function CreditsCheckoutModal({
     return Math.floor(credits / basicVacancyCredits);
   };
 
+  // Format validity months to Dutch text
+  const formatValidity = (months: number | null | undefined): string => {
+    const m = months ?? 12; // Default to 12 months (1 year)
+    if (m === 12) return "1 jaar";
+    if (m === 18) return "1,5 jaar";
+    if (m === 24) return "2 jaar";
+    if (m === 6) return "6 maanden";
+    if (m % 12 === 0) return `${m / 12} jaar`;
+    return `${m} maanden`;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[900px] max-h-[90vh] rounded-t-[0.75rem] rounded-b-[2rem] p-0 gap-0 bg-[#E8EEF2] overflow-hidden">
-        {/* Fixed close button */}
-        <div className="sticky top-0 z-20 flex justify-end pointer-events-none">
-          <DialogClose className="pointer-events-auto mt-3 mr-3 w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 flex items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm">
-            <X className="h-4 w-4 text-[#1F2D58]" />
-            <span className="sr-only">Sluiten</span>
-          </DialogClose>
-        </div>
+        {/* Close button - outside scrollable area so it stays fixed */}
+        <DialogClose className="absolute top-4 right-4 z-20 w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 flex items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm">
+          <X className="h-4 w-4 text-[#1F2D58]" />
+          <span className="sr-only">Sluiten</span>
+        </DialogClose>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto max-h-[calc(90vh-46px)] -mt-[46px]">
-        {/* Header section with white/50 background */}
-        <div className="bg-white/50 px-6 pt-14 pb-4 pr-12">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-[#1F2D58]">
-                Profiteer van bundelvoordeel
-              </DialogTitle>
-              <p className="text-[#1F2D58]/70 text-sm mt-1">
-                Grotere bundels, lagere prijs per plaatsing
-              </p>
-            </DialogHeader>
+        <div className="overflow-y-auto max-h-[90vh]">
+          {/* Header section with white/50 background */}
+          <div className="bg-white/50 px-6 pt-6 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <DialogHeader className="pr-12">
+                <DialogTitle className="text-2xl font-bold text-[#1F2D58]">
+                  Profiteer van bundelvoordeel
+                </DialogTitle>
+                <p className="text-[#1F2D58]/70 text-sm mt-1">
+                  Grotere bundels, lagere prijs per plaatsing
+                </p>
+              </DialogHeader>
 
-            {/* Current balance - inline centered on mobile, stacked right on desktop */}
-            <div className="flex items-center justify-center gap-2 sm:block sm:text-right">
-              <p className="text-sm text-[#1F2D58]/70">Huidig saldo</p>
-              <div className="flex items-center gap-1.5 sm:justify-end sm:mt-0.5">
+              {/* Current balance - inline on one line, aligned with content below (24px from right) */}
+              <div className="flex items-center justify-center sm:justify-end gap-1.5 text-sm">
+                <span className="text-[#1F2D58]/70">Huidig saldo</span>
                 <Coins className="h-4 w-4 text-[#1F2D58]" />
                 <span className="font-bold text-[#1F2D58]">{currentBalance} credits</span>
               </div>
             </div>
           </div>
-        </div>
 
         {/* Content section with light blue background */}
         <div className="bg-[#E8EEF2] px-6 pb-6">
@@ -346,8 +353,9 @@ export function CreditsCheckoutModal({
                         )}
 
                         {/* Credits */}
-                        <p className="text-base font-bold text-[#1F2D58] mt-1">
-                          {product.credits} credits
+                        <p className="text-base text-[#1F2D58] mt-1">
+                          <span className="font-bold">{product.credits} credits</span>
+                          <span className="text-sm font-normal text-[#1F2D58]/60 ml-1.5">{formatValidity(product.validity_months)} geldig</span>
                         </p>
 
                       </div>

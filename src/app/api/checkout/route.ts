@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       purchased_at: new Date().toISOString(),
     });
 
-    // Create the transaction
+    // Create the transaction with expiration date
     const transaction = await createPurchaseTransaction({
       employer_id: user.employer_id,
       wallet_id: wallet.id,
@@ -115,6 +115,7 @@ export async function POST(request: Request) {
       money_amount: product.price,
       context,
       invoice_details_snapshot: invoiceDetailsSnapshot,
+      validity_months: product.validity_months, // From product config
     });
 
     // Add credits to wallet (credits are added immediately, payment via invoice)

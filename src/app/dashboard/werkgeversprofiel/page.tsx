@@ -336,7 +336,7 @@ export default function WerkgeversprofielPage() {
     setPendingNavigation(null)
   }
 
-  // Validate required fields
+  // Validate required fields (only display_name, sector, and logo are required)
   const validateProfile = (): boolean => {
     const newErrors: Record<string, string> = {}
     
@@ -346,14 +346,8 @@ export default function WerkgeversprofielPage() {
     if (!editData.sector_id) {
       newErrors.sector = "Sector is verplicht"
     }
-    if (!editData.short_description.trim()) {
-      newErrors.short_description = "Omschrijving is verplicht"
-    }
     if (!editData.logo) {
       newErrors.logo = "Logo is verplicht"
-    }
-    if (!editData.header_image) {
-      newErrors.header_image = "Headerbeeld is verplicht"
     }
     
     // Check for unsaved FAQ content
@@ -1177,7 +1171,7 @@ function ProfileForm({
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <Label htmlFor="short_description" className="!mb-0">
-            Omschrijving organisatie <span className="text-slate-400 text-sm">*</span>
+            Omschrijving organisatie
           </Label>
           <InfoTooltip content="Een korte introductie van je organisatie in 2-4 zinnen. Denk aan: wat jullie doen, waar jullie voor staan, of wat jullie uniek maakt." />
         </div>
@@ -1187,11 +1181,7 @@ function ProfileForm({
           value={data.short_description}
           onChange={(e) => onChange({ ...data, short_description: e.target.value })}
           disabled={isSaving}
-          className={errors.short_description ? "border-red-500" : ""}
         />
-        {errors.short_description && (
-          <p className="text-sm text-red-500">{errors.short_description}</p>
-        )}
       </div>
 
       <hr className="border-[#E8EEF2]" />
@@ -1201,18 +1191,18 @@ function ProfileForm({
         {/* Header */}
         <div className="space-y-3 flex-1">
           <div className="flex items-center gap-2">
-            <Label className={`!mb-0 ${errors.header_image ? "text-red-500" : ""}`}>
-              Headerbeeld <span className="text-slate-400 text-sm">*</span>
+            <Label className="!mb-0">
+              Headerbeeld
             </Label>
             <InfoTooltip content="Upload een breed, liggend beeld dat je organisatie representeert. Dit wordt prominent getoond bovenaan je werkgeversprofiel." />
           </div>
           <div className="space-y-3">
             {data.header_image ? (
-              <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden ${errors.header_image ? "ring-2 ring-red-500" : ""}`}>
+              <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden">
                 <img src={data.header_image} alt="Header" className="h-full w-full object-cover" />
               </div>
             ) : (
-              <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center ${errors.header_image ? "ring-2 ring-red-500" : ""}`}>
+              <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center">
                 <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
               </div>
             )}
@@ -1227,9 +1217,6 @@ function ProfileForm({
               {data.header_image ? "Wijzigen" : "Kiezen"}
             </Button>
           </div>
-          {errors.header_image && (
-            <p className="text-sm text-red-500">{errors.header_image}</p>
-          )}
         </div>
 
         {/* Vertical divider - only visible on sm+ */}
