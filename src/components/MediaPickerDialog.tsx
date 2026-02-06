@@ -7,6 +7,16 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -113,10 +123,13 @@ export function MediaPickerDialog({
       setImages((prev) => [...prev, result.asset])
       
       // Auto-select the new image if not at max selection
-      if (!singleSelect && localSelection.length < maxSelection) {
-        setLocalSelection((prev) => [...prev, result.asset.id])
-      } else if (singleSelect) {
+      if (singleSelect) {
         setLocalSelection([result.asset.id])
+      } else {
+        setLocalSelection((prev) => {
+          if (prev.length >= maxSelection) return prev
+          return [...prev, result.asset.id]
+        })
       }
 
       toast.success("Afbeelding geüpload", {
@@ -161,9 +174,17 @@ export function MediaPickerDialog({
 
   // Delete handler
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
-  
-  const handleDelete = async (assetId: string, e: React.MouseEvent) => {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  const handleDeleteClick = (assetId: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent triggering selection
+    setDeleteConfirmId(assetId)
+  }
+  
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmId) return
+    const assetId = deleteConfirmId
+    setDeleteConfirmId(null)
     
     setIsDeleting(assetId)
     try {
@@ -206,6 +227,22 @@ export function MediaPickerDialog({
       fetchMedia()
     }
   }, [open, selectedIds, fetchMedia, maxSelection, singleSelect])
+
+  // Clean up localSelection when images change (e.g. after delete)
+  // Remove any selected IDs that no longer exist in available images
+  useEffect(() => {
+    if (!isLoading) {
+      const availableIds = new Set([
+        ...images.map((img) => img.id),
+        ...(logo ? [logo.id] : []),
+      ])
+      setLocalSelection((prev) => {
+        const cleaned = prev.filter((id) => availableIds.has(id))
+        if (cleaned.length !== prev.length) return cleaned
+        return prev
+      })
+    }
+  }, [images, logo, isLoading])
 
   // Get the assets to display based on filter
   const displayAssets = (() => {
@@ -273,17 +310,10 @@ export function MediaPickerDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-[#1F2D58]">{title}</DialogTitle>
-          {(description || showUpload) && (
-            <div className="flex items-center justify-between gap-4">
-              {description && (
-                <DialogDescription className="text-[#1F2D58]/70 flex-1">
-                  {description}
-                </DialogDescription>
-              )}
-              {showUpload && !isLoading && (
-                <span className="text-sm text-[#1F2D58]/50 flex-shrink-0">{images.length}/10</span>
-              )}
-            </div>
+          {description && (
+            <DialogDescription className="text-[#1F2D58]/70">
+              {description}
+            </DialogDescription>
           )}
         </DialogHeader>
 
@@ -301,7 +331,7 @@ export function MediaPickerDialog({
 
           {isLoading ? (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 p-2">
-              {Array.from({ length: 10 }).map((_, i) => (
+              {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="aspect-square rounded-lg" />
               ))}
             </div>
@@ -377,7 +407,7 @@ export function MediaPickerDialog({
                       {showUpload && !deleting && (
                         <button
                           type="button"
-                          onClick={(e) => handleDelete(asset.id, e)}
+                          onClick={(e) => handleDeleteClick(asset.id, e)}
                           className="absolute top-1 right-1 p-1.5 bg-white/90 rounded-full text-red-600 hover:bg-white hover:text-red-700 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -423,7 +453,10 @@ export function MediaPickerDialog({
                         <div className="w-10 h-10 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
                           <Plus className="h-5 w-5 text-[#1F2D58]" />
                         </div>
-                        <span className="text-xs text-[#1F2D58]/60 text-center px-2">Uploaden</span>
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs text-[#1F2D58]/60">Uploaden</span>
+                          <span className="text-[10px] text-[#1F2D58]/40 -mt-0.5">{images.length}/10</span>
+                        </div>
                       </>
                     )}
                   </div>
@@ -460,6 +493,27 @@ export function MediaPickerDialog({
           </div>
         </div>
       </DialogContent>
+
+      {/* Delete confirmation modal */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1F2D58]">Afbeelding verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#1F2D58]/70">
+              Weet je zeker dat je deze afbeelding wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full border-[#193DAB]/12 text-[#1F2D58] hover:bg-[#193DAB]/12 hover:text-[#1F2D58]">Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="rounded-full bg-[#BC0000] text-white hover:bg-[#BC0000]/80"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

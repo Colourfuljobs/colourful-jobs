@@ -20,27 +20,17 @@ export function StepIndicator({
 
   return (
     <div className="w-full">
-      {/* Progress bar */}
-      <div className="relative mb-2">
-        <div className="h-1 bg-[#1F2D58]/[0.12] rounded-full">
-          <div
-            className="h-1 bg-[#1F2D58] rounded-full transition-all duration-300"
-            style={{ width: `${(currentStep / WIZARD_STEPS.length) * 100}%` }}
-          />
-        </div>
-      </div>
-
       {/* Step labels */}
       <nav aria-label="Progress">
-        <ol className="flex items-center justify-between">
-          {WIZARD_STEPS.map((step, index) => {
+        <ol className="grid grid-cols-4">
+          {WIZARD_STEPS.map((step) => {
             const isActive = step.number === currentStep;
             const isCompleted = completedSteps.includes(step.number);
             const isPast = step.number < currentStep;
             const clickable = isStepClickable(step.number);
 
             return (
-              <li key={step.number} className="flex items-center gap-2">
+              <li key={step.number} className="flex items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => clickable && onStepClick?.(step.number)}
@@ -52,7 +42,9 @@ export function StepIndicator({
                   {/* Step number badge */}
                   <span
                     className={`flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-medium transition-all duration-200 pb-[3px] ${
-                      isActive || isPast || isCompleted
+                      isActive
+                        ? "bg-[#39ADE5] text-white"
+                        : isPast || isCompleted
                         ? "bg-[#1F2D58] text-white"
                         : "bg-[#1F2D58]/[0.12] text-[#1F2D58]"
                     }`}

@@ -2,16 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, ChevronDown, AlertCircle, Building2, Pencil } from "lucide-react";
+import { Check, CheckCircle, AlertCircle, Building2, Pencil } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import type { SubmitStepProps, InvoiceDetails } from "./types";
 
 export function SubmitStep({
@@ -37,9 +35,7 @@ export function SubmitStep({
   const hasEnoughCredits = availableCredits >= totalCredits;
 
   // Invoice details state
-  const [useAccountDetails, setUseAccountDetails] = React.useState(false);
   const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false);
-  const [invoiceDetailsOpen, setInvoiceDetailsOpen] = React.useState(false);
   const [invoiceDetails, setInvoiceDetails] = React.useState<InvoiceDetails>({
     contact_name: "",
     email: "",
@@ -52,65 +48,57 @@ export function SubmitStep({
   // Track if account has missing billing details
   const [hasMissingBillingDetails, setHasMissingBillingDetails] = React.useState(false);
 
-  const fetchAccountDetails = async () => {
-    setIsLoadingAccountDetails(true);
-    setHasMissingBillingDetails(false);
-    try {
-      const response = await fetch("/api/account");
-      if (!response.ok) {
-        throw new Error("Failed to fetch account");
-      }
-      const data = await response.json();
-      const billing = data.billing || {};
-      const details: InvoiceDetails = {
-        contact_name: billing.invoice_contact_name || "",
-        email: billing.invoice_email || "",
-        street: billing.invoice_street || "",
-        postal_code: billing["invoice_postal-code"] || "",
-        city: billing.invoice_city || "",
-        reference_nr: billing["reference-nr"] || "",
-      };
-      setInvoiceDetails(details);
-      
-      // Check if required billing fields are filled
-      const hasRequiredFields = details.contact_name && details.email && 
-        details.street && details.postal_code && details.city;
-      
-      if (hasRequiredFields) {
-        onInvoiceDetailsChange(details);
-        setHasMissingBillingDetails(false);
-      } else {
-        // Account doesn't have complete billing details
-        setHasMissingBillingDetails(true);
-        onInvoiceDetailsChange(null);
-      }
-    } catch (error) {
-      console.error("Error fetching account details:", error);
-      toast.error("Fout", {
-        description: "Kon factuurgegevens niet ophalen",
-      });
-      onInvoiceDetailsChange(null);
-    } finally {
-      setIsLoadingAccountDetails(false);
-    }
-  };
+  // Auto-fetch account details on mount when invoice is needed
+  const hasFetchedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (hasEnoughCredits || hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
 
-  const handleUseAccountDetailsChange = (checked: boolean) => {
-    setUseAccountDetails(checked);
-    if (checked) {
-      fetchAccountDetails();
-    } else {
-      setInvoiceDetails({
-        contact_name: "",
-        email: "",
-        street: "",
-        postal_code: "",
-        city: "",
-        reference_nr: "",
-      });
-      onInvoiceDetailsChange(null);
-    }
-  };
+    const fetchAccountDetails = async () => {
+      setIsLoadingAccountDetails(true);
+      setHasMissingBillingDetails(false);
+      try {
+        const response = await fetch("/api/account");
+        if (!response.ok) {
+          throw new Error("Failed to fetch account");
+        }
+        const data = await response.json();
+        const billing = data.billing || {};
+        const details: InvoiceDetails = {
+          contact_name: billing.invoice_contact_name || "",
+          email: billing.invoice_email || "",
+          street: billing.invoice_street || "",
+          postal_code: billing["invoice_postal-code"] || "",
+          city: billing.invoice_city || "",
+          reference_nr: billing["reference-nr"] || "",
+        };
+        setInvoiceDetails(details);
+
+        // Check if required billing fields are filled
+        const hasRequiredFields = details.contact_name && details.email &&
+          details.street && details.postal_code && details.city;
+
+        if (hasRequiredFields) {
+          onInvoiceDetailsChange(details);
+          setHasMissingBillingDetails(false);
+        } else {
+          setHasMissingBillingDetails(true);
+          onInvoiceDetailsChange(null);
+        }
+      } catch (error) {
+        console.error("Error fetching account details:", error);
+        toast.error("Fout", {
+          description: "Kon factuurgegevens niet ophalen",
+        });
+        onInvoiceDetailsChange(null);
+      } finally {
+        setIsLoadingAccountDetails(false);
+      }
+    };
+
+    fetchAccountDetails();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasEnoughCredits]);
 
   return (
     <div className="space-y-4">
@@ -121,6 +109,23 @@ export function SubmitStep({
           Je rekent nu af om je vacature te publiceren.
         </p>
       </div>
+
+      {/* Review notice */}
+      <Alert className="bg-[#193DAB]/[0.12] border-none">
+        <AlertDescription className="text-[#1F2D58]">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+              <CheckCircle className="w-5 h-5 text-[#1F2D58]" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm">
+                Na plaatsing wordt je vacature beoordeeld door ons team. Je ontvangt een
+                notificatie zodra je vacature is goedgekeurd of als er aanpassingen nodig zijn.{!hasEnoughCredits && " Je ontvangt de factuur automatisch per e-mail."}
+              </p>
+            </div>
+          </div>
+        </AlertDescription>
+      </Alert>
 
       {/* Profile status message - only show when profile is incomplete */}
       {!profileComplete && (
@@ -180,59 +185,23 @@ export function SubmitStep({
 
       {/* Invoice details section - only show when not enough credits */}
       {!hasEnoughCredits && (
-      <div className={cn(
-        "rounded-[0.75rem] p-4 transition-colors",
-        showInvoiceError && !useAccountDetails
-          ? "border-2 border-red-500 bg-red-50"
-          : "border border-[#1F2D58]/10",
-        invoiceDetailsOpen && useAccountDetails && invoiceDetails.contact_name
-          ? "bg-white"
-          : !showInvoiceError || useAccountDetails ? "bg-transparent" : ""
-      )}>
-        {/* Checkbox and collapsible toggle row */}
-        <div className="flex items-center justify-between">
-          {/* Checkbox to load from account */}
-          <Field orientation="horizontal" className="justify-start items-center w-auto">
-            <Checkbox
-              id="useAccountDetails"
-              checked={useAccountDetails}
-              onCheckedChange={handleUseAccountDetailsChange}
-            />
-<FieldLabel
-                    htmlFor="useAccountDetails"
-                    className={cn(
-                      "text-sm cursor-pointer !mb-0 leading-none -mt-0.5",
-                      showInvoiceError && !useAccountDetails
-                        ? "text-red-600 font-medium"
-                        : "text-[#1F2D58]"
-                    )}
-                  >
-                    Haal factuurgegevens op uit account <span className={showInvoiceError && !useAccountDetails ? "text-red-400" : "text-slate-400"}>*</span>
-                  </FieldLabel>
-            {isLoadingAccountDetails && <Spinner className="h-4 w-4" />}
-          </Field>
+      <div className="bg-white rounded-[0.75rem] p-6">
+        <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Factuurgegevens</h3>
+        <p className="text-sm text-[#1F2D58]/70 mb-4">
+          Je credits worden automatisch verrekend. Voor het overige bedrag ontvang je een factuur.
+        </p>
 
-          {/* Collapsible invoice details toggle */}
-          {useAccountDetails && invoiceDetails.contact_name && (
-            <button
-              type="button"
-              onClick={() => setInvoiceDetailsOpen(!invoiceDetailsOpen)}
-              className="flex items-center gap-2 text-sm text-[#1F2D58]/70 hover:text-[#1F2D58] transition-colors"
-            >
-              {invoiceDetailsOpen ? "Verberg factuurgegevens" : "Bekijk factuurgegevens"}
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 transition-transform",
-                  invoiceDetailsOpen && "rotate-180"
-                )}
-              />
-            </button>
-          )}
-        </div>
+        {/* Loading state */}
+        {isLoadingAccountDetails && (
+          <div className="flex items-center gap-2 text-sm text-[#1F2D58]/60 py-4">
+            <Spinner className="h-4 w-4" />
+            <span>Factuurgegevens ophalen...</span>
+          </div>
+        )}
 
         {/* Warning when account has missing billing details */}
-        {useAccountDetails && hasMissingBillingDetails && !isLoadingAccountDetails && (
-          <Alert className="mt-4 bg-[#F86600]/10 border-none">
+        {hasMissingBillingDetails && !isLoadingAccountDetails && (
+          <Alert className="mb-4 bg-[#F86600]/10 border-none">
             <AlertDescription className="text-[#1F2D58]">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
@@ -241,7 +210,7 @@ export function SubmitStep({
                 <div className="flex-1">
                   <strong className="block mb-1">Factuurgegevens ontbreken</strong>
                   <p className="text-sm mb-2">
-                    Vul eerst je factuurgegevens in bij je accountinstellingen voordat je de vacature kunt insturen.
+                    Vul de onderstaande velden in of ga naar je accountinstellingen om je factuurgegevens op te slaan.
                   </p>
                   <Link 
                     href="/dashboard/gegevens" 
@@ -255,9 +224,9 @@ export function SubmitStep({
           </Alert>
         )}
 
-        {/* Collapsible invoice details content */}
-        {useAccountDetails && invoiceDetails.contact_name && invoiceDetailsOpen && (
-          <div className="mt-4 space-y-4">
+        {/* Invoice details fields - always visible */}
+        {!isLoadingAccountDetails && (
+          <div className="space-y-4">
             {/* Row 1: Ref nr (1/3) - Contact person (1/3) - Email (1/3) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -267,47 +236,44 @@ export function SubmitStep({
                 <Input
                   id="reference_nr"
                   value={invoiceDetails.reference_nr}
-                  onChange={(e) =>
-                    setInvoiceDetails({
-                      ...invoiceDetails,
-                      reference_nr: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const updated = { ...invoiceDetails, reference_nr: e.target.value };
+                    setInvoiceDetails(updated);
+                    onInvoiceDetailsChange(updated);
+                  }}
                   placeholder="Uw referentie"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="contact_name" className="text-[#1F2D58]">
-                  Contactpersoon
+                  Contactpersoon <span className="text-slate-400 text-sm">*</span>
                 </Label>
                 <Input
                   id="contact_name"
                   value={invoiceDetails.contact_name}
-                  onChange={(e) =>
-                    setInvoiceDetails({
-                      ...invoiceDetails,
-                      contact_name: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const updated = { ...invoiceDetails, contact_name: e.target.value };
+                    setInvoiceDetails(updated);
+                    onInvoiceDetailsChange(updated);
+                  }}
                   placeholder="Naam contactpersoon"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-[#1F2D58]">
-                  E-mail
+                  E-mail <span className="text-slate-400 text-sm">*</span>
                 </Label>
                 <Input
                   id="email"
                   type="email"
                   value={invoiceDetails.email}
-                  onChange={(e) =>
-                    setInvoiceDetails({
-                      ...invoiceDetails,
-                      email: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const updated = { ...invoiceDetails, email: e.target.value };
+                    setInvoiceDetails(updated);
+                    onInvoiceDetailsChange(updated);
+                  }}
                   placeholder="factuur@bedrijf.nl"
                 />
               </div>
@@ -317,51 +283,48 @@ export function SubmitStep({
             <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr] gap-4">
               <div className="space-y-2">
                 <Label htmlFor="street" className="text-[#1F2D58]">
-                  Straat en huisnummer
+                  Straat en huisnummer <span className="text-slate-400 text-sm">*</span>
                 </Label>
                 <Input
                   id="street"
                   value={invoiceDetails.street}
-                  onChange={(e) =>
-                    setInvoiceDetails({
-                      ...invoiceDetails,
-                      street: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const updated = { ...invoiceDetails, street: e.target.value };
+                    setInvoiceDetails(updated);
+                    onInvoiceDetailsChange(updated);
+                  }}
                   placeholder="Straatnaam 123"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="postal_code" className="text-[#1F2D58]">
-                  Postcode
+                  Postcode <span className="text-slate-400 text-sm">*</span>
                 </Label>
                 <Input
                   id="postal_code"
                   value={invoiceDetails.postal_code}
-                  onChange={(e) =>
-                    setInvoiceDetails({
-                      ...invoiceDetails,
-                      postal_code: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const updated = { ...invoiceDetails, postal_code: e.target.value };
+                    setInvoiceDetails(updated);
+                    onInvoiceDetailsChange(updated);
+                  }}
                   placeholder="1234 AB"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="city" className="text-[#1F2D58]">
-                  Plaats
+                  Plaats <span className="text-slate-400 text-sm">*</span>
                 </Label>
                 <Input
                   id="city"
                   value={invoiceDetails.city}
-                  onChange={(e) =>
-                    setInvoiceDetails({
-                      ...invoiceDetails,
-                      city: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const updated = { ...invoiceDetails, city: e.target.value };
+                    setInvoiceDetails(updated);
+                    onInvoiceDetailsChange(updated);
+                  }}
                   placeholder="Amsterdam"
                 />
               </div>

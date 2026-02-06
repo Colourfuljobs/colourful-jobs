@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { CreditsCheckoutModal } from "@/components/checkout";
 import {
@@ -21,6 +22,7 @@ import { VacancyForm } from "./VacancyForm";
 import { VacancyPreview } from "./VacancyPreview";
 import { SubmitStep } from "./SubmitStep";
 import { WeDoItForYouBanner } from "./WeDoItForYouBanner";
+import { ColleaguesSidebar } from "./ColleaguesSidebar";
 import type {
   WizardStep,
   VacancyWizardState,
@@ -30,7 +32,7 @@ import type {
 import type { ProductRecord, LookupRecord, VacancyRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Building2 } from "lucide-react";
+import { Building2, Rocket } from "lucide-react";
 import Link from "next/link";
 
 interface VacancyWizardProps {
@@ -82,9 +84,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   
-  // Track if package was changed to one with new features (for scrolling in VacancyForm)
-  const [shouldScrollToNewFeatures, setShouldScrollToNewFeatures] = useState(false);
-  const previousPackageFeaturesRef = useRef<string[]>([]);
+  // Track recommendations in wizard state (for ColleaguesSidebar)
+  const [recommendations, setRecommendations] = useState<{firstName: string; lastName: string}[]>([]);
 
   // Auto-save ref
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -92,6 +93,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   
   // Track if initial data has been loaded (prevents re-fetching on URL step changes)
   const initialLoadDoneRef = useRef(false);
+  
+  // Track if vacancy was submitted (prevents URL sync from overriding redirect)
+  const isSubmittedRef = useRef(false);
 
   // Unsaved changes warning
   useEffect(() => {
@@ -110,7 +114,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   // Sync state to URL for persistence across refreshes
   useEffect(() => {
     // Only update URL if we have a vacancy ID (after step 1)
-    if (state.vacancyId) {
+    // Skip if vacancy was submitted (prevents overriding the redirect to dashboard)
+    if (state.vacancyId && !isSubmittedRef.current) {
       const params = new URLSearchParams();
       params.set("id", state.vacancyId);
       params.set("step", state.currentStep.toString());
@@ -147,6 +152,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           setPackages(data.products || []);
         }
 
+        // Track wdify product at function scope so we can use it when restoring vacancy
+        let wdifyProduct: ProductRecord | null = null;
+
         if (upsellsRes.ok) {
           const data = await upsellsRes.json();
           const allUpsells = data.products || [];
@@ -156,6 +164,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           );
           if (wdify) {
             setWeDoItForYouProduct(wdify);
+            wdifyProduct = wdify;
           }
           // Filter out "We do it for you" from regular upsells
           setUpsells(allUpsells.filter(
@@ -182,12 +191,26 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               stepToUse = vacancy.package_id ? 2 : 1;
             }
             
+            // Restore "We do it for you" upsell in selectedUpsells if applicable
+            const restoredUpsells: ProductRecord[] = [];
+            if (vacancy.input_type === "we_do_it_for_you" && wdifyProduct) {
+              restoredUpsells.push(wdifyProduct);
+            }
+
             setState((prev) => ({
               ...prev,
               vacancyData: vacancy,
               inputType: vacancy.input_type || "self_service",
               currentStep: stepToUse as WizardStep,
+              selectedUpsells: restoredUpsells,
             }));
+            
+            // Initialize recommendations from vacancy data
+            if (vacancy.recommendations) {
+              try {
+                setRecommendations(JSON.parse(vacancy.recommendations));
+              } catch { /* ignore parse errors */ }
+            }
 
             // Set selected package if exists
             if (vacancy.package_id) {
@@ -197,9 +220,6 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 const pkg = pkgData.products?.find((p: ProductWithFeatures) => p.id === vacancy.package_id);
                 if (pkg) {
                   setState((prev) => ({ ...prev, selectedPackage: pkg }));
-                  // Initialize the features ref so we don't scroll on first load
-                  const featureTags = pkg.populatedFeatures?.flatMap((f: { action_tags?: string }) => f.action_tags?.split(',') || []) || [];
-                  previousPackageFeaturesRef.current = featureTags;
                 }
               }
             }
@@ -238,23 +258,24 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     return completed;
   }, [state.selectedPackage, state.vacancyId, state.vacancyData.title, state.currentStep]);
 
+  // Check if selected package has social post feature
+  const hasSocialPostFeature = state.selectedPackage?.populatedFeatures?.some(
+    (feature) => feature.action_tags?.includes("cj_social_post")
+  ) ?? false;
+
+  // Handle recommendation changes (for ColleaguesSidebar)
+  const handleRecommendationsChange = useCallback((newRecs: {firstName: string; lastName: string}[]) => {
+    setRecommendations(newRecs);
+    // Also update vacancy data so it gets auto-saved
+    setState((prev) => ({
+      ...prev,
+      vacancyData: { ...prev.vacancyData, recommendations: JSON.stringify(newRecs) },
+      isDirty: true,
+    }));
+  }, []);
+
   // Handle package selection
   const handleSelectPackage = useCallback((pkg: ProductWithFeatures) => {
-    // Check if new package has features that the previous package didn't have
-    const newFeatureTags = pkg.populatedFeatures?.flatMap(f => f.action_tags?.split(',') || []) || [];
-    const previousFeatureTags = previousPackageFeaturesRef.current;
-    
-    // Check if cj_social_post is newly available
-    const hadSocialPost = previousFeatureTags.some(tag => tag.includes('cj_social_post'));
-    const hasSocialPost = newFeatureTags.some(tag => tag.includes('cj_social_post'));
-    
-    if (!hadSocialPost && hasSocialPost) {
-      setShouldScrollToNewFeatures(true);
-    }
-    
-    // Update the ref with the new package's features
-    previousPackageFeaturesRef.current = newFeatureTags;
-    
     setState((prev) => ({
       ...prev,
       selectedPackage: pkg,
@@ -552,6 +573,33 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         body: JSON.stringify({ input_type: "we_do_it_for_you" }),
       });
     }
+    // Scroll to top of page
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [state.vacancyId, weDoItForYouProduct]);
+
+  // Handle switching back to self-service
+  const handleSwitchToSelfService = useCallback(() => {
+    setState((prev) => {
+      // Remove weDoItForYou product from selected upsells
+      const newUpsells = weDoItForYouProduct
+        ? prev.selectedUpsells.filter((u) => u.id !== weDoItForYouProduct.id)
+        : prev.selectedUpsells;
+
+      return {
+        ...prev,
+        inputType: "self_service",
+        selectedUpsells: newUpsells,
+        isDirty: true,
+      };
+    });
+    // Update vacancy in database
+    if (state.vacancyId) {
+      fetch(`/api/vacancies/${state.vacancyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input_type: "self_service" }),
+      });
+    }
   }, [state.vacancyId, weDoItForYouProduct]);
 
   // Handle upsell toggle
@@ -621,7 +669,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     if (!hasEnoughCredits && !invoiceDetails) {
       setShowInvoiceError(true);
       toast.error("Factuurgegevens vereist", {
-        description: "Vink de checkbox aan om je factuurgegevens op te halen.",
+        description: "Vul de verplichte factuurgegevens in om door te gaan.",
       });
       return;
     }
@@ -654,8 +702,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
       const data = await res.json();
       
-      // Refetch credits from context to sync across all components
-      await refetchCredits();
+      // Mark as submitted IMMEDIATELY to prevent URL sync effect from overriding navigation
+      isSubmittedRef.current = true;
+      
+      // Reset dirty state so beforeunload doesn't block navigation
+      setState((prev) => ({ ...prev, isDirty: false }));
       
       // Show success message
       toast.success("Vacature ingediend", {
@@ -664,8 +715,10 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           : "Je vacature wordt beoordeeld door ons team.",
       });
 
-      // Redirect to vacatures overview
-      router.push("/dashboard/vacatures");
+      // Use window.location for a full page navigation to guarantee redirect works
+      // This prevents any React effects or router.replace calls from interfering
+      // Credits will be fresh on the new page load anyway
+      window.location.href = "/dashboard/vacatures";
     } catch (error) {
       console.error("Error submitting vacancy:", error);
       toast.error("Er ging iets mis bij het indienen", {
@@ -674,7 +727,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     } finally {
       setIsSaving(false);
     }
-  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, router, refetchCredits, profileComplete]);
+  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, profileComplete]);
 
   // Render loading state
   if (isLoading) {
@@ -719,13 +772,17 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               selectedPackage={state.selectedPackage}
               onSelectPackage={handleSelectPackage}
               availableCredits={availableCredits}
+              onBuyCredits={() => setShowCheckoutModal(true)}
             />
           </>
         );
       case 2:
         return (
           <div className="space-y-4">
-            <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6">
+            <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6 relative">
+              {state.inputType === "we_do_it_for_you" && (
+                <Badge variant="info" className="absolute top-3 right-4">We do it for you</Badge>
+              )}
               <h2 className="text-xl font-bold text-[#1F2D58] mb-1">2. Vacature opstellen</h2>
               <p className="text-[#1F2D58]/70 text-sm">
                 Vul de vacature gegevens in en kies of upload bijpassende afbeeldingen
@@ -739,12 +796,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 lookups={lookups}
                 onChange={handleVacancyChange}
                 validationErrors={validationErrors}
-                selectedPackage={state.selectedPackage}
                 onContactPhotoChange={setContactPhotoUrl}
                 onHeaderImageChange={setHeaderImageUrl}
                 onLogoChange={setLogoUrl}
-                shouldScrollToNewFeatures={shouldScrollToNewFeatures}
-                onScrollToNewFeaturesComplete={() => setShouldScrollToNewFeatures(false)}
               />
             )}
           </div>
@@ -798,42 +852,77 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     <>
       {/* Top header bar - full width */}
       <div className="bg-[#E8EEF2] border-b border-[#193DAB]/[0.12]">
-        <div className="px-4 sm:px-8 py-4 sm:py-6">
-          {/* Logo and Dashboard row */}
-          <div className="flex items-center justify-between">
-            {/* Left: Logo */}
+        {/* Main row with full-height vertical borders */}
+        <div className="flex items-stretch">
+          {/* Left: Logo with right border */}
+          <div className="flex items-center border-r border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6">
             <img 
               src="/logo.svg" 
               alt="Colourful jobs" 
               className="h-6 w-auto"
             />
+          </div>
 
-            {/* Center: Step indicator - only visible on larger screens */}
-            <div className="hidden md:block flex-1 max-w-[500px] mx-8">
+          {/* Center: Step indicator - only visible on larger screens */}
+          <div className="hidden md:flex flex-1 items-center justify-center py-4 sm:py-6 relative">
+            <div className="w-full">
               <StepIndicator
                 currentStep={state.currentStep}
                 completedSteps={getCompletedSteps()}
                 onStepClick={handleStepClick}
               />
             </div>
+            {/* Progress bar at bottom, edge-to-edge */}
+            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-transparent">
+              <div
+                className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
+                style={{ width: `${(state.currentStep / 4) * 100}%` }}
+              />
+            </div>
+          </div>
 
-            {/* Right: Cancel link */}
+          {/* Spacer on mobile when step indicator is hidden */}
+          <div className="flex-1 md:hidden" />
+
+          {/* Right: Close + save status with left border */}
+          <div className="flex flex-col items-end justify-center border-l border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6">
             <Button
               variant="link"
               onClick={handleBack}
               showArrow={false}
               className="whitespace-nowrap"
             >
-              Annuleren
+              Sluiten
             </Button>
+            {state.currentStep >= 2 && (
+              isSaving ? (
+                <div className="flex items-center gap-1.5 text-xs text-[#1F2D58]/60 mt-0.5">
+                  <Spinner className="h-3 w-3" />
+                  <span>Opslaan...</span>
+                </div>
+              ) : state.isDirty ? (
+                <span className="text-xs text-red-500 mt-0.5">Niet opgeslagen</span>
+              ) : state.vacancyId ? (
+                <span className="text-xs text-green-600 mt-0.5">Opgeslagen</span>
+              ) : null
+            )}
           </div>
+        </div>
 
-          {/* Mobile: Step indicator below logo row */}
-          <div className="md:hidden mt-4">
+        {/* Mobile: Step indicator below logo row */}
+        <div className="md:hidden relative">
+          <div className="px-4 sm:px-8 pb-3">
             <StepIndicator
               currentStep={state.currentStep}
               completedSteps={getCompletedSteps()}
               onStepClick={handleStepClick}
+            />
+          </div>
+          {/* Progress bar at bottom, edge-to-edge */}
+          <div className="h-[3px] bg-transparent">
+            <div
+              className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
+              style={{ width: `${(state.currentStep / 4) * 100}%` }}
             />
           </div>
         </div>
@@ -844,18 +933,43 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content area - full width on steps 1-3, 2/3 width on step 2 with banner or step 4 */}
-        <div className={state.currentStep === 4 || (state.currentStep === 2 && state.inputType === "self_service" && weDoItForYouProduct) ? "lg:col-span-2" : "lg:col-span-3"}>
+        {/* Main content area - full width on steps 1-3, 2/3 width on step 2 with sidebar or step 4 */}
+        <div className={state.currentStep === 4 || (state.currentStep === 2 && (hasSocialPostFeature || weDoItForYouProduct)) ? "lg:col-span-2" : "lg:col-span-3"}>
           {renderStepContent()}
         </div>
 
-        {/* We do it for you banner - only show on step 2 when in self_service mode */}
-        {state.currentStep === 2 && state.inputType === "self_service" && weDoItForYouProduct && (
-          <div className="lg:col-span-1">
-            <WeDoItForYouBanner
-              product={weDoItForYouProduct}
-              onSelect={handleWeDoItForYou}
-            />
+        {/* Step 2 sidebar: Colleagues + We Do It For You */}
+        {state.currentStep === 2 && (hasSocialPostFeature || weDoItForYouProduct) && (
+          <div className={`lg:col-span-1 order-first lg:order-none space-y-4 ${hasSocialPostFeature ? "mt-6" : ""}`}>
+            {hasSocialPostFeature && (
+              <ColleaguesSidebar
+                recommendations={recommendations}
+                onChange={handleRecommendationsChange}
+                packageName={state.selectedPackage?.display_name}
+              />
+            )}
+            {state.inputType === "self_service" && weDoItForYouProduct && (
+              <WeDoItForYouBanner
+                product={weDoItForYouProduct}
+                onSelect={handleWeDoItForYou}
+              />
+            )}
+            {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
+              <div className="border border-[#193DAB]/[0.12] rounded-t-[0.75rem] rounded-b-[2rem] p-5 mt-6">
+                <div className="flex items-center gap-3 pb-3 mb-3 border-b border-[#193DAB]/[0.12]">
+                  <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
+                    <Rocket className="w-5 h-5 text-[#1F2D58]" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold text-[#1F2D58]">{weDoItForYouProduct.display_name}</h4>
+                    <p className="text-xs text-[#1F2D58]/60">+{weDoItForYouProduct.credits} credits (€{weDoItForYouProduct.price.toFixed(2).replace(".", ",")})</p>
+                  </div>
+                </div>
+                <Button variant="link" className="px-0" showArrow={false} onClick={handleSwitchToSelfService}>
+                  Toch liever zelf opstellen?
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -881,7 +995,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
         <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-shrink-0">
                 {state.currentStep > 1 && (
                   <Button
                     variant="tertiary"
@@ -889,28 +1003,43 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                     disabled={isSaving}
                     showArrow={false}
                   >
-                    {state.currentStep === 4 ? "Vacature bekijken" : state.currentStep === 3 ? "Vacature aanpassen" : "Vorige"}
+                    {state.currentStep === 4 ? "Vacature bekijken" : state.currentStep === 3 ? "Vacature aanpassen" : "Pakket wijzigen"}
                   </Button>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                {/* Save status indicator - only show in step 2 */}
-                {state.currentStep === 2 && (
-                  isSaving ? (
-                    <div className="hidden sm:flex items-center gap-2 text-sm text-[#1F2D58]/60">
-                      <Spinner className="h-4 w-4" />
-                      <span>Opslaan...</span>
-                    </div>
-                  ) : state.isDirty ? (
-                    <div className="hidden sm:flex items-center gap-2 text-sm text-red-500">
-                      <span>Niet opgeslagen</span>
-                    </div>
-                  ) : state.vacancyId ? (
-                    <div className="hidden sm:flex items-center gap-2 text-sm text-green-600">
-                      <span>Opgeslagen</span>
-                    </div>
-                  ) : null
-                )}
+
+              {/* Center: Package, cost & credit info */}
+              {state.selectedPackage && state.currentStep < 4 && (
+                <div className="hidden sm:flex flex-col items-center text-sm text-[#1F2D58]">
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span>Gekozen pakket: {state.selectedPackage.display_name}</span>
+                    <span className="text-[#1F2D58]/30 font-normal">|</span>
+                    <span>
+                      {(() => {
+                        const pkgCredits = state.selectedPackage?.credits || 0;
+                        const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+                        return pkgCredits + upsellCreds;
+                      })()} credits
+                    </span>
+                    <span className="text-[#1F2D58]/30 font-normal">|</span>
+                    <span>
+                      €{(() => {
+                        const pkgPrice = state.selectedPackage?.price || 0;
+                        const upsellsPrice = state.selectedUpsells.reduce((sum, u) => sum + u.price, 0);
+                        const total = pkgPrice + upsellsPrice;
+                        return total % 1 === 0 ? total.toLocaleString("nl-NL") : total.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      })()}
+                    </span>
+                  </div>
+                  {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
+                    <span className="text-[#1F2D58]/60 text-xs">
+                      We do it for you (+{weDoItForYouProduct.credits} credits / €{weDoItForYouProduct.price.toFixed(2).replace(".", ",")})
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 flex-shrink-0">
                 {state.currentStep < 4 ? (
                   <Button
                     onClick={handleNext}

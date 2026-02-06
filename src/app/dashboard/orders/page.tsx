@@ -623,7 +623,7 @@ export default function OrdersPage() {
 
                       {/* Credits - green for positive, default for negative */}
                       <TableCell className={`text-right font-medium whitespace-nowrap ${
-                        transaction.credits > 0 ? "text-[#488220]" : "text-[#1F2D58]"
+                        transaction.credits > 0 ? "text-[#41712F]" : "text-[#1F2D58]"
                       }`}>
                         {transaction.credits > 0 ? "+" : ""}{transaction.credits}
                       </TableCell>

@@ -49,10 +49,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { DesktopHeader } from "@/components/dashboard"
 
-// Filter status options (excluding gepubliceerd which is in separate section)
+// Filter status options (excluding gepubliceerd and wacht_op_goedkeuring which are in "Actieve vacatures" section)
 const filterStatuses: { value: VacancyStatus; label: string }[] = [
   { value: "concept", label: "Concept" },
-  { value: "wacht_op_goedkeuring", label: "Wacht op goedkeuring" },
   { value: "verlopen", label: "Verlopen" },
   { value: "gedepubliceerd", label: "Gedepubliceerd" },
 ]
@@ -106,18 +105,14 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
 }>> = {
   concept: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
   incompleet: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
-  wacht_op_goedkeuring: [
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
+  wacht_op_goedkeuring: [],
   gepubliceerd: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Bekijk live vacature", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
   ],
   verlopen: [
@@ -127,7 +122,6 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   gedepubliceerd: [
     { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
 }
 
@@ -155,16 +149,14 @@ function getPublicationInfo(
 ): string | null {
   switch (status) {
     case "concept":
-    case "wacht_op_goedkeuring":
       return "Nog niet online"
-    case "gepubliceerd":
-      if (publishedAt && closingDate) {
-        const publishedDate = new Date(publishedAt)
-        const closeDate = new Date(closingDate)
-        const daysRemaining = getDaysRemaining(closeDate)
-        return `${formatDate(publishedDate)} · Nog ${daysRemaining} ${daysRemaining === 1 ? "dag" : "dagen"}`
-      }
+    case "wacht_op_goedkeuring":
       return null
+    case "gepubliceerd":
+      if (publishedAt) {
+        return `Laatst gepubliceerd op ${formatDate(new Date(publishedAt))} · Online`
+      }
+      return "Online"
     case "verlopen":
       if (publishedAt) {
         return `${formatDate(new Date(publishedAt))} · Verlopen`
@@ -195,6 +187,7 @@ interface Vacancy {
   package_id?: string
   intro_txt?: string
   description?: string
+  public_url?: string
 }
 
 // Multi-select filter component
@@ -318,8 +311,10 @@ export default function VacaturesPage() {
         break
       }
       case "bekijken": {
-        // Navigate to preview step (step 3)
-        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
+        // Open vacancy on the website in a new tab
+        if (vacancy.public_url) {
+          window.open(vacancy.public_url, "_blank")
+        }
         break
       }
       case "boosten":
@@ -334,8 +329,8 @@ export default function VacaturesPage() {
   }
 
   // Split vacancies into two sections
-  const publishedVacancies = vacancies.filter((v) => v.status === "gepubliceerd")
-  const otherVacancies = vacancies.filter((v) => v.status !== "gepubliceerd")
+  const activeVacancies = vacancies.filter((v) => v.status === "gepubliceerd" || v.status === "wacht_op_goedkeuring")
+  const otherVacancies = vacancies.filter((v) => v.status !== "gepubliceerd" && v.status !== "wacht_op_goedkeuring")
   
   // Filter other vacancies by selected statuses
   const filteredOtherVacancies = otherVacancies.filter((v) =>
@@ -371,19 +366,20 @@ export default function VacaturesPage() {
       {/* Page header with title, credits and actions */}
       <DesktopHeader title="Vacatures" />
 
-      {/* Section 1: Gepubliceerde vacatures */}
+      {/* Section 1: Actieve vacatures (gepubliceerd + wacht op goedkeuring) */}
       <section>
         {isLoading ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
             <div className="bg-white/50 px-6 py-4">
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Gepubliceerde vacatures</h2>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Actieve vacatures</h2>
             </div>
             <Table className="bg-white table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[28%]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[20%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[17%] whitespace-nowrap">Sluitingsdatum</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[10%] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -392,6 +388,7 @@ export default function VacaturesPage() {
                   <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                   </TableRow>
@@ -399,19 +396,19 @@ export default function VacaturesPage() {
               </TableBody>
             </Table>
           </div>
-        ) : publishedVacancies.length === 0 ? (
+        ) : activeVacancies.length === 0 ? (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
             <div className="bg-white/50 px-6 py-4">
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Gepubliceerde vacatures</h2>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Actieve vacatures</h2>
             </div>
             <Empty className="bg-white">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <Briefcase />
                 </EmptyMedia>
-                <EmptyTitle>Geen gepubliceerde vacatures</EmptyTitle>
+                <EmptyTitle>Geen actieve vacatures</EmptyTitle>
                 <EmptyDescription>
-                  Je hebt nog geen actieve vacatures. Maak een nieuwe vacature aan om kandidaten te bereiken.
+                  Je hebt nog geen actieve of ingediende vacatures. Maak een nieuwe vacature aan om kandidaten te bereiken.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
@@ -427,19 +424,20 @@ export default function VacaturesPage() {
         ) : (
           <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
             <div className="bg-white/50 px-6 py-4">
-              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Gepubliceerde vacatures</h2>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Actieve vacatures</h2>
             </div>
             <Table className="bg-white table-fixed">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[28%]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[20%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[17%] whitespace-nowrap">Sluitingsdatum</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[10%] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {publishedVacancies.map((vacancy) => {
+                {activeVacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
                   const actions = actionsPerStatus[vacancy.status]
                   const publicationInfo = getPublicationInfo(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
@@ -447,12 +445,47 @@ export default function VacaturesPage() {
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell>
-                        <span className="font-bold text-[#1F2D58]">{vacancy.title || "Naamloze vacature"}</span>
+                        <Link
+                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
+                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer"
+                        >
+                          {vacancy.title || "Naamloze vacature"}
+                        </Link>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={config.variant}>{config.label}</Badge>
-                        {publicationInfo && (
-                          <div className="text-xs text-[#1F2D58]/60 mt-1">{publicationInfo}</div>
+                        {vacancy.status === "wacht_op_goedkeuring" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-default inline-block">
+                                <Badge variant={config.variant}>{config.label}</Badge>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[240px]">
+                              <p>De vacature wordt z.s.m. beoordeeld. Bij goedkeuring ontvang je een email van ons.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : publicationInfo ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-default inline-block">
+                                <Badge variant={config.variant}>{config.label}</Badge>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{publicationInfo}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Badge variant={config.variant}>{config.label}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {vacancy.closing_date ? (
+                          <span className="text-[#1F2D58]/70 text-sm">
+                            {formatDate(new Date(vacancy.closing_date))}
+                          </span>
+                        ) : (
+                          <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -612,12 +645,27 @@ export default function VacaturesPage() {
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell>
-                        <span className="font-bold text-[#1F2D58]">{vacancy.title || "Naamloze vacature"}</span>
+                        <Link
+                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
+                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer"
+                        >
+                          {vacancy.title || "Naamloze vacature"}
+                        </Link>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={config.variant}>{config.label}</Badge>
-                        {publicationInfo && (
-                          <div className="text-xs text-[#1F2D58]/60 mt-1">{publicationInfo}</div>
+                        {publicationInfo ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-default inline-block">
+                                <Badge variant={config.variant}>{config.label}</Badge>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{publicationInfo}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Badge variant={config.variant}>{config.label}</Badge>
                         )}
                       </TableCell>
                       <TableCell>

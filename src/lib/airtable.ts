@@ -276,6 +276,9 @@ export const vacancyRecordSchema = z.object({
   // Social proof
   recommendations: z.string().optional(), // JSON string array
   
+  // Notes
+  note: z.string().optional(), // Internal notes for Colourful jobs team
+  
   // Media
   header_image: z.string().nullable().optional(), // Linked to Media Assets (single)
   gallery: z.array(z.string()).optional(), // Linked to Media Assets (multiple)
@@ -289,6 +292,9 @@ export const vacancyRecordSchema = z.object({
   users: z.array(z.string()).optional(), // Linked to Users (creator)
   events: z.array(z.string()).optional(), // Linked to Events
   
+  // Webflow
+  public_url: z.string().optional(), // URL of the published vacancy on the Webflow website
+
   // Timestamps
   "created-at": z.string().optional(),
   "updated-at": z.string().optional(),
@@ -1878,6 +1884,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     contact_phone: fields.contact_phone || "",
     contact_photo_id,
     recommendations: fields.recommendations || "",
+    note: fields.note as string | undefined,
     header_image,
     gallery,
     credits_spent,
@@ -1885,6 +1892,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     credit_transactions,
     users,
     events,
+    public_url: fields.public_url as string | undefined,
     "created-at": fields["created-at"] as string | undefined,
     "updated-at": fields["updated-at"] as string | undefined,
     "submitted-at": fields["submitted-at"] as string | undefined,
@@ -2065,6 +2073,9 @@ export async function updateVacancy(
   
   // Social proof
   if (fields.recommendations !== undefined) airtableFields.recommendations = fields.recommendations;
+  
+  // Notes
+  if (fields.note !== undefined) airtableFields.note = fields.note;
   
   // Media
   if (fields.header_image !== undefined) {

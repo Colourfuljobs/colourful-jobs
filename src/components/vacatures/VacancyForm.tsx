@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MediaPickerDialog } from "@/components/MediaPickerDialog";
-import { Plus, Trash2, Image as ImageIcon, Pencil, Upload, User, CalendarDays } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, Pencil, Upload, RefreshCw, User, CalendarDays } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -45,59 +45,20 @@ const EMPLOYMENT_TYPES = [
   { value: "Other", label: "Anders" },
 ];
 
-interface Recommendation {
-  firstName: string;
-  lastName: string;
-}
-
 export function VacancyForm({
   vacancy,
   inputType,
   lookups,
   onChange,
   validationErrors = {},
-  selectedPackage,
   onContactPhotoChange,
   onHeaderImageChange,
   onLogoChange,
-  shouldScrollToNewFeatures,
-  onScrollToNewFeaturesComplete,
 }: VacancyFormProps) {
-  // Helper to check if selected package has a specific feature by action_tag
-  const hasFeature = (actionTag: string) => {
-    return selectedPackage?.populatedFeatures?.some(
-      (feature) => feature.action_tags?.includes(actionTag)
-    ) ?? false;
-  };
-
-  // Ref for the social proof section (to scroll to when package changes)
-  const socialProofSectionRef = useRef<HTMLDivElement>(null);
-  
-  // Check if social post feature is available
-  const hasSocialPostFeature = hasFeature("cj_social_post");
-  
-  // Scroll to social proof section when triggered by parent (after package change)
-  useEffect(() => {
-    if (shouldScrollToNewFeatures && hasSocialPostFeature && socialProofSectionRef.current) {
-      // Small delay to ensure DOM is updated
-      setTimeout(() => {
-        socialProofSectionRef.current?.scrollIntoView({ 
-          behavior: "smooth", 
-          block: "center" 
-        });
-        // Notify parent that scroll is complete
-        onScrollToNewFeaturesComplete?.();
-      }, 100);
-    }
-  }, [shouldScrollToNewFeatures, hasSocialPostFeature, onScrollToNewFeaturesComplete]);
-
   const [showHeaderDialog, setShowHeaderDialog] = useState(false);
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
   const [showContactPhotoDialog, setShowContactPhotoDialog] = useState(false);
   const [closingDateOpen, setClosingDateOpen] = useState(false);
-  const [recommendations, setRecommendations] = useState<Recommendation[]>(
-    vacancy.recommendations ? JSON.parse(vacancy.recommendations) : []
-  );
   
   // Media state for previews
   const [employerLogo, setEmployerLogo] = useState<MediaAsset | null>(null);
@@ -106,6 +67,7 @@ export function VacancyForm({
   const [availableImages, setAvailableImages] = useState<MediaAsset[]>([]);
   const [contactPhoto, setContactPhoto] = useState<MediaAsset | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   
   // Track initial load to prevent overwriting user selections
   const [initialMediaLoaded, setInitialMediaLoaded] = useState(false);
@@ -201,9 +163,10 @@ export function VacancyForm({
                   .map((img: { id: string; url: string }) => ({ id: img.id, url: img.url }));
                 setGalleryImages(galleryAssets);
               } else {
-                // Default: all images except the header image
+                // Default: first 2 images except the header image
                 const defaultGallery = data.images
                   .filter((img: { id: string; url: string }) => img.id !== foundHeader?.id)
+                  .slice(0, 2)
                   .map((img: { id: string; url: string }) => ({ id: img.id, url: img.url }));
                 setGalleryImages(defaultGallery);
                 // Save default gallery to vacancy
@@ -263,72 +226,60 @@ export function VacancyForm({
     }
   };
 
-  // Handle recommendation changes
-  const addRecommendation = () => {
-    const newRecs = [...recommendations, { firstName: "", lastName: "" }];
-    setRecommendations(newRecs);
-    onChange({ recommendations: JSON.stringify(newRecs) });
-  };
-
-  const updateRecommendation = (index: number, field: keyof Recommendation, value: string) => {
-    const newRecs = [...recommendations];
-    newRecs[index] = { ...newRecs[index], [field]: value };
-    setRecommendations(newRecs);
-    onChange({ recommendations: JSON.stringify(newRecs) });
-  };
-
-  const removeRecommendation = (index: number) => {
-    const newRecs = recommendations.filter((_, i) => i !== index);
-    setRecommendations(newRecs);
-    onChange({ recommendations: JSON.stringify(newRecs) });
-  };
-
   // Show simplified form for "We do it for you"
   if (inputType === "we_do_it_for_you") {
     return (
       <div className="space-y-4">
         {/* Section: Vacaturetekst */}
         <FormSection title="Vacaturetekst" description="Plak of schrijf de vacaturetekst">
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="description">Vacaturetekst <span className="text-slate-400 text-sm">*</span></Label>
-              <RichTextEditor
-                value={vacancy.description || ""}
-                onChange={(value) => updateField("description", value)}
-                placeholder="Plak hier de vacaturetekst..."
-                className={`mt-1.5 ${validationErrors.description ? "!border-red-500" : ""}`}
-              />
-              {validationErrors.description && (
-                <p className="text-sm text-red-500 mt-1">{validationErrors.description}</p>
-              )}
-            </div>
-
-            <div>
-              <Label htmlFor="notes">Opmerkingen</Label>
-              <Textarea
-                id="notes"
-                placeholder="Eventuele opmerkingen voor het Colourful jobs team..."
-                className="mt-1.5"
-                rows={4}
-              />
-            </div>
+          <div>
+            <Label htmlFor="description">Vacaturetekst <span className="text-slate-400 text-sm">*</span></Label>
+            <RichTextEditor
+              value={vacancy.description || ""}
+              onChange={(value) => updateField("description", value)}
+              placeholder="Plak hier de vacaturetekst..."
+              className={`mt-1.5 ${validationErrors.description ? "!border-red-500" : ""}`}
+            />
+            {validationErrors.description && (
+              <p className="text-sm text-red-500 mt-1">{validationErrors.description}</p>
+            )}
           </div>
         </FormSection>
 
         {/* Section: Media */}
         <FormSection title="Afbeeldingen" description="Selecteer een headerafbeelding uit je beeldbank">
-          <div>
-            <Label>Headerafbeelding <span className="text-slate-400 text-sm">*</span></Label>
-            <MediaPreviewButton
-              onClick={() => setShowHeaderDialog(true)}
-              imageUrl={headerImage?.url}
-              label="Selecteer headerafbeelding"
-            />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Label className="!mb-0">
+                Headerafbeelding <span className="text-slate-400 text-sm">*</span>
+              </Label>
+              <InfoTooltip content="Selecteer een headerafbeelding uit je Beeldbank. Dit beeld wordt prominent bovenaan de vacaturepagina getoond." />
+            </div>
+            <div className="space-y-3">
+              {headerImage?.url ? (
+                <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden">
+                  <img src={headerImage.url} alt="Header" className="h-full w-full object-cover" />
+                </div>
+              ) : (
+                <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
+                </div>
+              )}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                showArrow={false}
+                onClick={() => setShowHeaderDialog(true)}
+              >
+                {headerImage?.url ? "Wijzigen" : "Kiezen"}
+              </Button>
+            </div>
           </div>
         </FormSection>
 
         {/* Section: Solliciteren */}
-        <FormSection title="Sollicitatiemethode" description="Kies hoe kandidaten op deze vacature kunnen reageren." isLast={true}>
+        <FormSection title="Sollicitatiemethode" description="Kies hoe kandidaten op deze vacature kunnen reageren.">
           <ApplicationMethodFields
             showApplyForm={vacancy.show_apply_form || false}
             applyUrl={vacancy.apply_url || ""}
@@ -338,6 +289,21 @@ export function VacancyForm({
             onApplicationEmailChange={(value) => updateField("application_email", value)}
             validationErrors={validationErrors}
           />
+        </FormSection>
+
+        {/* Section: Opmerkingen */}
+        <FormSection title="Opmerkingen" description="Eventuele opmerkingen of instructies voor het Colourful jobs team" isLast={true}>
+          <div>
+            <Label htmlFor="note" className="sr-only">Opmerkingen</Label>
+            <Textarea
+              id="note"
+              value={vacancy.note || ""}
+              onChange={(e) => updateField("note", e.target.value)}
+              placeholder="Eventuele opmerkingen voor het Colourful jobs team..."
+              className="mt-1.5"
+              rows={4}
+            />
+          </div>
         </FormSection>
 
         {/* Media picker dialogs */}
@@ -418,32 +384,109 @@ export function VacancyForm({
       <FormSection title="Afbeeldingen" description="Voeg een logo, headerafbeelding en foto's toe om je vacature aantrekkelijker te maken. De fotogalerij verschijnt onderaan de vacaturetekst.">
         <div className="space-y-6">
           {/* Logo and Header */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+          <div className="flex flex-col sm:flex-row gap-6">
+            {/* Header */}
+            <div className="space-y-3 flex-1">
               <div className="flex items-center gap-2">
-                <Label className="!mb-0">Logo <span className="text-slate-400 text-sm">*</span></Label>
-                <InfoTooltip content="Upload je logo als PNG of SVG met een transparante achtergrond. Zo blijft je logo scherp en past het mooi op de website." />
+                <Label className="!mb-0">
+                  Headerafbeelding <span className="text-slate-400 text-sm">*</span>
+                </Label>
+                <InfoTooltip content="Selecteer een headerafbeelding uit je Beeldbank. Dit beeld wordt prominent bovenaan de vacaturepagina getoond." />
               </div>
-              <LogoUploadButton
-                logoUrl={employerLogo?.url}
-                isUploading={isUploadingLogo}
-                onFileSelect={handleLogoUpload}
-              />
+              <div className="space-y-3">
+                {headerImage?.url ? (
+                  <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden">
+                    <img src={headerImage.url} alt="Header" className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center">
+                    <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  showArrow={false}
+                  onClick={() => setShowHeaderDialog(true)}
+                >
+                  {headerImage?.url ? "Wijzigen" : "Kiezen"}
+                </Button>
+              </div>
             </div>
 
-            <div>
-              <Label>Headerafbeelding <span className="text-slate-400 text-sm">*</span></Label>
-              <MediaPreviewButton
-                onClick={() => setShowHeaderDialog(true)}
-                imageUrl={headerImage?.url}
-                label="Selecteer headerafbeelding"
+            {/* Vertical divider */}
+            <div className="hidden sm:block w-px bg-[#E8EEF2] self-stretch" />
+
+            {/* Logo */}
+            <div className="space-y-3 flex-1">
+              <div className="flex items-center gap-2">
+                <Label className="!mb-0">
+                  Logo <span className="text-slate-400 text-sm">*</span>
+                </Label>
+                <InfoTooltip content="Upload je logo als PNG of SVG met een transparante achtergrond. Zo blijft je logo scherp en past het mooi op de website." />
+              </div>
+              <input
+                ref={logoFileInputRef}
+                type="file"
+                accept="image/png,image/svg+xml"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleLogoUpload(file);
+                    e.target.value = "";
+                  }
+                }}
+                className="hidden"
               />
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-1.5">
+                  {employerLogo?.url ? (
+                    <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center p-3">
+                      <img src={employerLogo.url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                    </div>
+                  ) : (
+                    <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center">
+                      <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
+                    </div>
+                  )}
+                  <p className="text-xs text-[#1F2D58]/50 text-center">Zo ziet het eruit bij de vacature</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    showArrow={false}
+                    onClick={() => logoFileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                  >
+                    {isUploadingLogo ? (
+                      <>
+                        <Spinner className="h-4 w-4 mr-1" />
+                        Uploaden...
+                      </>
+                    ) : employerLogo?.url ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                        Vervangen
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Uploaden
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-[#1F2D58]/50">PNG of SVG, max 1MB</p>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Gallery */}
           <div>
-            <Label className="mb-2 block">Gallery afbeeldingen</Label>
+            <Label className="mb-2 block">Gallery afbeeldingen <span className="text-slate-400 text-sm font-normal">(max 2)</span></Label>
             <div className="flex flex-wrap gap-3 items-end">
               {/* Selected gallery images */}
               {galleryImages.map((img) => (
@@ -470,19 +513,17 @@ export function VacancyForm({
                 </div>
               ))}
               
-              {/* Add/upload tile - only show if less than 2 images */}
-              {galleryImages.length < 2 && (
-                <button
-                  type="button"
-                  onClick={() => setShowGalleryDialog(true)}
-                  className="h-20 sm:h-24 w-20 sm:w-24 rounded-lg border-2 border-dashed border-[#1F2D58]/20 flex flex-col items-center justify-center gap-1.5 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
-                    <Plus className="h-4 w-4 text-[#1F2D58]" />
-                  </div>
-                  <span className="text-xs text-[#1F2D58]/60">Toevoegen</span>
-                </button>
-              )}
+              {/* Add/upload tile - always visible */}
+              <button
+                type="button"
+                onClick={() => setShowGalleryDialog(true)}
+                className="h-20 sm:h-24 w-20 sm:w-24 rounded-lg border-2 border-dashed border-[#1F2D58]/20 flex flex-col items-center justify-center gap-1.5 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
+                  <Plus className="h-4 w-4 text-[#1F2D58]" />
+                </div>
+                <span className="text-xs text-[#1F2D58]/60">{galleryImages.length >= 2 ? "Wijzigen" : "Toevoegen"}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -687,6 +728,7 @@ export function VacancyForm({
                     updateField("closing_date", formattedDate);
                     setClosingDateOpen(false);
                   }}
+                  disabled={{ before: new Date() }}
                   locale={nl}
                   className="w-full"
                 />
@@ -791,7 +833,7 @@ export function VacancyForm({
       </FormSection>
 
       {/* Section 5: Solliciteren */}
-      <FormSection title="Sollicitatiemethode" description="Kies hoe kandidaten op deze vacature kunnen reageren." isLast={!hasSocialPostFeature}>
+      <FormSection title="Sollicitatiemethode" description="Kies hoe kandidaten op deze vacature kunnen reageren." isLast>
         <ApplicationMethodFields
           showApplyForm={vacancy.show_apply_form || false}
           applyUrl={vacancy.apply_url || ""}
@@ -802,57 +844,6 @@ export function VacancyForm({
           validationErrors={validationErrors}
         />
       </FormSection>
-
-      {/* Section 6: Social Proof - only show if package has cj_social_post feature */}
-      {hasSocialPostFeature && (
-        <FormSection 
-          title="Aanbevolen door collega's" 
-          description="Tag collega's die deze vacature kunnen aanbevelen. Zij worden vermeld in de LinkedIn-post, zo krijgt de post meer bereik."
-          packageBadge={selectedPackage?.display_name}
-          sectionRef={socialProofSectionRef}
-          highlighted
-          isLast
-        >
-          <div className="space-y-3">
-            {recommendations.map((rec, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <Input
-                  value={rec.firstName}
-                  onChange={(e) => updateRecommendation(index, "firstName", e.target.value)}
-                  placeholder="Voornaam"
-                  className="flex-1"
-                />
-                <Input
-                  value={rec.lastName}
-                  onChange={(e) => updateRecommendation(index, "lastName", e.target.value)}
-                  placeholder="Achternaam"
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="tertiary"
-                  size="icon"
-                  onClick={() => removeRecommendation(index)}
-                  className="w-[30px] h-[30px] shrink-0"
-                  showArrow={false}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={addRecommendation}
-              showArrow={false}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Collega toevoegen
-            </Button>
-          </div>
-        </FormSection>
-      )}
 
       {/* Media picker dialogs */}
       <MediaPickerDialog
@@ -947,81 +938,6 @@ function FormSection({
       <Separator className="my-4 bg-[#193DAB]/12" />
       {children}
     </div>
-  );
-}
-
-function LogoUploadButton({
-  logoUrl,
-  isUploading,
-  onFileSelect,
-}: {
-  logoUrl?: string;
-  isUploading: boolean;
-  onFileSelect: (file: File) => void;
-}) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleClick = () => {
-    if (!isUploading) {
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onFileSelect(file);
-      // Reset input so same file can be selected again
-      e.target.value = "";
-    }
-  };
-
-  return (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/png,image/svg+xml"
-        onChange={handleFileChange}
-        className="hidden"
-      />
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isUploading}
-        className={`mt-1.5 w-full h-44 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center ${logoUrl && !isUploading ? 'justify-between pt-4 pb-3' : 'justify-center gap-2'} hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed`}
-      >
-        {isUploading ? (
-          <div className="flex flex-col items-center gap-2">
-            <Spinner className="h-5 w-5 text-[#1F2D58]" />
-            <span className="text-sm text-[#1F2D58]/70">Uploaden...</span>
-          </div>
-        ) : logoUrl ? (
-          <>
-            <div className="flex flex-col items-center gap-2 flex-1 justify-center">
-              <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center p-3">
-                <img
-                  src={logoUrl}
-                  alt="Logo"
-                  className="max-h-full max-w-full object-contain"
-                />
-              </div>
-              <p className="text-xs text-[#1F2D58]/50">Zo verschijnt je logo op de vacaturepagina</p>
-            </div>
-            <div className="flex items-center gap-1.5 text-sm text-[#1F2D58]/70 group-hover:text-[#1F2D58]">
-              <Upload className="h-4 w-4" />
-              <span>Vervangen</span>
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <Upload className="h-6 w-6 text-[#1F2D58]/50" />
-            <span className="text-sm text-[#1F2D58]/70">Logo uploaden</span>
-            <span className="text-xs text-[#1F2D58]/50">PNG of SVG, max 1MB</span>
-          </div>
-        )}
-      </button>
-    </>
   );
 }
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check, Coins } from "lucide-react";
+import { useCredits } from "@/lib/credits-context";
 import type { FeatureRecord } from "@/lib/airtable";
 import type { ProductWithFeatures } from "./types";
 
@@ -11,6 +13,7 @@ interface PackageSelectorProps {
   selectedPackage: ProductWithFeatures | null;
   onSelectPackage: (pkg: ProductWithFeatures) => void;
   availableCredits: number;
+  onBuyCredits?: () => void;
 }
 
 // Category labels - using Dutch values as keys since that's what Airtable returns
@@ -46,7 +49,10 @@ export function PackageSelector({
   packages,
   selectedPackage,
   onSelectPackage,
+  availableCredits,
+  onBuyCredits,
 }: PackageSelectorProps) {
+  const { isPendingUpdate } = useCredits();
   // Group features by category
   const groupFeaturesByCategory = (features: FeatureRecord[]) => {
     const grouped: Record<string, FeatureRecord[]> = {};
@@ -70,10 +76,37 @@ export function PackageSelector({
   return (
     <div className="space-y-6">
       <div className="pt-6">
-        <h2 className="text-xl font-bold text-[#1F2D58] mb-2">Kies je vacaturepakket</h2>
-        <p className="text-[#1F2D58]/70">
-          Selecteer het vacaturepakket dat het beste past bij jouw wensen
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-[#1F2D58] mb-2">Kies je vacaturepakket</h2>
+            <p className="text-[#1F2D58]/70">
+              Selecteer het vacaturepakket dat het beste past bij jouw wensen
+            </p>
+          </div>
+          <div className="flex flex-col items-end flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-[#1F2D58]">
+              {isPendingUpdate ? (
+                <>
+                  <Spinner className="h-4 w-4" />
+                  <span className="font-bold text-[#1F2D58]/70">Bijwerken...</span>
+                </>
+              ) : (
+                <>
+                  <Coins className="h-4 w-4" />
+                  <span className="font-bold">{availableCredits} credits</span>
+                </>
+              )}
+            </div>
+            {onBuyCredits && (
+              <button
+                onClick={onBuyCredits}
+                className="text-sm text-[#1F2D58]/70 hover:text-[#1F2D58] hover:underline"
+              >
+                + credits bijkopen
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Wrapper to ensure badge and cards are connected */}
@@ -151,6 +184,9 @@ index !== 1 && "hover:shadow-md"
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-bold text-[#1F2D58]">
                     {pkg.credits} credits
+                  </span>
+                  <span className="text-sm text-[#1F2D58]/50">
+                    €{pkg.price % 1 === 0 ? pkg.price.toLocaleString("nl-NL") : pkg.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
 

@@ -18,6 +18,8 @@ import {
   Circle,
   ListChecks,
   PartyPopper,
+  ChevronRight,
+  Globe,
 } from "lucide-react"
 
 import { Button, ArrowIcon } from "@/components/ui/button"
@@ -63,6 +65,7 @@ interface Vacancy {
   "created-at"?: string
   package_id?: string
   description?: string
+  public_url?: string
 }
 
 // Status configuration
@@ -112,18 +115,14 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
 }>> = {
   concept: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
   incompleet: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
-  wacht_op_goedkeuring: [
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
+  wacht_op_goedkeuring: [],
   gepubliceerd: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+    { label: "Bekijk live vacature", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
   ],
   verlopen: [
@@ -133,7 +132,6 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   gedepubliceerd: [
     { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
 }
 
@@ -294,8 +292,10 @@ export default function DashboardPage() {
         break
       }
       case "bekijken": {
-        // Navigate to preview step (step 3)
-        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
+        // Open vacancy on the website in a new tab
+        if (vacancy.public_url) {
+          window.open(vacancy.public_url, "_blank")
+        }
         break
       }
       case "boosten":
@@ -459,26 +459,43 @@ export default function DashboardPage() {
           <div className="bg-white p-6 flex-1 flex flex-col">
             {isLoading ? (
               <div className="space-y-3">
-                <Skeleton className="h-10 w-12" />
-                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-16 w-full rounded-xl" />
+                <Skeleton className="h-16 w-full rounded-xl" />
                 <Skeleton className="h-10 w-full mt-4" />
               </div>
             ) : (
               <>
-                <div>
-                  <div className="space-y-1">
-                    <p className="text-3xl font-bold text-[#1F2D58]">
-                      {publishedCount}
-                    </p>
-                    <p className="text-sm text-[#1F2D58]/70">gepubliceerd</p>
-                  </div>
-                  {pendingCount > 0 && (
-                    <div className="mt-3 pt-3 border-t border-[#E8EEF2]">
-                      <div className="flex items-center gap-2 text-sm text-[#1F2D58]/70">
-                        <Clock className="h-4 w-4" />
-                        <span>{pendingCount} wacht op goedkeuring</span>
-                      </div>
+                <div className="space-y-3">
+                  {/* Published vacancies - clickable */}
+                  <Link 
+                    href="/dashboard/vacatures"
+                    className="flex items-center gap-3 p-3 rounded-xl bg-[#DEEEE3] hover:bg-[#d0e6d6] transition-colors group"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                      <Globe className="h-5 w-5 text-[#41712F]" />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{publishedCount}</p>
+                      <p className="text-sm text-[#1F2D58]/70">gepubliceerd</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-[#41712F]/50 group-hover:text-[#41712F] transition-colors" />
+                  </Link>
+
+                  {/* Pending vacancies - clickable */}
+                  {pendingCount > 0 && (
+                    <Link 
+                      href="/dashboard/vacatures"
+                      className="flex items-center gap-3 p-3 rounded-xl bg-[#193DAB]/[0.08] hover:bg-[#193DAB]/[0.14] transition-colors group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                        <Clock className="h-5 w-5 text-[#193DAB]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{pendingCount}</p>
+                        <p className="text-sm text-[#1F2D58]/70">wacht op goedkeuring</p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-[#193DAB]/50 group-hover:text-[#193DAB] transition-colors" />
+                    </Link>
                   )}
                 </div>
                 <div className="mt-auto pt-4">
@@ -752,7 +769,12 @@ export default function DashboardPage() {
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell>
-                        <span className="font-bold text-[#1F2D58]">{vacancy.title || "Naamloze vacature"}</span>
+                        <Link
+                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
+                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer"
+                        >
+                          {vacancy.title || "Naamloze vacature"}
+                        </Link>
                       </TableCell>
                       <TableCell>
                         <Badge variant={config.variant}>{config.label}</Badge>

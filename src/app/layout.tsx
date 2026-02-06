@@ -45,7 +45,7 @@ export default function RootLayout({
           }}
         />
         <SessionProvider>
-          <TooltipProvider>
+          <TooltipProvider delayDuration={200}>
             {children}
             <Toaster position="bottom-center" />
           </TooltipProvider>

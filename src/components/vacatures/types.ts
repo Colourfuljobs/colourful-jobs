@@ -65,12 +65,9 @@ export interface VacancyFormProps {
   };
   onChange: (updates: Partial<VacancyRecord>) => void;
   validationErrors?: Record<string, string>;
-  selectedPackage?: ProductWithFeatures | null;
   onContactPhotoChange?: (url: string | null) => void;
   onHeaderImageChange?: (url: string | null) => void;
   onLogoChange?: (url: string | null) => void;
-  shouldScrollToNewFeatures?: boolean;
-  onScrollToNewFeaturesComplete?: () => void;
 }
 
 export interface VacancyPreviewProps {

@@ -38,7 +38,12 @@
 
 ## Kleuren & Design Tokens
 - **Achtergrondkleur**: `#E8EEF2` (altijd, overal)
-- **Standaard tekstkleur**: `#1F2D58` (tenzij anders aangegeven, zoals warnings)
+- **Standaard tekstkleur (donkerblauw)**: `#1F2D58` (tenzij anders aangegeven, zoals warnings)
+- **Lichtblauw**: `#39ADE5` — gebruik voor hover-effecten op links/tekst, accenten en interactieve elementen
+- **Blauw (alleen borders/subtiele achtergronden)**: `#193DAB` — gebruik ALLEEN met lage opacity voor borders (`#193DAB/12`), subtiele achtergronden en button-variants. NIET gebruiken als tekstkleur of hover-kleur.
+- **Oranje (primary CTA)**: `#F86600`
+- **Groen**: `#41712F` (tekst/iconen) + `#DEEEE3` (lichte achtergrond) — gebruik voor succes-staten, gepubliceerd, actief
+- **Rood**: `#BC0000` (tekst/iconen) + `#F4DCDC` (lichte achtergrond) — gebruik voor fouten, gedepubliceerd, destructieve acties
 - Gebruik deze design tokens, niet custom kleuren
 
 ## Buttons

@@ -1,7 +1,6 @@
 "use client";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Check } from "lucide-react";
+import { Coins } from "lucide-react";
 import type { CostSidebarProps } from "./types";
 
 export function CostSidebar({
@@ -33,8 +32,15 @@ export function CostSidebar({
   return (
     <div className="space-y-4 mt-6">
       {/* Cost Overview Card */}
-      <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6 text-sm">
-        <h3 className="text-xl font-bold text-[#1F2D58] mb-4">Overzicht</h3>
+      <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] pt-4 px-6 pb-6 text-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-[#E8EEF2] flex items-center justify-center flex-shrink-0">
+            <Coins className="h-5 w-5 text-[#1F2D58]" />
+          </div>
+          <h3 className="text-xl font-bold text-[#1F2D58]">Overzicht</h3>
+        </div>
+
+        <hr className="border-[#1F2D58]/10 mb-4" />
 
         {/* Table header */}
         <div className="flex justify-end mb-2">
@@ -65,7 +71,7 @@ export function CostSidebar({
             </div>
 
             {/* Beschikbare credits */}
-            <div className="flex justify-between pt-2">
+            <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
               <span className="text-[#1F2D58]">Beschikbare credits</span>
               <span className="text-[#1F2D58]">{availableCredits}</span>
             </div>
@@ -91,7 +97,7 @@ export function CostSidebar({
               <button
                 type="button"
                 onClick={onBuyCredits}
-                className="w-full mt-4 px-4 pt-2 pb-3 border-2 border-[#D0E1CE] bg-[#D0E1CE]/20 rounded-lg text-center hover:bg-[#D0E1CE]/40 transition-colors"
+                className="w-full mt-4 px-4 pt-2 pb-3 border-2 border-[#DEEEE3] bg-[#DEEEE3]/20 rounded-lg text-center hover:bg-[#DEEEE3]/40 transition-colors"
               >
                 {hasEnoughCredits ? (
                   <p className="text-sm text-[#1F2D58]">
@@ -170,21 +176,6 @@ export function CostSidebar({
         </div>
       )}
 
-      {/* Review notice */}
-      <Alert className="bg-[#193DAB]/[0.12] border-none">
-        <AlertDescription className="text-[#1F2D58]">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
-              <Check className="w-5 h-5 text-[#1F2D58]" />
-            </div>
-            <div className="flex-1 text-left">
-              <p className="text-sm">
-                We beoordelen je vacature na het insturen.{!hasEnoughCredits && " Je ontvangt de factuur automatisch per e-mail."}
-              </p>
-            </div>
-          </div>
-        </AlertDescription>
-      </Alert>
     </div>
   );
 }
