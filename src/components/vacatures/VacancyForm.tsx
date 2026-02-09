@@ -230,15 +230,14 @@ export function VacancyForm({
   if (inputType === "we_do_it_for_you") {
     return (
       <div className="space-y-4">
-        {/* Section: Vacaturetekst */}
-        <FormSection title="Vacaturetekst" description="Plak of schrijf de vacaturetekst">
-          <div>
-            <Label htmlFor="description">Vacaturetekst <span className="text-slate-400 text-sm">*</span></Label>
+        {/* Section: Vacature input */}
+        <FormSection title="Vacature input" description="Wij schrijven de vacature voor je. Vertel ons wat we moeten weten: denk aan de functie, taken, het gewenste profiel, jullie bedrijfscultuur en de arbeidsvoorwaarden. Hoe meer context je deelt, hoe beter de vacaturetekst aansluit bij jullie organisatie." showSeparator={false}>
+          <div className="mt-4">
             <RichTextEditor
               value={vacancy.description || ""}
               onChange={(value) => updateField("description", value)}
               placeholder="Plak hier de vacaturetekst..."
-              className={`mt-1.5 ${validationErrors.description ? "!border-red-500" : ""}`}
+              className={`${validationErrors.description ? "!border-red-500" : ""}`}
             />
             {validationErrors.description && (
               <p className="text-sm text-red-500 mt-1">{validationErrors.description}</p>
@@ -908,6 +907,7 @@ function FormSection({
   sectionRef,
   isLast = false,
   highlighted = false,
+  showSeparator = true,
 }: {
   title: string;
   description: string;
@@ -917,6 +917,7 @@ function FormSection({
   sectionRef?: React.RefObject<HTMLDivElement | null>;
   isLast?: boolean;
   highlighted?: boolean;
+  showSeparator?: boolean;
 }) {
   return (
     <div 
@@ -935,7 +936,7 @@ function FormSection({
           {statusElement}
         </div>
       </div>
-      <Separator className="my-4 bg-[#193DAB]/12" />
+      {showSeparator && <Separator className="my-4 bg-[#193DAB]/12" />}
       {children}
     </div>
   );

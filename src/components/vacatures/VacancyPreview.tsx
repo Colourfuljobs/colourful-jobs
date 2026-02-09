@@ -31,9 +31,12 @@ export function VacancyPreview({
     });
   };
 
-  // Parse recommendations
+  // Parse recommendations (filter out empty entries)
   const recommendations = vacancy.recommendations
-    ? JSON.parse(vacancy.recommendations)
+    ? JSON.parse(vacancy.recommendations).filter(
+        (rec: { firstName: string; lastName: string }) =>
+          rec.firstName?.trim() || rec.lastName?.trim()
+      )
     : [];
 
   return (

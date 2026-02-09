@@ -263,13 +263,28 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     (feature) => feature.action_tags?.includes("cj_social_post")
   ) ?? false;
 
+  // Clean up empty recommendation entries from local state
+  const cleanupEmptyRecommendations = useCallback(() => {
+    setRecommendations((prev) => {
+      const filled = prev.filter(
+        (rec) => rec.firstName?.trim() || rec.lastName?.trim()
+      );
+      // Only update if something actually changed
+      if (filled.length !== prev.length) return filled;
+      return prev;
+    });
+  }, []);
+
   // Handle recommendation changes (for ColleaguesSidebar)
   const handleRecommendationsChange = useCallback((newRecs: {firstName: string; lastName: string}[]) => {
     setRecommendations(newRecs);
-    // Also update vacancy data so it gets auto-saved
+    // Only persist non-empty recommendations to vacancy data
+    const filledRecs = newRecs.filter(
+      (rec) => rec.firstName?.trim() || rec.lastName?.trim()
+    );
     setState((prev) => ({
       ...prev,
-      vacancyData: { ...prev.vacancyData, recommendations: JSON.stringify(newRecs) },
+      vacancyData: { ...prev.vacancyData, recommendations: JSON.stringify(filledRecs) },
       isDirty: true,
     }));
   }, []);
@@ -449,6 +464,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
     // Validate before moving from step 2 to step 3
     if (currentStep === 2) {
+      // Clean up empty colleague entries before leaving step 2
+      cleanupEmptyRecommendations();
+      
       const validation = validateVacancy();
       if (!validation.valid) {
         // Set validation errors for inline display
@@ -477,10 +495,15 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [state, validateVacancy, saveVacancy]);
+  }, [state, validateVacancy, saveVacancy, cleanupEmptyRecommendations]);
 
   // Navigate to previous step
   const handlePrevious = useCallback(() => {
+    // Clean up empty colleague entries when leaving step 2
+    if (state.currentStep === 2) {
+      cleanupEmptyRecommendations();
+    }
+    
     setState((prev) => ({
       ...prev,
       currentStep: Math.max(prev.currentStep - 1, 1) as WizardStep,
@@ -488,7 +511,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+  }, [state.currentStep, cleanupEmptyRecommendations]);
 
   // Handle step click in indicator
   const handleStepClick = useCallback((step: WizardStep) => {
@@ -496,12 +519,17 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     
     // Can go to step if it's completed or is the next step after current
     if (completedSteps.includes(step) || step <= state.currentStep) {
+      // Clean up empty colleague entries when leaving step 2
+      if (state.currentStep === 2 && step !== 2) {
+        cleanupEmptyRecommendations();
+      }
+      
       setState((prev) => ({ ...prev, currentStep: step }));
       
       // Scroll to top of page
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [state.currentStep, getCompletedSteps]);
+  }, [state.currentStep, getCompletedSteps, cleanupEmptyRecommendations]);
 
   // Handle credits purchase success
   const handleCreditsSuccess = useCallback(async (_newBalance: number, _purchasedAmount?: number) => {
@@ -853,7 +881,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       {/* Top header bar - full width */}
       <div className="bg-[#E8EEF2] border-b border-[#193DAB]/[0.12]">
         {/* Main row with full-height vertical borders */}
-        <div className="flex items-stretch">
+        <div className="flex items-stretch h-[80px]">
           {/* Left: Logo with right border */}
           <div className="flex items-center border-r border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6">
             <img 
@@ -894,18 +922,18 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             >
               Sluiten
             </Button>
-            {state.currentStep >= 2 && (
-              isSaving ? (
+            <div className={state.currentStep >= 2 ? "" : "invisible"}>
+              {isSaving ? (
                 <div className="flex items-center gap-1.5 text-xs text-[#1F2D58]/60 mt-0.5">
                   <Spinner className="h-3 w-3" />
                   <span>Opslaan...</span>
                 </div>
               ) : state.isDirty ? (
                 <span className="text-xs text-red-500 mt-0.5">Niet opgeslagen</span>
-              ) : state.vacancyId ? (
+              ) : (
                 <span className="text-xs text-green-600 mt-0.5">Opgeslagen</span>
-              ) : null
-            )}
+              )}
+            </div>
           </div>
         </div>
 
