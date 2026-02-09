@@ -99,12 +99,16 @@ export async function POST(
     let totalCredits = packageProduct.credits;
     let totalPrice = packageProduct.price;
     const upsellIds = vacancy.selected_upsells || [];
+    let hasVandaagOnline = false;
     
     for (const upsellId of upsellIds) {
       const upsell = await getProductById(upsellId);
       if (upsell) {
         totalCredits += upsell.credits;
         totalPrice += upsell.price;
+        if (upsell.slug === "prod_upsell_same_day") {
+          hasVandaagOnline = true;
+        }
       }
     }
 
@@ -196,11 +200,22 @@ export async function POST(
       } : {}),
     });
 
-    // Update vacancy status
+    // Update vacancy status (and set high_priority if "Vandaag online" upsell is selected)
     const updatedVacancy = await updateVacancy(id, {
       status: "wacht_op_goedkeuring",
       "submitted-at": new Date().toISOString(),
+      ...(hasVandaagOnline ? { high_priority: true } : {}),
     });
+
+    // Determine if submitted before 15:00 NL time (for "Vandaag online" cutoff)
+    const nlHour = Number(
+      new Intl.DateTimeFormat("nl-NL", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: "Europe/Amsterdam",
+      }).format(new Date())
+    );
+    const submittedBeforeCutoff = nlHour < 15;
 
     // Log event
     await logEvent({
@@ -221,6 +236,10 @@ export async function POST(
         invoice_amount: invoiceAmount,
         input_type: vacancy.input_type,
         payment_method: hasEnoughCredits ? "credits" : "partial_invoice",
+        ...(hasVandaagOnline ? {
+          vandaag_online: true,
+          submitted_before_cutoff: submittedBeforeCutoff,
+        } : {}),
       },
     });
 

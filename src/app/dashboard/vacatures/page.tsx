@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DesktopHeader } from "@/components/dashboard"
+import { BoostModal } from "@/components/vacatures/BoostModal"
 
 // Filter status options (excluding gepubliceerd and wacht_op_goedkeuring which are in "Actieve vacatures" section)
 const filterStatuses: { value: VacancyStatus; label: string }[] = [
@@ -247,6 +248,8 @@ export default function VacaturesPage() {
     filterStatuses.map((s) => s.value)
   )
   const [vacancies, setVacancies] = useState<Vacancy[]>([])
+  const [boostModalOpen, setBoostModalOpen] = useState(false)
+  const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
 
   // Set page title
   useEffect(() => {
@@ -254,33 +257,33 @@ export default function VacaturesPage() {
   }, [])
 
   // Fetch vacancies from API
-  useEffect(() => {
-    const fetchVacancies = async () => {
-      try {
-        const response = await fetch("/api/vacancies")
-        if (!response.ok) {
-          throw new Error("Failed to fetch vacancies")
-        }
-        const data = await response.json()
-        if (data.vacancies) {
-          // Sort by created-at descending
-          const sortedVacancies = data.vacancies.sort(
-            (a: Vacancy, b: Vacancy) => {
-              const dateA = a["created-at"] ? new Date(a["created-at"]).getTime() : 0
-              const dateB = b["created-at"] ? new Date(b["created-at"]).getTime() : 0
-              return dateB - dateA
-            }
-          )
-          setVacancies(sortedVacancies)
-        }
-        setIsLoading(false)
-      } catch (err) {
-        console.error("Error fetching vacancies:", err)
-        setError("Er ging iets mis bij het laden van je vacatures")
-        setIsLoading(false)
+  const fetchVacancies = async () => {
+    try {
+      const response = await fetch("/api/vacancies")
+      if (!response.ok) {
+        throw new Error("Failed to fetch vacancies")
       }
+      const data = await response.json()
+      if (data.vacancies) {
+        // Sort by created-at descending
+        const sortedVacancies = data.vacancies.sort(
+          (a: Vacancy, b: Vacancy) => {
+            const dateA = a["created-at"] ? new Date(a["created-at"]).getTime() : 0
+            const dateB = b["created-at"] ? new Date(b["created-at"]).getTime() : 0
+            return dateB - dateA
+          }
+        )
+        setVacancies(sortedVacancies)
+      }
+      setIsLoading(false)
+    } catch (err) {
+      console.error("Error fetching vacancies:", err)
+      setError("Er ging iets mis bij het laden van je vacatures")
+      setIsLoading(false)
     }
+  }
 
+  useEffect(() => {
     fetchVacancies()
   }, [])
 
@@ -318,8 +321,8 @@ export default function VacaturesPage() {
         break
       }
       case "boosten":
-        // TODO: Implement boost functionality
-        console.log("Boosten:", vacancyId)
+        setBoostVacancy({ id: vacancyId, title: vacancy.title || "Naamloze vacature" })
+        setBoostModalOpen(true)
         break
       case "publiceren":
         // TODO: Implement publish functionality
@@ -722,6 +725,17 @@ export default function VacaturesPage() {
           </div>
         )}
       </section>
+
+      {/* Boost Modal */}
+      {boostVacancy && (
+        <BoostModal
+          open={boostModalOpen}
+          onOpenChange={setBoostModalOpen}
+          vacancyId={boostVacancy.id}
+          vacancyTitle={boostVacancy.title}
+          onSuccess={fetchVacancies}
+        />
+      )}
     </div>
   )
 }

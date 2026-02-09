@@ -70,7 +70,7 @@ export function PackageSelector({
 
   // Find the "Compleet" package index for "Meest gekozen" badge
   const mostChosenIndex = packages.findIndex(
-    (pkg) => pkg.display_name.toLowerCase().includes("compleet")
+    (pkg) => pkg.slug === "prod_vacancy_complete"
   );
 
   return (

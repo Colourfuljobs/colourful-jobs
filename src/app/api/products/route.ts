@@ -33,6 +33,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") as ProductRecord["type"] | null;
     const includeFeatures = searchParams.get("includeFeatures") === "true";
+    const availability = searchParams.get("availability") as "add-vacancy" | "boost-option" | null;
 
     if (!type || !["credit_bundle", "vacancy_package", "upsell"].includes(type)) {
       return NextResponse.json(
@@ -42,7 +43,14 @@ export async function GET(request: Request) {
     }
 
     // Fetch products
-    const products = await getActiveProductsByType(type);
+    let products = await getActiveProductsByType(type);
+
+    // Filter by availability if specified
+    if (availability) {
+      products = products.filter(
+        (p) => p.availability?.includes(availability)
+      );
+    }
 
     // If features are requested, fetch and populate them
     if (includeFeatures && type === "vacancy_package") {

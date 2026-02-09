@@ -217,6 +217,46 @@ Veelgebruikte tabel acties:
 - Gebruik GEEN `Info` icoon van lucide-react - gebruik altijd `InfoTooltip`
 - Gebruik GEEN losse `Tooltip`, `TooltipTrigger`, `TooltipContent` combinatie voor dit doel
 
+## Dialogs / Modals
+- Gebruik de `Dialog` component uit `@/components/ui/dialog`
+- **Achtergrond**: altijd `bg-[#E8EEF2]` (zelfde als pagina-achtergrond)
+- **Border-radius**: `rounded-t-[0.75rem] rounded-b-[2rem]`
+- **Padding**: `p-0 gap-0` op DialogContent, padding op de scrollable inner container
+- **Max hoogte**: `max-h-[90vh]` met `overflow-y-auto` op de scrollable container
+
+### Close Button (Tertiary Style, Fixed Position)
+De close button in dialogs/modals is ALTIJD:
+- **Tertiary styled**: wit rondje met subtiele border en schaduw (`bg-white border border-[#1F2D58]/20 shadow-sm`)
+- **Absolute positioned**: vast op `top-4 right-4` (16px van boven, 16px van rechts) op de `DialogContent`
+- **Buiten de scroll container**: zodat hij altijd zichtbaar blijft bij scrollen zonder ruimte in te nemen
+- **Grootte**: 30x30px (`w-[30px] h-[30px]`)
+- Gebruik `DialogClose` van shadcn, NIET een los `<Button>`
+
+```jsx
+import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
+import { X } from "lucide-react";
+
+<Dialog open={open} onOpenChange={onOpenChange}>
+  <DialogContent className="max-w-[540px] max-h-[90vh] rounded-t-[0.75rem] rounded-b-[2rem] p-0 gap-0 bg-[#E8EEF2] overflow-hidden">
+    {/* Close button - absolute positioned, always 16px from top and right */}
+    <DialogClose className="absolute top-4 right-4 z-20 flex w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm">
+      <X className="h-4 w-4 text-[#1F2D58]" />
+      <span className="sr-only">Sluiten</span>
+    </DialogClose>
+
+    {/* Scrollable content */}
+    <div className="overflow-y-auto max-h-[90vh] p-6 space-y-4">
+      {/* Modal content here */}
+    </div>
+  </DialogContent>
+</Dialog>
+```
+
+### DON'T ❌
+- Gebruik GEEN `sticky` positioning voor de close button — dat neemt ruimte in
+- Plaats de close button NIET binnen de scrollable container
+- Gebruik GEEN custom styled close button — gebruik altijd het bovenstaande patroon
+
 ## Cards & Containers
 - Altijd custom border-radius gebruiken: `rounded-t-[0.75rem] rounded-b-[2rem]`
 - **Altijd witte achtergrond** (`#ffffff` of `bg-white`), geen border

@@ -136,7 +136,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         // Credits are handled by CreditsContext, no need to fetch here
         const [packagesRes, upsellsRes, lookupsRes, accountRes] = await Promise.all([
           fetch("/api/products?type=vacancy_package&includeFeatures=true"),
-          fetch("/api/products?type=upsell"),
+          fetch("/api/products?type=upsell&availability=add-vacancy"),
           fetch("/api/lookups?type=all"),
           fetch("/api/account"),
         ]);
@@ -158,9 +158,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         if (upsellsRes.ok) {
           const data = await upsellsRes.json();
           const allUpsells = data.products || [];
-          // Find "We do it for you" product
+          // Find "We do it for you" product by slug
           const wdify = allUpsells.find(
-            (p: ProductRecord) => p.display_name === "We do it for you"
+            (p: ProductRecord) => p.slug === "prod_upsell_we-do-it-for-you"
           );
           if (wdify) {
             setWeDoItForYouProduct(wdify);
@@ -168,7 +168,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           }
           // Filter out "We do it for you" from regular upsells
           setUpsells(allUpsells.filter(
-            (p: ProductRecord) => p.display_name !== "We do it for you"
+            (p: ProductRecord) => p.slug !== "prod_upsell_we-do-it-for-you"
           ));
         }
 
@@ -922,18 +922,20 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             >
               Sluiten
             </Button>
-            <div className={state.currentStep >= 2 ? "" : "invisible"}>
-              {isSaving ? (
-                <div className="flex items-center gap-1.5 text-xs text-[#1F2D58]/60 mt-0.5">
-                  <Spinner className="h-3 w-3" />
-                  <span>Opslaan...</span>
-                </div>
-              ) : state.isDirty ? (
-                <span className="text-xs text-red-500 mt-0.5">Niet opgeslagen</span>
-              ) : (
-                <span className="text-xs text-green-600 mt-0.5">Opgeslagen</span>
-              )}
-            </div>
+            {state.currentStep >= 2 && (
+              <div>
+                {isSaving ? (
+                  <div className="flex items-center gap-1.5 text-xs text-[#1F2D58]/60 mt-0.5">
+                    <Spinner className="h-3 w-3" />
+                    <span>Opslaan...</span>
+                  </div>
+                ) : state.isDirty ? (
+                  <span className="text-xs text-red-500 mt-0.5">Niet opgeslagen</span>
+                ) : (
+                  <span className="text-xs text-green-600 mt-0.5">Opgeslagen</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

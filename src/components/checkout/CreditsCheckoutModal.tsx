@@ -255,8 +255,8 @@ export function CreditsCheckoutModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[900px] max-h-[90vh] rounded-t-[0.75rem] rounded-b-[2rem] p-0 gap-0 bg-[#E8EEF2] overflow-hidden">
-        {/* Close button - outside scrollable area so it stays fixed */}
-        <DialogClose className="absolute top-4 right-4 z-20 w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 flex items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm">
+        {/* Close button - absolute positioned, always 16px from top and right */}
+        <DialogClose className="absolute top-4 right-4 z-20 flex w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm">
           <X className="h-4 w-4 text-[#1F2D58]" />
           <span className="sr-only">Sluiten</span>
         </DialogClose>

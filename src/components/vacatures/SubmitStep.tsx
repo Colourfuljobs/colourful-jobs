@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, CheckCircle, AlertCircle, Building2, Pencil } from "lucide-react";
+import { Check, CheckCircle, AlertCircle, Building2, Pencil, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,25 @@ export function SubmitStep({
   const upsellCredits = selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
   const totalCredits = packageCredits + upsellCredits;
   const hasEnoughCredits = availableCredits >= totalCredits;
+
+  // Check if "Vandaag online" upsell is selected
+  const hasVandaagOnline = selectedUpsells.some(
+    (u) => u.slug === "prod_upsell_same_day"
+  );
+
+  // Check if current time is before 15:00 NL time
+  const isBeforeCutoff = React.useMemo(() => {
+    if (!hasVandaagOnline) return false;
+    const now = new Date();
+    const nlHour = Number(
+      new Intl.DateTimeFormat("nl-NL", {
+        hour: "numeric",
+        hour12: false,
+        timeZone: "Europe/Amsterdam",
+      }).format(now)
+    );
+    return nlHour < 15;
+  }, [hasVandaagOnline]);
 
   // Invoice details state
   const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false);
@@ -349,16 +368,20 @@ export function SubmitStep({
           <div className="space-y-3">
             {availableUpsells.map((upsell) => {
               const isSelected = selectedUpsells.some((s) => s.id === upsell.id);
+              const isSameDay = upsell.slug === "prod_upsell_same_day";
+              const sameDaySelected = isSameDay && isSelected;
+
+              // Determine border/bg based on state
+              let labelClasses = "border-[#1F2D58]/10 hover:border-[#1F2D58]/30";
+              if (isSelected) {
+                labelClasses = "border-[#41712F]/30 bg-[#DEEEE3]";
+              }
               
               return (
                 <label
                   key={upsell.id}
                   htmlFor={`upsell-${upsell.id}`}
-                  className={`block p-4 border rounded-lg cursor-pointer transition-colors ${
-                    isSelected 
-                      ? "border-[#2F9D07]/30 bg-[#2F9D07]/5" 
-                      : "border-[#1F2D58]/10 hover:border-[#1F2D58]/30"
-                  }`}
+                  className={`block p-4 border rounded-lg cursor-pointer transition-colors ${labelClasses}`}
                 >
                   {/* Top row: checkbox + title + credits */}
                   <div className="flex items-center gap-3">
@@ -381,12 +404,30 @@ export function SubmitStep({
                       {upsell.description}
                     </p>
                   )}
+
+                  {/* Same day online: cutoff status message */}
+                  {sameDaySelected && (
+                    <div className="flex items-start gap-2 mt-3 ml-7 text-sm font-medium text-[#41712F]">
+                      {isBeforeCutoff ? (
+                        <>
+                          <Check className="w-4 h-4 shrink-0 mt-[3px]" />
+                          <span>Insturen is op tijd – je vacature wordt vandaag nog beoordeeld en gepubliceerd.</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-4 h-4 shrink-0 mt-[3px]" />
+                          <span>Het is na 15:00 uur, daarom lukt het helaas niet meer om de vacature vandaag te plaatsen. We zorgen er wel voor dat deze morgen vóór 12:00 uur online staat, als je deze optie erbij afneemt.</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </label>
               );
             })}
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -135,6 +135,7 @@ export const transactionRecordSchema = z.object({
 
 export const productRecordSchema = z.object({
   id: z.string(),
+  slug: z.string().optional(), // Custom product identifier from Airtable "id" column (e.g. "prod_upsell_same_day")
   display_name: z.string(),
   description: z.string().nullable().optional(), // Long text description
   type: z.enum(["vacancy_package", "credit_bundle", "upsell"]),
@@ -146,6 +147,7 @@ export const productRecordSchema = z.object({
   sort_order: z.number().int().default(0),
   features: z.array(z.string()).optional(), // Linked records to Features
   included_upsells: z.array(z.string()).optional(), // Linked records to Products (upsells included in this package)
+  availability: z.array(z.enum(["add-vacancy", "boost-option"])).optional().default([]), // Multiple select: where this product is available
   validity_months: z.number().int().nullable().optional(), // Months until credits expire (for credit_bundle type)
   credit_expiry_warning_days: z.number().int().nullable().optional(), // Days before expiry to show warning (for credit_bundle type)
 });
@@ -294,6 +296,9 @@ export const vacancyRecordSchema = z.object({
   
   // Webflow
   public_url: z.string().optional(), // URL of the published vacancy on the Webflow website
+
+  // Priority
+  high_priority: z.boolean().default(false), // Set when "Zelfde dag online" upsell is purchased
 
   // Timestamps
   "created-at": z.string().optional(),
@@ -1477,8 +1482,11 @@ export async function getActiveProductsByType(
       const features = Array.isArray(fields.features) ? fields.features : [];
       const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
 
+      const availability = Array.isArray(fields.availability) ? fields.availability : [];
+
       return productRecordSchema.parse({
         id: record.id,
+        slug: fields.id || undefined, // Custom "id" column from Airtable
         display_name: fields.display_name || "",
         description: fields.description || null,
         type: fields.type,
@@ -1490,6 +1498,7 @@ export async function getActiveProductsByType(
         sort_order: fields.sort_order || 0,
         features,
         included_upsells,
+        availability,
         validity_months: fields.validity_months || null,
         credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
       });
@@ -1517,8 +1526,11 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
     const features = Array.isArray(fields.features) ? fields.features : [];
     const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
 
+    const availability = Array.isArray(fields.availability) ? fields.availability : [];
+
     return productRecordSchema.parse({
       id: record.id,
+      slug: fields.id || undefined, // Custom "id" column from Airtable
       display_name: fields.display_name || "",
       description: fields.description || null,
       type: fields.type,
@@ -1530,6 +1542,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       sort_order: fields.sort_order || 0,
       features,
       included_upsells,
+      availability,
       validity_months: fields.validity_months || null,
       credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
     });
@@ -2086,6 +2099,9 @@ export async function updateVacancy(
   // Users
   if (fields.users !== undefined) airtableFields.users = fields.users;
   
+  // Priority
+  if (fields.high_priority !== undefined) airtableFields.high_priority = fields.high_priority;
+
   // Special timestamps
   if (fields["submitted-at"] !== undefined) airtableFields["submitted-at"] = fields["submitted-at"];
   if (fields["last-published-at"] !== undefined) airtableFields["last-published-at"] = fields["last-published-at"];

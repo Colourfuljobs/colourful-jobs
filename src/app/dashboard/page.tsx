@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/empty"
 import { VacancyStatus } from "@/components/dashboard/VacancyCard"
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
+import { BoostModal } from "@/components/vacatures/BoostModal"
 import { useCredits } from "@/lib/credits-context"
 import { useAccount } from "@/lib/account-context"
 
@@ -155,6 +156,8 @@ export default function DashboardPage() {
   const [pendingCount, setPendingCount] = useState(0)
   const [hasMediaAssets, setHasMediaAssets] = useState(false)
   const [isOnboardingFadingOut, setIsOnboardingFadingOut] = useState(false)
+  const [boostModalOpen, setBoostModalOpen] = useState(false)
+  const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
 
   // Get onboarding dismissed state from account context (per employer)
   const onboardingDismissed = accountData?.onboarding_dismissed ?? false
@@ -299,8 +302,8 @@ export default function DashboardPage() {
         break
       }
       case "boosten":
-        // TODO: Implement boost functionality
-        console.log("Boosten:", vacancyId)
+        setBoostVacancy({ id: vacancyId, title: vacancy.title || "Naamloze vacature" })
+        setBoostModalOpen(true)
         break
       case "publiceren":
         // TODO: Implement publish functionality
@@ -833,6 +836,17 @@ export default function DashboardPage() {
         onSuccess={handleCheckoutSuccess}
         onPendingChange={setOptimisticUpdate}
       />
+
+      {/* Boost Modal */}
+      {boostVacancy && (
+        <BoostModal
+          open={boostModalOpen}
+          onOpenChange={setBoostModalOpen}
+          vacancyId={boostVacancy.id}
+          vacancyTitle={boostVacancy.title}
+          onSuccess={refreshAccount}
+        />
+      )}
     </div>
   )
 }
