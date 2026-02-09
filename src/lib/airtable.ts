@@ -2736,14 +2736,27 @@ export async function spendCreditsWithFIFO(
   // Get active credit batches sorted by expiration (FIFO)
   const batches = await getActiveCreditBatches(employerId);
   
-  // Calculate total available
-  const totalAvailable = batches.reduce((sum, batch) => sum + batch.remaining_credits, 0);
+  // Calculate total available from FIFO batches
+  const totalAvailableFromBatches = batches.reduce((sum, batch) => sum + batch.remaining_credits, 0);
   
-  if (totalAvailable < amount) {
-    throw new Error(`Insufficient credits. Available: ${totalAvailable}, Required: ${amount}`);
+  // Fallback: if no FIFO batches exist (e.g. credits purchased before FIFO was implemented),
+  // deduct directly from wallet balance instead
+  if (totalAvailableFromBatches === 0) {
+    console.log(`[FIFO] No active credit batches found for employer ${employerId}. Falling back to wallet-only deduction.`);
+    await deductCreditsFromWallet(walletId, amount);
+    return {
+      totalSpent: amount,
+      batchesUsed: [],
+    };
   }
 
-  let remaining = amount;
+  // If some batches exist but not enough, deduct what we can from batches
+  // and the rest directly from wallet (handles partial FIFO coverage)
+  if (totalAvailableFromBatches < amount) {
+    console.log(`[FIFO] Partial batch coverage: ${totalAvailableFromBatches} from batches, ${amount - totalAvailableFromBatches} from wallet balance directly.`);
+  }
+
+  let remaining = Math.min(amount, totalAvailableFromBatches);
   const batchesUsed: { id: string; creditsUsed: number }[] = [];
 
   // Deduct from batches in FIFO order
@@ -2764,7 +2777,7 @@ export async function spendCreditsWithFIFO(
     remaining -= creditsToDeduct;
   }
 
-  // Update wallet balance
+  // Update wallet balance (deducts the full amount, which is the source of truth)
   await deductCreditsFromWallet(walletId, amount);
 
   return {
