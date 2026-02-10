@@ -11,6 +11,8 @@ export function VacancyPreview({
   contactPhotoUrl,
   headerImageUrl,
   logoUrl,
+  isExistingVacancy = false,  // NEW: default false for backward compatibility
+  isReadOnly = false,  // NEW: default false for backward compatibility
 }: VacancyPreviewProps) {
   // Helper to get lookup name by ID
   const getLookupName = (
@@ -33,24 +35,26 @@ export function VacancyPreview({
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6">
-        {vacancy.input_type === "we_do_it_for_you" ? (
-          <>
-            <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Jouw input bekijken</h2>
-            <p className="text-[#1F2D58]/70 text-sm">
-              Met deze input gaan we aan de slag om jouw vacature op te stellen.
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Voorbeeld bekijken</h2>
-            <p className="text-[#1F2D58]/70 text-sm">
-              Bekijk hoe je vacature eruit zal zien voor kandidaten
-            </p>
-          </>
-        )}
-      </div>
+      {/* Header - alleen bij nieuwe vacatures en niet in read-only mode */}
+      {!isExistingVacancy && !isReadOnly && (
+        <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6">
+          {vacancy.input_type === "we_do_it_for_you" ? (
+            <>
+              <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Jouw input bekijken</h2>
+              <p className="text-[#1F2D58]/70 text-sm">
+                Met deze input gaan we aan de slag om jouw vacature op te stellen.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Voorbeeld bekijken</h2>
+              <p className="text-[#1F2D58]/70 text-sm">
+                Bekijk hoe je vacature eruit zal zien voor kandidaten
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Preview card */}
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">

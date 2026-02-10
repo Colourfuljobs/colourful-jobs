@@ -298,6 +298,7 @@ export const vacancyRecordSchema = z.object({
   
   // Webflow
   public_url: z.string().nullable().optional(), // URL of the published vacancy on the Webflow website
+  needs_webflow_sync: z.boolean().default(false), // Set to true when changes need to be synced to Webflow
 
   // Priority
   high_priority: z.boolean().default(false), // Set when "Zelfde dag online" upsell is purchased
@@ -1984,6 +1985,8 @@ function parseVacancyFields(record: any): VacancyRecord {
     users,
     events,
     public_url: fields.public_url as string | undefined,
+    needs_webflow_sync: fields.needs_webflow_sync as boolean | undefined,
+    high_priority: fields.high_priority as boolean | undefined,
     "created-at": fields["created-at"] as string | undefined,
     "updated-at": fields["updated-at"] as string | undefined,
     "submitted-at": fields["submitted-at"] as string | undefined,

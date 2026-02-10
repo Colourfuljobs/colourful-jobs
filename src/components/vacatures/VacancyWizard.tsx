@@ -28,13 +28,15 @@ import type {
   VacancyWizardState,
   ProductWithFeatures,
   InvoiceDetails,
+  WizardStepConfig,
 } from "./types";
+import { WIZARD_STEPS_NEW, WIZARD_STEPS_EDIT } from "./types";
 import type { ProductRecord, LookupRecord, VacancyRecord, TransactionRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
 import { getVisibleUpsells } from "@/lib/upsell-filters";
 import { getPackageBaseDuration, calculateDateRange } from "@/lib/vacancy-duration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Building2, Rocket, Users, Pencil } from "lucide-react";
+import { Building2, Rocket, Users, Pencil, Clock } from "lucide-react";
 import Link from "next/link";
 
 interface VacancyWizardProps {
@@ -60,6 +62,32 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     vacancyData: {},
     vacancyId: initialVacancyId || null,
   });
+
+  // Track if this is an existing (already submitted) vacancy
+  const [isExistingVacancy, setIsExistingVacancy] = useState(false);
+
+  // Step mapping for edit mode vs new mode
+  // Bepaal welke stappen de stepper toont
+  const displaySteps: WizardStepConfig[] = isExistingVacancy
+    ? WIZARD_STEPS_EDIT
+    : WIZARD_STEPS_NEW;
+
+  // Map interne stap naar display-stap nummer voor de stepper
+  const getDisplayStep = useCallback((internalStep: WizardStep): number => {
+    if (!isExistingVacancy) return internalStep;
+    // Edit mode: intern stap 2 = display stap 1, intern stap 3 = display stap 2
+    if (internalStep === 2) return 1;
+    if (internalStep === 3) return 2;
+    return internalStep;
+  }, [isExistingVacancy]);
+
+  // Map display-stap terug naar interne stap (voor klik-navigatie)
+  const getInternalStep = useCallback((displayStep: number): WizardStep => {
+    if (!isExistingVacancy) return displayStep as WizardStep;
+    if (displayStep === 1) return 2;
+    if (displayStep === 2) return 3;
+    return displayStep as WizardStep;
+  }, [isExistingVacancy]);
 
   // Data state
   const [packages, setPackages] = useState<ProductWithFeatures[]>([]);
@@ -103,6 +131,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   
   // Track if vacancy was submitted (prevents URL sync from overriding redirect)
   const isSubmittedRef = useRef(false);
+
+  // Check if vacancy is in read-only mode (waiting for approval)
+  const isReadOnly = state.vacancyData?.status === "wacht_op_goedkeuring";
 
   // Unsaved changes warning
   useEffect(() => {
@@ -197,11 +228,21 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             const transactions: TransactionRecord[] = data.transactions || [];
             setVacancyTransactions(transactions);
             
+            // Detect if this is an existing (already submitted) vacancy
+            const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
+            const isExisting = submittedStatuses.includes(vacancy.status);
+            setIsExistingVacancy(isExisting);
+            
             // Determine step: use initialStep from URL if valid, otherwise determine from vacancy state
             let stepToUse = initialStep;
             if (!stepToUse || stepToUse < 1 || stepToUse > 4) {
               // Default: if vacancy has a package, go to step 2, otherwise step 1
               stepToUse = vacancy.package_id ? 2 : 1;
+            }
+            
+            // For existing vacancies, always start at step 2 (skip package selection)
+            if (isExisting && stepToUse === 1) {
+              stepToUse = 2;
             }
             
             // Restore "We do it for you" upsell in selectedUpsells if applicable
@@ -235,6 +276,70 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   setState((prev) => ({ ...prev, selectedPackage: pkg }));
                 }
               }
+            }
+
+            // Load media URLs for preview (logo, header image, contact photo)
+            try {
+              const mediaRes = await fetch("/api/media");
+              if (mediaRes.ok) {
+                const mediaData = await mediaRes.json();
+                
+                // Set employer logo
+                if (mediaData.logo) {
+                  setLogoUrl(mediaData.logo.url);
+                }
+                
+                // Set header image - priority: vacancy's header_image > employer's default header
+                if (mediaData.images && mediaData.images.length > 0) {
+                  let headerUrl: string | null = null;
+                  
+                  // First, check if vacancy has header_image set
+                  if (vacancy.header_image) {
+                    const vacancyHeader = mediaData.images.find((img: { id: string; url: string }) => 
+                      img.id === vacancy.header_image
+                    );
+                    if (vacancyHeader) {
+                      headerUrl = vacancyHeader.url;
+                    }
+                  }
+                  
+                  // If no vacancy header, use employer's default header image
+                  if (!headerUrl && mediaData.headerImageId) {
+                    const defaultHeader = mediaData.images.find((img: { id: string; url: string }) => 
+                      img.id === mediaData.headerImageId
+                    );
+                    if (defaultHeader) {
+                      headerUrl = defaultHeader.url;
+                    }
+                  }
+                  
+                  // If still no header found, use the first image marked as header (isHeader)
+                  if (!headerUrl) {
+                    const markedHeader = mediaData.images.find((img: { id: string; url: string; isHeader?: boolean }) => 
+                      img.isHeader === true
+                    );
+                    if (markedHeader) {
+                      headerUrl = markedHeader.url;
+                    }
+                  }
+                  
+                  if (headerUrl) {
+                    setHeaderImageUrl(headerUrl);
+                  }
+                }
+                
+                // Set contact photo if vacancy has one
+                if (vacancy.contact_photo && mediaData.images) {
+                  const contactPhoto = mediaData.images.find((img: { id: string; url: string }) => 
+                    img.id === vacancy.contact_photo
+                  );
+                  if (contactPhoto) {
+                    setContactPhotoUrl(contactPhoto.url);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error("Error loading media for preview:", error);
             }
           }
         }
@@ -399,10 +504,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
     setIsSaving(true);
     try {
+      // Exclude needs_webflow_sync from auto-save
+      const { needs_webflow_sync, ...dataToSave } = state.vacancyData;
+      
       const res = await fetch(`/api/vacancies/${state.vacancyId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(state.vacancyData),
+        body: JSON.stringify(dataToSave),
       });
 
       if (res.ok) {
@@ -427,6 +535,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Navigate to next step
   const handleNext = useCallback(async () => {
+    // Block navigation in read-only mode
+    if (isReadOnly) return;
+
     const { currentStep, selectedPackage, vacancyId } = state;
 
     // Validation per step
@@ -508,26 +619,38 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [state, validateVacancy, saveVacancy, cleanupEmptyRecommendations]);
+  }, [state, validateVacancy, saveVacancy, cleanupEmptyRecommendations, isReadOnly]);
 
   // Navigate to previous step
   const handlePrevious = useCallback(() => {
+    // Block navigation in read-only mode
+    if (isReadOnly) return;
+
     // Clean up empty colleague entries when leaving step 2
     if (state.currentStep === 2) {
       cleanupEmptyRecommendations();
     }
     
+    // Bij edit-mode, blokkeer terug naar stap 1
+    const minStep = isExistingVacancy ? 2 : 1;
+    
     setState((prev) => ({
       ...prev,
-      currentStep: Math.max(prev.currentStep - 1, 1) as WizardStep,
+      currentStep: Math.max(prev.currentStep - 1, minStep) as WizardStep,
     }));
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [state.currentStep, cleanupEmptyRecommendations]);
+  }, [state.currentStep, isExistingVacancy, cleanupEmptyRecommendations, isReadOnly]);
 
   // Handle step click in indicator
   const handleStepClick = useCallback((step: WizardStep) => {
+    // Block navigation in read-only mode
+    if (isReadOnly) return;
+
+    // Bij edit-mode, blokkeer stap 1
+    if (isExistingVacancy && step < 2) return;
+    
     const completedSteps = getCompletedSteps();
     
     // Can go to step if it's completed or is the next step after current
@@ -542,7 +665,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       // Scroll to top of page
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [state.currentStep, getCompletedSteps, cleanupEmptyRecommendations]);
+  }, [state.currentStep, isExistingVacancy, getCompletedSteps, cleanupEmptyRecommendations, isReadOnly]);
 
   // Handle credits purchase success
   const handleCreditsSuccess = useCallback(async (_newBalance: number, _purchasedAmount?: number) => {
@@ -572,6 +695,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Debounced auto-save
   useEffect(() => {
+    // Disable auto-save in read-only mode
+    if (isReadOnly) return;
+
     if (state.isDirty && state.vacancyId) {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -586,7 +712,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [state.isDirty, state.vacancyId, saveVacancy]);
+  }, [state.isDirty, state.vacancyId, saveVacancy, isReadOnly]);
 
   // Handle "We do it for you" selection
   const handleWeDoItForYou = useCallback(() => {
@@ -687,6 +813,31 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     router.push("/dashboard");
   }, [state.vacancyId, saveVacancy, router]);
 
+  // Handle saving changes for existing (already submitted) vacancies
+  const handleSaveChanges = useCallback(async () => {
+    if (!state.vacancyId) return;
+
+    setIsSaving(true);
+    try {
+      // 1. Sla de vacature-data op
+      await saveVacancy();
+
+      // 2. Trigger Webflow sync (zet veld + roept webhook aan)
+      await fetch(`/api/vacancies/${state.vacancyId}/sync`, {
+        method: "POST",
+      });
+
+      // Navigate back to overview with success parameter
+      window.location.href = "/dashboard/vacatures?success=updated";
+    } catch (error) {
+      toast.error("Er ging iets mis bij het opslaan", {
+        description: error instanceof Error ? error.message : "Probeer het opnieuw",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [state.vacancyId, saveVacancy]);
+
   // Handle vacancy submission
   const handleSubmit = useCallback(async () => {
     // Block submission if profile is not complete
@@ -760,18 +911,15 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       
       // Reset dirty state so beforeunload doesn't block navigation
       setState((prev) => ({ ...prev, isDirty: false }));
-      
-      // Show success message
-      toast.success("Vacature ingediend", {
-        description: data.credits_invoiced > 0 
-          ? "Je vacature wordt beoordeeld. Je ontvangt de factuur per e-mail na goedkeuring."
-          : "Je vacature wordt beoordeeld door ons team.",
-      });
 
       // Use window.location for a full page navigation to guarantee redirect works
       // This prevents any React effects or router.replace calls from interfering
       // Credits will be fresh on the new page load anyway
-      window.location.href = "/dashboard/vacatures";
+      // Pass success=submit parameter to show toast on the vacatures page
+      const successMessage = data.credits_invoiced > 0 
+        ? "submitted_invoice"
+        : "submitted";
+      window.location.href = `/dashboard/vacatures?success=${successMessage}`;
     } catch (error) {
       console.error("Error submitting vacancy:", error);
       toast.error("Er ging iets mis bij het indienen", {
@@ -793,6 +941,59 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Render current step content
   const renderStepContent = () => {
+    // Read-only mode: always show preview with info banner
+    if (isReadOnly) {
+      return (
+        <>
+          {/* Info banner */}
+          <Alert className="bg-[#39ADE5]/10 border-none mb-4 p-6">
+            <AlertDescription className="text-[#1F2D58]">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-white flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-[#39ADE5]" />
+                </div>
+                <div className="flex-1">
+                  {state.vacancyData.input_type === "we_do_it_for_you" ? (
+                    <>
+                      <strong className="block mb-1">Je vacature wordt opgesteld</strong>
+                      <p className="text-sm">
+                        We stellen de vacature voor je op. Je ontvangt een bericht zodra deze klaar is en je kunt deze dan bekijken en goedkeuren.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <strong className="block mb-1">Je vacature wordt beoordeeld</strong>
+                      <p className="text-sm">
+                        Ons team controleert je vacature. Tijdens de beoordeling kun je geen wijzigingen maken. 
+                        Je ontvangt bericht zodra de vacature is goedgekeurd of als er aanpassingen nodig zijn.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+
+          {/* Read-only preview */}
+          {lookups ? (
+            <VacancyPreview
+              vacancy={state.vacancyData}
+              selectedPackage={state.selectedPackage}
+              lookups={lookups}
+              contactPhotoUrl={contactPhotoUrl || undefined}
+              headerImageUrl={headerImageUrl || undefined}
+              logoUrl={logoUrl || undefined}
+              isReadOnly={true}
+            />
+          ) : (
+            <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
+              <Spinner className="w-6 h-6 text-[#1F2D58]" />
+            </div>
+          )}
+        </>
+      );
+    }
+
     switch (state.currentStep) {
       case 1:
         return (
@@ -832,15 +1033,18 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       case 2:
         return (
           <div className="space-y-4">
-            <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6 relative">
-              {state.inputType === "we_do_it_for_you" && (
-                <Badge variant="info" className="absolute top-3 right-4">We do it for you</Badge>
-              )}
-              <h2 className="text-xl font-bold text-[#1F2D58] mb-1">2. Vacature opstellen</h2>
-              <p className="text-[#1F2D58]/70 text-sm">
-                Vul de vacature gegevens in en kies of upload bijpassende afbeeldingen
-              </p>
-            </div>
+            {/* Titelblok alleen tonen bij nieuwe vacatures, niet bij wijzigen */}
+            {!isExistingVacancy && (
+              <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6 relative">
+                {state.inputType === "we_do_it_for_you" && (
+                  <Badge variant="info" className="absolute top-3 right-4">We do it for you</Badge>
+                )}
+                <h2 className="text-xl font-bold text-[#1F2D58] mb-1">2. Vacature opstellen</h2>
+                <p className="text-[#1F2D58]/70 text-sm">
+                  Vul de vacature gegevens in en kies of upload bijpassende afbeeldingen
+                </p>
+              </div>
+            )}
             
             {lookups && (
               <VacancyForm
@@ -866,6 +1070,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             contactPhotoUrl={contactPhotoUrl || undefined}
             headerImageUrl={headerImageUrl || undefined}
             logoUrl={logoUrl || undefined}
+            isExistingVacancy={isExistingVacancy}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -961,25 +1166,28 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           </div>
 
           {/* Center: Step indicator - only visible on larger screens */}
-          <div className="hidden md:flex flex-1 items-center justify-center py-4 sm:py-6 relative">
-            <div className="w-full">
-              <StepIndicator
-                currentStep={state.currentStep}
-                completedSteps={getCompletedSteps()}
-                onStepClick={handleStepClick}
-              />
+          {!isReadOnly && (
+            <div className="hidden md:flex flex-1 items-center justify-center py-4 sm:py-6 relative">
+              <div className="w-full">
+                <StepIndicator
+                  currentStep={getDisplayStep(state.currentStep) as WizardStep}
+                  completedSteps={getCompletedSteps().map(s => getDisplayStep(s)) as WizardStep[]}
+                  steps={displaySteps}
+                  onStepClick={(displayStep) => handleStepClick(getInternalStep(displayStep))}
+                />
+              </div>
+              {/* Progress bar at bottom, edge-to-edge */}
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-transparent">
+                <div
+                  className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
+                  style={{ width: `${(getDisplayStep(state.currentStep) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
+                />
+              </div>
             </div>
-            {/* Progress bar at bottom, edge-to-edge */}
-            <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-transparent">
-              <div
-                className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
-                style={{ width: `${(state.currentStep / 4) * 100}%` }}
-              />
-            </div>
-          </div>
+          )}
 
           {/* Spacer on mobile when step indicator is hidden */}
-          <div className="flex-1 md:hidden" />
+          <div className={`flex-1 ${isReadOnly ? "" : "md:hidden"}`} />
 
           {/* Right: Close + save status with left border */}
           <div className="flex flex-col items-end justify-center border-l border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6">
@@ -991,7 +1199,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             >
               Sluiten
             </Button>
-            {state.currentStep >= 2 && (
+            {!isReadOnly && state.currentStep >= 2 && (
               <div>
                 {isSaving ? (
                   <div className="flex items-center gap-1.5 text-xs text-[#1F2D58]/60 mt-0.5">
@@ -1009,22 +1217,25 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         </div>
 
         {/* Mobile: Step indicator below logo row */}
-        <div className="md:hidden relative">
-          <div className="px-4 sm:px-8 pb-3">
-            <StepIndicator
-              currentStep={state.currentStep}
-              completedSteps={getCompletedSteps()}
-              onStepClick={handleStepClick}
-            />
+        {!isReadOnly && (
+          <div className="md:hidden relative">
+            <div className="px-4 sm:px-8 pb-3">
+              <StepIndicator
+                currentStep={getDisplayStep(state.currentStep) as WizardStep}
+                completedSteps={getCompletedSteps().map(s => getDisplayStep(s)) as WizardStep[]}
+                steps={displaySteps}
+                onStepClick={(displayStep) => handleStepClick(getInternalStep(displayStep))}
+              />
+            </div>
+            {/* Progress bar at bottom, edge-to-edge */}
+            <div className="h-[3px] bg-transparent">
+              <div
+                className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
+                style={{ width: `${(getDisplayStep(state.currentStep) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
+              />
+            </div>
           </div>
-          {/* Progress bar at bottom, edge-to-edge */}
-          <div className="h-[3px] bg-transparent">
-            <div
-              className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
-              style={{ width: `${(state.currentStep / 4) * 100}%` }}
-            />
-          </div>
-        </div>
+        )}
       </div>
 
     {/* Main content with max-width container */}
@@ -1032,13 +1243,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content area - full width on step 1, 2/3 width on step 2-4 with sidebar */}
-        <div className={state.currentStep === 4 || (state.currentStep === 2 && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature) ? "lg:col-span-2" : "lg:col-span-3"}>
+        {/* Main content area - full width on step 1, 2/3 width on step 2-4 with sidebar (but step 4 is skipped for existing vacancies, and step 2 sidebar hidden for existing) */}
+        <div className={state.currentStep === 4 && !isExistingVacancy || (state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature) ? "lg:col-span-2" : "lg:col-span-3"}>
           {renderStepContent()}
         </div>
 
-        {/* Step 2 sidebar: Colleagues + We Do It For You */}
-        {state.currentStep === 2 && (hasSocialPostFeature || weDoItForYouProduct) && (
+        {/* Step 2 sidebar: Colleagues + We Do It For You - NIET bij bestaande vacatures of read-only */}
+        {!isReadOnly && state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct) && (
           <div className={`lg:col-span-1 order-first lg:order-none space-y-4 ${hasSocialPostFeature ? "mt-6" : ""}`}>
             {hasSocialPostFeature && (
               <ColleaguesSidebar
@@ -1072,15 +1283,15 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           </div>
         )}
 
-        {/* Step 3 sidebar: Colleagues review (read-only with link back to edit) */}
+        {/* Step 3 sidebar: Colleagues review (read-only with link back to edit, unless in read-only mode) */}
         {state.currentStep === 3 && hasSocialPostFeature && (
-          <div className="lg:col-span-1 order-first lg:order-none mt-6">
+          <div className={`lg:col-span-1 order-first lg:order-none ${!isReadOnly ? "mt-6" : ""}`}>
             {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
               /* State B: Show tagged colleagues */
               <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
-                    <Users className="w-5 h-5 text-[#1F2D58]" />
+                    <Users className="w-5 w-5 text-[#1F2D58]" />
                   </div>
                 </div>
                 <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Getagde collega&apos;s</h4>
@@ -1088,7 +1299,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   Deze collega&apos;s worden getagd in de social media post van deze vacature.
                 </p>
                 
-                <div className="space-y-2 mb-4">
+                <div className={`space-y-2 ${!isReadOnly ? "mb-4" : ""}`}>
                   {recommendations
                     .filter(rec => rec.firstName?.trim() || rec.lastName?.trim())
                     .map((rec, index) => (
@@ -1100,42 +1311,48 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                     ))}
                 </div>
 
-                <Button 
-                  variant="link" 
-                  className="px-0" 
-                  onClick={() => handleStepClick(2)}
-                  showArrow={false}
-                >
-                  <Pencil className="h-4 w-4" />
-                  Wijzigen
-                </Button>
+                {/* Only show edit button when NOT in read-only mode */}
+                {!isReadOnly && (
+                  <Button 
+                    variant="link" 
+                    className="px-0" 
+                    onClick={() => handleStepClick(2)}
+                    showArrow={false}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Wijzigen
+                  </Button>
+                )}
               </div>
             ) : (
               /* State A: No colleagues tagged - info message */
               <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
                 <div className="flex items-start justify-between gap-2 mb-3">
                   <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
-                    <Users className="w-5 h-5 text-[#1F2D58]" />
+                    <Users className="w-5 w-5 text-[#1F2D58]" />
                   </div>
                 </div>
                 <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Geen collega&apos;s getagd</h4>
                 <p className="text-sm text-[#1F2D58]/70 mb-4">
-                  Je hebt nog geen collega&apos;s getagd voor de social media post. Wil je dit alsnog doen?
+                  Je hebt nog geen collega&apos;s getagd voor de social media post.{!isReadOnly && " Wil je dit alsnog doen?"}
                 </p>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={() => handleStepClick(2)}
-                >
-                  Collega&apos;s taggen
-                </Button>
+                {/* Only show button when NOT in read-only mode */}
+                {!isReadOnly && (
+                  <Button 
+                    variant="secondary" 
+                    size="sm"
+                    onClick={() => handleStepClick(2)}
+                  >
+                    Collega&apos;s taggen
+                  </Button>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* Cost sidebar - only show in step 4 */}
-        {state.currentStep === 4 && (
+        {/* Cost sidebar - only show in step 4 for NEW vacancies (not for existing ones) */}
+        {state.currentStep === 4 && !isExistingVacancy && (
           <div className="lg:col-span-1 space-y-4">
             <CostSidebar
               selectedPackage={state.selectedPackage}
@@ -1155,27 +1372,44 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       </div>
 
       {/* Spacer for sticky navigation bar */}
-      <div className="h-20" />
+      {!isReadOnly && <div className="h-20" />}
 
       {/* Sticky navigation bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
+      {!isReadOnly && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
         <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
               <div className="flex-shrink-0">
-                {state.currentStep > 1 && (
-                  <Button
-                    variant="tertiary"
-                    onClick={handlePrevious}
-                    disabled={isSaving}
-                    showArrow={false}
-                  >
-                    {state.currentStep === 4 ? "Vacature bekijken" : state.currentStep === 3 ? "Vacature aanpassen" : "Pakket wijzigen"}
-                  </Button>
-                )}
+                {(() => {
+                  // Bepaal of de terugknop getoond moet worden
+                  const showBackButton = isExistingVacancy
+                    ? state.currentStep > 2   // Edit: alleen terug tonen op stap 3
+                    : state.currentStep > 1;  // Nieuw: terug tonen vanaf stap 2
+                  
+                  // Bepaal het label van de terugknop
+                  const backButtonLabel = isExistingVacancy
+                    ? "Vacature aanpassen"     // Edit stap 3 → 2
+                    : state.currentStep === 4
+                      ? "Vacature bekijken"
+                      : state.currentStep === 3
+                        ? "Vacature aanpassen"
+                        : "Pakket wijzigen";
+                  
+                  return showBackButton ? (
+                    <Button
+                      variant="tertiary"
+                      onClick={handlePrevious}
+                      disabled={isSaving}
+                      showArrow={false}
+                    >
+                      {backButtonLabel}
+                    </Button>
+                  ) : null;
+                })()}
               </div>
 
-              {/* Center: Package, cost & credit info */}
-              {state.selectedPackage && state.currentStep < 4 && (
+              {/* Center: Package, cost & credit info - alleen bij nieuwe vacatures */}
+              {state.selectedPackage && state.currentStep < 4 && !isExistingVacancy && (
                 <div className="hidden sm:flex flex-col items-center text-sm text-[#1F2D58]">
                   <div className="flex items-center gap-1.5 font-bold">
                     <span>Gekozen pakket: {state.selectedPackage.display_name}</span>
@@ -1207,20 +1441,48 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
               <div className="flex items-center gap-3 flex-shrink-0">
                 {state.currentStep < 4 ? (
-                  <Button
-                    onClick={handleNext}
-                    disabled={isSaving || (state.currentStep === 1 && !state.selectedPackage)}
-                    showArrow={!(isSaving && state.currentStep !== 2)}
-                  >
-                    {isSaving && state.currentStep !== 2 ? (
-                      <>
-                        <Spinner className="w-4 h-4 mr-2" />
-                        Laden...
-                      </>
+                  <>
+                    {/* For existing vacancies at step 3 (preview), show "Wijzigingen opslaan" instead of "Verder" */}
+                    {isExistingVacancy && state.currentStep === 3 ? (
+                      <Button
+                        onClick={handleSaveChanges}
+                        disabled={isSaving}
+                        showArrow={false}
+                      >
+                        {isSaving ? (
+                          <>
+                            <Spinner className="w-4 h-4 mr-2" />
+                            Opslaan...
+                          </>
+                        ) : (
+                          "Wijzigingen opslaan"
+                        )}
+                      </Button>
                     ) : (
-                      `Verder naar ${state.currentStep === 1 ? "opstellen" : state.currentStep === 2 ? "voorbeeld" : "plaatsen"}`
+                      <Button
+                        onClick={handleNext}
+                        disabled={isSaving || (state.currentStep === 1 && !state.selectedPackage)}
+                        showArrow={!(isSaving && state.currentStep !== 2)}
+                      >
+                        {isSaving && state.currentStep !== 2 ? (
+                          <>
+                            <Spinner className="w-4 h-4 mr-2" />
+                            Laden...
+                          </>
+                        ) : (() => {
+                          // Bepaal het label van de "Verder naar" knop
+                          const nextButtonLabel = isExistingVacancy
+                            ? "Verder naar voorbeeld"  // Edit stap 2 → 3 (er is maar één "verder" stap)
+                            : state.currentStep === 1
+                              ? "Verder naar opstellen"
+                              : state.currentStep === 2
+                                ? "Verder naar voorbeeld"
+                                : "Verder naar plaatsen";
+                          return nextButtonLabel;
+                        })()}
+                      </Button>
                     )}
-                  </Button>
+                  </>
                 ) : (
                   (() => {
                     const packageCredits = state.selectedPackage?.credits || 0;
@@ -1269,6 +1531,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             </div>
           </div>
         </div>
+      )}
 
       {/* Credits checkout modal */}
       <CreditsCheckoutModal

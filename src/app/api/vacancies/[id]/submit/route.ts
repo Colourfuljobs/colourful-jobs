@@ -70,6 +70,15 @@ export async function POST(
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
+    // Prevent re-submission of already submitted vacancies
+    const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
+    if (submittedStatuses.includes(vacancy.status)) {
+      return NextResponse.json(
+        { error: "Deze vacature is al ingediend. Gebruik de wijzig-functie om aanpassingen te maken." },
+        { status: 400 }
+      );
+    }
+
     // Verify vacancy is in concept status
     if (vacancy.status !== "concept") {
       return NextResponse.json(

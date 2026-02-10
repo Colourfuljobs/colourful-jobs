@@ -13,12 +13,20 @@ export interface WizardStepConfig {
   shortLabel: string;
 }
 
-export const WIZARD_STEPS: WizardStepConfig[] = [
+export const WIZARD_STEPS_NEW: WizardStepConfig[] = [
   { number: 1, label: "Pakketten", shortLabel: "Pakketten" },
   { number: 2, label: "Opstellen", shortLabel: "Opstellen" },
   { number: 3, label: "Bekijken", shortLabel: "Bekijken" },
   { number: 4, label: "Plaatsen", shortLabel: "Plaatsen" },
 ];
+
+export const WIZARD_STEPS_EDIT: WizardStepConfig[] = [
+  { number: 1, label: "Aanpassen", shortLabel: "Aanpassen" },
+  { number: 2, label: "Voorbeeld", shortLabel: "Voorbeeld" },
+];
+
+// Backward compatibility
+export const WIZARD_STEPS = WIZARD_STEPS_NEW;
 
 export interface VacancyWizardState {
   currentStep: WizardStep;
@@ -34,6 +42,7 @@ export interface StepIndicatorProps {
   currentStep: WizardStep;
   completedSteps: WizardStep[];
   onStepClick?: (step: WizardStep) => void;
+  steps?: WizardStepConfig[];  // Optional custom steps for edit mode
 }
 
 export interface CostSidebarProps {
@@ -85,6 +94,8 @@ export interface VacancyPreviewProps {
   contactPhotoUrl?: string;
   headerImageUrl?: string;
   logoUrl?: string;
+  isExistingVacancy?: boolean;  // NEW: hide title block when editing
+  isReadOnly?: boolean;  // NEW: hide title block in read-only mode (wacht_op_goedkeuring)
 }
 
 export interface InvoiceDetails {

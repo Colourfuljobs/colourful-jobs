@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { 
@@ -122,7 +122,9 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   incompleet: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
   ],
-  wacht_op_goedkeuring: [],
+  wacht_op_goedkeuring: [
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+  ],
   gepubliceerd: [
     { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
@@ -203,6 +205,7 @@ interface Vacancy {
   intro_txt?: string
   description?: string
   public_url?: string
+  input_type?: "self_service" | "we_do_it_for_you"
 }
 
 // Multi-select filter component
@@ -265,11 +268,46 @@ export default function VacaturesPage() {
   const [boostModalOpen, setBoostModalOpen] = useState(false)
   const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
   const [depublishConfirmId, setDepublishConfirmId] = useState<string | null>(null)
+  
+  // Track if toast has been shown to prevent duplicates (e.g. in React Strict Mode)
+  const toastShownRef = useRef(false)
 
   // Set page title
   useEffect(() => {
     document.title = "Vacatures | Colourful jobs"
   }, [])
+
+  // Check for success parameter in URL and show appropriate toast
+  useEffect(() => {
+    // Prevent duplicate toasts
+    if (toastShownRef.current) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const success = urlParams.get("success")
+    
+    if (success === "submitted") {
+      toastShownRef.current = true
+      toast.success("Vacature ingediend", {
+        description: "Je vacature wordt beoordeeld door ons team.",
+      })
+      // Clean up URL
+      router.replace("/dashboard/vacatures", { scroll: false })
+    } else if (success === "submitted_invoice") {
+      toastShownRef.current = true
+      toast.success("Vacature ingediend", {
+        description: "Je vacature wordt beoordeeld. Je ontvangt de factuur per e-mail na goedkeuring.",
+      })
+      // Clean up URL
+      router.replace("/dashboard/vacatures", { scroll: false })
+    } else if (success === "updated") {
+      toastShownRef.current = true
+      toast.success("Vacature bijgewerkt", {
+        description: "Je wijzigingen zijn opgeslagen en worden doorgevoerd.",
+      })
+      // Clean up URL
+      router.replace("/dashboard/vacatures", { scroll: false })
+    }
+  }, [router])
 
   // Fetch vacancies from API
   const fetchVacancies = async () => {
@@ -310,10 +348,12 @@ export default function VacaturesPage() {
     // If package selected but no basic content, start at step 2
     if (!vacancy.title || !vacancy.description) return 2
     
-    // If submitted/published, show step 4 (review/summary)
-    if (vacancy.status === "wacht_op_goedkeuring" || vacancy.status === "gepubliceerd") return 4
+    // For submitted/published vacancies, go to step 2 (edit mode) instead of step 4
+    // This allows them to edit without going through the payment flow again
+    const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
+    if (submittedStatuses.includes(vacancy.status)) return 2
     
-    // If content is filled, go to step 3 (preview) or 4 (submit)
+    // If content is filled, go to step 2 to make edits
     // For concepts with content, let them continue from step 2 to make edits
     return 2
   }
@@ -371,14 +411,16 @@ export default function VacaturesPage() {
         break
       }
       case "bekijken": {
-        // Open vacancy on the website in a new tab
         if (vacancy.public_url) {
           window.open(vacancy.public_url, "_blank")
+        } else {
+          // Open in wizard read-only mode (for wacht_op_goedkeuring without public_url)
+          router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
         }
         break
       }
       case "boosten":
-        setBoostVacancy({ id: vacancyId, title: vacancy.title || "Naamloze vacature" })
+        setBoostVacancy({ id: vacancyId, title: vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature") })
         setBoostModalOpen(true)
         break
       case "publiceren":
@@ -511,7 +553,7 @@ export default function VacaturesPage() {
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
-                          {vacancy.title || "Naamloze vacature"}
+                          {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
                         </Link>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
@@ -519,11 +561,18 @@ export default function VacaturesPage() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="cursor-default inline-block">
-                                <Badge variant={config.variant}>{config.label}</Badge>
+                                <Badge variant={config.variant}>
+                                  {vacancy.input_type === "we_do_it_for_you" ? "Vacature wordt opgesteld" : config.label}
+                                </Badge>
                               </span>
                             </TooltipTrigger>
                             <TooltipContent className="max-w-[240px]">
-                              <p>De vacature wordt z.s.m. beoordeeld. Bij goedkeuring ontvang je een email van ons.</p>
+                              <p>
+                                {vacancy.input_type === "we_do_it_for_you" 
+                                  ? "We stellen de vacature voor je op. Je ontvangt een email zodra de vacature klaar is voor beoordeling."
+                                  : "De vacature wordt z.s.m. beoordeeld. Bij goedkeuring ontvang je een email van ons."
+                                }
+                              </p>
                             </TooltipContent>
                           </Tooltip>
                         ) : publicationInfo ? (
@@ -711,7 +760,7 @@ export default function VacaturesPage() {
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
-                          {vacancy.title || "Naamloze vacature"}
+                          {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
                         </Link>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">

@@ -14,6 +14,7 @@ import {
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getPackageBaseDuration } from "@/lib/vacancy-duration";
+import { triggerWebflowSync } from "@/lib/webflow-sync";
 
 /**
  * POST /api/vacancies/[id]/boost
@@ -295,8 +296,14 @@ export async function POST(
       statusChanged = true;
     }
 
+    // Mark for Webflow sync
+    vacancyUpdate.needs_webflow_sync = true;
+
     // Update vacancy
     const updatedVacancy = await updateVacancy(id, vacancyUpdate);
+
+    // Trigger Webflow sync webhook
+    await triggerWebflowSync(id);
 
     // Log event
     await logEvent({

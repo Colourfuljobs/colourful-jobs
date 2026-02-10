@@ -79,6 +79,7 @@ interface Vacancy {
   package_id?: string
   description?: string
   public_url?: string
+  input_type?: "self_service" | "we_do_it_for_you"
 }
 
 // Status configuration
@@ -132,7 +133,9 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   incompleet: [
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
   ],
-  wacht_op_goedkeuring: [],
+  wacht_op_goedkeuring: [
+    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
+  ],
   gepubliceerd: [
     { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
@@ -292,8 +295,10 @@ export default function DashboardPage() {
     // If package selected but no basic content, start at step 2
     if (!vacancy.title || !vacancy.description) return 2
     
-    // If submitted/published, show step 4 (review/summary)
-    if (vacancy.status === "wacht_op_goedkeuring" || vacancy.status === "gepubliceerd") return 4
+    // For submitted/published vacancies, go to step 2 (edit mode) instead of step 4
+    // This allows them to edit without going through the payment flow again
+    const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
+    if (submittedStatuses.includes(vacancy.status)) return 2
     
     // If content is filled, go to step 2 to make edits
     return 2
@@ -364,14 +369,16 @@ export default function DashboardPage() {
         break
       }
       case "bekijken": {
-        // Open vacancy on the website in a new tab
         if (vacancy.public_url) {
           window.open(vacancy.public_url, "_blank")
+        } else {
+          // Open in wizard read-only mode (for wacht_op_goedkeuring without public_url)
+          router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
         }
         break
       }
       case "boosten":
-        setBoostVacancy({ id: vacancyId, title: vacancy.title || "Naamloze vacature" })
+        setBoostVacancy({ id: vacancyId, title: vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature") })
         setBoostModalOpen(true)
         break
       case "publiceren":
@@ -847,11 +854,24 @@ export default function DashboardPage() {
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
-                          {vacancy.title || "Naamloze vacature"}
+                          {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
                         </Link>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
-                        <Badge variant={config.variant}>{config.label}</Badge>
+                        {vacancy.status === "wacht_op_goedkeuring" && vacancy.input_type === "we_do_it_for_you" ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-default inline-block">
+                                <Badge variant={config.variant}>Vacature wordt opgesteld</Badge>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[240px]">
+                              <p>We stellen de vacature voor je op. Je ontvangt een email zodra de vacature klaar is voor beoordeling.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Badge variant={config.variant}>{config.label}</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">

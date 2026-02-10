@@ -1,12 +1,19 @@
 "use client";
 
-import { WIZARD_STEPS, type StepIndicatorProps, type WizardStep } from "./types";
+import { WIZARD_STEPS_NEW, type StepIndicatorProps, type WizardStep } from "./types";
 
 export function StepIndicator({
   currentStep,
   completedSteps,
   onStepClick,
+  steps,  // NIEUW: optionele custom stappen
 }: StepIndicatorProps) {
+  // Gebruik meegegeven stappen of fallback naar default
+  const wizardSteps = steps || WIZARD_STEPS_NEW;
+  
+  // Grid cols dynamisch op basis van aantal stappen
+  const gridCols = wizardSteps.length === 2 ? "grid-cols-2" : "grid-cols-4";
+
   const isStepClickable = (step: WizardStep): boolean => {
     if (!onStepClick) return false;
     // Can always go back to completed steps
@@ -22,8 +29,8 @@ export function StepIndicator({
     <div className="w-full">
       {/* Step labels */}
       <nav aria-label="Progress">
-        <ol className="grid grid-cols-4">
-          {WIZARD_STEPS.map((step) => {
+        <ol className={`grid ${gridCols}`}>
+          {wizardSteps.map((step) => {
             const isActive = step.number === currentStep;
             const isCompleted = completedSteps.includes(step.number);
             const isPast = step.number < currentStep;
