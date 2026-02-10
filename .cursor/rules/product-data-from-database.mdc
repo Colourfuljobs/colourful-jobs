@@ -1,0 +1,83 @@
+---
+description: Productdata (pakketten, upsells, credit bundels) moet ALTIJD uit de database komen, nooit hardcoded
+alwaysApply: true
+---
+
+# Productdata: altijd uit de database, nooit hardcoded
+
+## Principe
+ALLE productinformatie komt uit de Airtable tabellen **Products** en **Features**. Er wordt NIETS hardcoded in de frontend of backend code. Dit geldt voor:
+- Vacaturepakketten (type `vacancy_package`)
+- Credit bundels (type `credit_bundle`)
+- Upsells / boost opties (type `upsell`)
+
+## Wat uit de database moet komen
+Per product (uit de `Products` tabel):
+- `display_name` — titel/naam zoals getoond aan de gebruiker
+- `description` — beschrijvingstekst
+- `credits` — kosten in credits
+- `price` / `base_price` — prijzen
+- `features` — gekoppelde features (uit `Features` tabel)
+- `included_upsells` — meegeleverde upsells bij een pakket
+- `repeat_mode` — herhaalbaarheid (`once`, `unlimited`, `renewable`, `until_max`)
+- `duration_days`, `max_value` — configuratie voor repeat_mode logica
+- `availability` — beschikbaarheid per status
+- `sort_order` — volgorde van weergave
+
+Per feature (uit de `Features` tabel):
+- `display_name` — naam van de feature
+- `is_active` — of de feature actief is
+- `action_tags` — tags voor frontend gedrag
+- `sort_order` — volgorde
+
+## DON'T — nooit hardcoden
+- Geen hardcoded productnamen, beschrijvingen of prijzen in componenten
+- Geen hardcoded credit-kosten (bijv. `+3 credits`) in JSX — gebruik `product.credits`
+- Geen hardcoded lijsten van features of upsells
+- Geen hardcoded slugs om specifieke producten te identificeren (gebruik `repeat_mode`, `type`, of `availability` velden)
+- Geen hardcoded beschrijvingsteksten per product — gebruik `product.description`
+
+## DO — zo werkt het wel
+
+### Producten ophalen
+```typescript
+import { getActiveProductsByType } from "@/lib/airtable";
+
+// Alle upsells ophalen
+const upsells = await getActiveProductsByType("upsell");
+
+// Alle pakketten ophalen
+const packages = await getActiveProductsByType("vacancy_package");
+```
+
+### Productvelden tonen in UI
+```tsx
+// Titel, beschrijving en credits uit de database
+<span className="font-medium">{product.display_name}</span>
+<span>+{product.credits} credits</span>
+{product.description && (
+  <p className="text-sm text-[#1F2D58]/60">{product.description}</p>
+)}
+```
+
+### Repeat mode filtering (upsell zichtbaarheid)
+```typescript
+import { filterUpsellsByRepeatMode, getVisibleUpsells } from "@/lib/upsell-filters";
+
+// Filter upsells op basis van repeat_mode en bestaande transacties
+const visibleUpsells = getVisibleUpsells(upsells, {
+  vacancyTransactions,
+  firstPublishedAt: vacancy["first-published-at"],
+  closingDate: vacancy.closing_date,
+});
+```
+
+## Wanneer iemand een nieuw product/upsell wil toevoegen
+Als er een nieuw product, upsell of pakket wordt aangevraagd:
+1. Voeg het toe in de **Products** tabel in Airtable (met juiste `type`, `display_name`, `description`, `credits`, `repeat_mode`, etc.)
+2. Koppel relevante **Features** in Airtable
+3. De frontend toont het automatisch op basis van `type`, `availability` en `repeat_mode`
+4. Er hoeft GEEN code gewijzigd te worden, tenzij er nieuw UI-gedrag nodig is
+
+## Attendeer hierop
+Als een briefing of feature request hardcoded productnamen, prijzen of beschrijvingen bevat, wijs er dan op dat deze waarden in Airtable beheerd moeten worden en niet in de code thuishoren.

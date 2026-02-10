@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Coins, Eye, Pencil, Rocket, Upload, MapPin, Clock, Calendar } from "lucide-react"
+import { Coins, Eye, EyeOff, Pencil, Rocket, Send, MapPin, Clock, Calendar } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -62,7 +62,7 @@ const statusConfig: Record<VacancyStatus, {
 const actionsPerStatus: Record<VacancyStatus, Array<{
   label: string
   icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren"
+  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "depubliceren"
   iconOnly?: boolean // Whether to show only icon (with tooltip)
 }>> = {
   concept: [
@@ -77,6 +77,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],
   gepubliceerd: [
+    { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
@@ -86,7 +87,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
   ],
   gedepubliceerd: [
-    { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
+    { label: "Publiceren", icon: Send, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],

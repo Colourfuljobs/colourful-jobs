@@ -11,8 +11,9 @@ import {
   Clock,
   Pencil,
   Eye,
+  EyeOff,
   Rocket,
-  Upload,
+  Send,
   Building2,
   CheckCircle2,
   Circle,
@@ -27,6 +28,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DesktopHeader } from "@/components/dashboard"
 import {
   Table,
@@ -55,6 +66,7 @@ import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal
 import { BoostModal } from "@/components/vacatures/BoostModal"
 import { useCredits } from "@/lib/credits-context"
 import { useAccount } from "@/lib/account-context"
+import { toast } from "sonner"
 
 // Types for vacancy data from API
 interface Vacancy {
@@ -111,7 +123,7 @@ const statusConfig: Record<VacancyStatus, {
 const actionsPerStatus: Record<VacancyStatus, Array<{
   label: string
   icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren"
+  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "depubliceren"
   iconOnly?: boolean
 }>> = {
   concept: [
@@ -122,6 +134,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   ],
   wacht_op_goedkeuring: [],
   gepubliceerd: [
+    { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijk live vacature", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
@@ -131,7 +144,8 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
   ],
   gedepubliceerd: [
-    { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
+    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
+    { label: "Publiceren", icon: Send, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
   ],
 }
@@ -158,6 +172,7 @@ export default function DashboardPage() {
   const [isOnboardingFadingOut, setIsOnboardingFadingOut] = useState(false)
   const [boostModalOpen, setBoostModalOpen] = useState(false)
   const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
+  const [depublishConfirmId, setDepublishConfirmId] = useState<string | null>(null)
 
   // Get onboarding dismissed state from account context (per employer)
   const onboardingDismissed = accountData?.onboarding_dismissed ?? false
@@ -284,6 +299,60 @@ export default function DashboardPage() {
     return 2
   }
 
+  const handleDepublishConfirm = async () => {
+    if (!depublishConfirmId) return
+    const vacancyId = depublishConfirmId
+    setDepublishConfirmId(null)
+
+    try {
+      const response = await fetch(`/api/vacancies/${vacancyId}/depublish`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error("Depubliceren mislukt", { description: data.error || "Er ging iets mis" })
+        return
+      }
+
+      toast.success("Vacature offline gehaald", { description: "De vacature is gedepubliceerd." })
+      // Update local state to reflect the status change
+      setVacancies((prev) =>
+        prev.map((v) =>
+          v.id === vacancyId ? { ...v, status: "gedepubliceerd" as VacancyStatus } : v
+        )
+      )
+      setPublishedCount((prev) => Math.max(0, prev - 1))
+    } catch {
+      toast.error("Depubliceren mislukt", { description: "Er ging iets mis bij het offline halen" })
+    }
+  }
+
+  const handlePublish = async (vacancyId: string) => {
+    try {
+      const response = await fetch(`/api/vacancies/${vacancyId}/publish`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error("Publiceren mislukt", { description: data.error || "Er ging iets mis" })
+        return
+      }
+
+      toast.success("Vacature gepubliceerd", { description: "De vacature is weer online." })
+      // Update local state to reflect the status change
+      setVacancies((prev) =>
+        prev.map((v) =>
+          v.id === vacancyId ? { ...v, status: "gepubliceerd" as VacancyStatus } : v
+        )
+      )
+      setPublishedCount((prev) => prev + 1)
+    } catch {
+      toast.error("Publiceren mislukt", { description: "Er ging iets mis bij het publiceren" })
+    }
+  }
+
   const handleVacancyAction = (action: string, vacancyId: string) => {
     const vacancy = vacancies.find((v) => v.id === vacancyId)
     if (!vacancy) return
@@ -306,8 +375,10 @@ export default function DashboardPage() {
         setBoostModalOpen(true)
         break
       case "publiceren":
-        // TODO: Implement publish functionality
-        console.log("Publiceren:", vacancyId)
+        handlePublish(vacancyId)
+        break
+      case "depubliceren":
+        setDepublishConfirmId(vacancyId)
         break
     }
   }
@@ -771,18 +842,18 @@ export default function DashboardPage() {
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
-                      <TableCell>
+                      <TableCell className="w-full max-w-0">
                         <Link
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
-                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer"
+                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
                           {vacancy.title || "Naamloze vacature"}
                         </Link>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <Badge variant={config.variant}>{config.label}</Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {actions.filter(action => !action.iconOnly).map((action) => (
                             <Button
@@ -847,6 +918,27 @@ export default function DashboardPage() {
           onSuccess={refreshAccount}
         />
       )}
+
+      {/* Depubliceer bevestiging */}
+      <AlertDialog open={!!depublishConfirmId} onOpenChange={(open) => !open && setDepublishConfirmId(null)}>
+        <AlertDialogContent className="bg-[#E8EEF2] rounded-t-[0.75rem] rounded-b-[2rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1F2D58]">Vacature offline halen?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#1F2D58]/70">
+              Weet je zeker dat je deze vacature wilt depubliceren? De vacature is dan niet meer zichtbaar voor kandidaten. Je kunt de vacature later weer publiceren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full border-[#193DAB]/12 text-[#1F2D58] hover:bg-[#193DAB]/12 hover:text-[#1F2D58]">Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDepublishConfirm}
+              className="rounded-full bg-[#BC0000] text-white hover:bg-[#BC0000]/80"
+            >
+              Depubliceren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

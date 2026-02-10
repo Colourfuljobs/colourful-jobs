@@ -29,8 +29,10 @@ import type {
   ProductWithFeatures,
   InvoiceDetails,
 } from "./types";
-import type { ProductRecord, LookupRecord, VacancyRecord } from "@/lib/airtable";
+import type { ProductRecord, LookupRecord, VacancyRecord, TransactionRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
+import { getVisibleUpsells } from "@/lib/upsell-filters";
+import { getPackageBaseDuration, calculateDateRange } from "@/lib/vacancy-duration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Building2, Rocket } from "lucide-react";
 import Link from "next/link";
@@ -62,6 +64,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   // Data state
   const [packages, setPackages] = useState<ProductWithFeatures[]>([]);
   const [upsells, setUpsells] = useState<ProductRecord[]>([]);
+  const [allUpsellProducts, setAllUpsellProducts] = useState<ProductRecord[]>([]);
+  const [vacancyTransactions, setVacancyTransactions] = useState<TransactionRecord[]>([]);
   const [lookups, setLookups] = useState<{
     educationLevels: LookupRecord[];
     fields: LookupRecord[];
@@ -84,6 +88,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   
+  // Extension closing date state (for until_max upsell in step 4)
+  const [selectedClosingDate, setSelectedClosingDate] = useState<Date | undefined>();
+
   // Track recommendations in wizard state (for ColleaguesSidebar)
   const [recommendations, setRecommendations] = useState<{firstName: string; lastName: string}[]>([]);
 
@@ -136,7 +143,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         // Credits are handled by CreditsContext, no need to fetch here
         const [packagesRes, upsellsRes, lookupsRes, accountRes] = await Promise.all([
           fetch("/api/products?type=vacancy_package&includeFeatures=true"),
-          fetch("/api/products?type=upsell&availability=add-vacancy"),
+          fetch("/api/products?type=upsell"),
           fetch("/api/lookups?type=all"),
           fetch("/api/account"),
         ]);
@@ -157,7 +164,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         if (upsellsRes.ok) {
           const data = await upsellsRes.json();
-          const allUpsells = data.products || [];
+          const allUpsells: ProductRecord[] = data.products || [];
+          // Store all upsell products for lookup (e.g. included upsells in packages)
+          setAllUpsellProducts(allUpsells);
           // Find "We do it for you" product by slug
           const wdify = allUpsells.find(
             (p: ProductRecord) => p.slug === "prod_upsell_we-do-it-for-you"
@@ -166,9 +175,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             setWeDoItForYouProduct(wdify);
             wdifyProduct = wdify;
           }
-          // Filter out "We do it for you" from regular upsells
+          // Filter for add-vacancy availability and exclude "We do it for you" from regular upsells
           setUpsells(allUpsells.filter(
-            (p: ProductRecord) => p.slug !== "prod_upsell_we-do-it-for-you"
+            (p: ProductRecord) =>
+              p.slug !== "prod_upsell_we-do-it-for-you" &&
+              p.availability?.includes("add-vacancy")
           ));
         }
 
@@ -177,12 +188,14 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           setLookups(data);
         }
 
-        // If editing existing vacancy, fetch it
+        // If editing existing vacancy, fetch it (with transactions for repeat_mode filtering)
         if (initialVacancyId) {
-          const vacancyRes = await fetch(`/api/vacancies/${initialVacancyId}`);
+          const vacancyRes = await fetch(`/api/vacancies/${initialVacancyId}?includeTransactions=true`);
           if (vacancyRes.ok) {
             const data = await vacancyRes.json();
             const vacancy = data.vacancy as VacancyRecord;
+            const transactions: TransactionRecord[] = data.transactions || [];
+            setVacancyTransactions(transactions);
             
             // Determine step: use initialStep from URL if valid, otherwise determine from vacancy state
             let stepToUse = initialStep;
@@ -704,14 +717,24 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
     setIsSaving(true);
     try {
-      // First, update the vacancy with selected upsells
+      // First, update the vacancy with selected upsells and optional closing date
       const upsellIds = state.selectedUpsells.map((u) => u.id);
+      const patchBody: Record<string, unknown> = {
+        selected_upsells: upsellIds,
+      };
+
+      // If extension upsell is selected with a closing date, include it
+      if (selectedClosingDate) {
+        const year = selectedClosingDate.getFullYear();
+        const month = String(selectedClosingDate.getMonth() + 1).padStart(2, "0");
+        const day = String(selectedClosingDate.getDate()).padStart(2, "0");
+        patchBody.closing_date = `${year}-${month}-${day}`;
+      }
+
       await fetch(`/api/vacancies/${state.vacancyId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          selected_upsells: upsellIds,
-        }),
+        body: JSON.stringify(patchBody),
       });
 
       // Then submit the vacancy with invoice details if needed
@@ -755,7 +778,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     } finally {
       setIsSaving(false);
     }
-  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, profileComplete]);
+  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, profileComplete, selectedClosingDate]);
 
   // Render loading state
   if (isLoading) {
@@ -848,10 +871,55 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           </div>
         );
       case 4:
-        // Filter out upsells that are already included in the selected package
-        const filteredUpsells = upsells.filter(
-          (upsell) => !state.selectedPackage?.included_upsells?.includes(upsell.id)
+        // Filter out upsells that are already included in the selected package,
+        // BUT only for "once" mode (or no repeat_mode). Products with other
+        // repeat_modes (unlimited, renewable, until_max) can be purchased
+        // even if already included in the package.
+        const includedIds = new Set(state.selectedPackage?.included_upsells || []);
+        const packageFilteredUpsells = upsells.filter(
+          (upsell) => {
+            if (!includedIds.has(upsell.id)) return true; // Not included → keep
+            const mode = upsell.repeat_mode || "once";
+            return mode !== "once"; // Included but repeatable → keep
+          }
         );
+        // Apply repeat_mode filtering based on existing vacancy transactions
+        const filteredUpsells = getVisibleUpsells(packageFilteredUpsells, {
+          vacancyTransactions,
+          firstPublishedAt: state.vacancyData?.["first-published-at"],
+          closingDate: state.vacancyData?.closing_date,
+        });
+
+        // Calculate extension date range for until_max upsell datepicker
+        // minDate = publication date + package duration + 1 day (first day AFTER the standard end date)
+        // maxDate = publication date + 365 days
+        const extensionDateRange = (() => {
+          const publishedAt = state.vacancyData?.["first-published-at"];
+          if (!state.selectedPackage) return null;
+          const baseDuration = getPackageBaseDuration(state.selectedPackage);
+
+          // Reference date: published date or today (for new vacancies)
+          const refDate = publishedAt ? new Date(publishedAt) : new Date();
+          refDate.setHours(0, 0, 0, 0);
+
+          // Standard end date = refDate + baseDuration
+          const standardEndDate = new Date(refDate);
+          standardEndDate.setDate(standardEndDate.getDate() + baseDuration);
+
+          // First selectable date = standard end date + 1 day
+          const minDate = new Date(standardEndDate);
+          minDate.setDate(minDate.getDate() + 1);
+
+          // Maximum = refDate + 365 days
+          const maxDate = new Date(refDate);
+          maxDate.setDate(maxDate.getDate() + 365);
+
+          // Only show if there's room to extend (maxDate > minDate)
+          if (maxDate <= minDate) return null;
+
+          return { minDate, maxDate, standardEndDate };
+        })();
+
         return state.selectedPackage ? (
           <SubmitStep
             selectedPackage={state.selectedPackage}
@@ -865,6 +933,10 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             showInvoiceError={showInvoiceError}
             profileComplete={profileComplete}
             profileEditUrl={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}&step=4` : ''))}`}
+            extensionDateRange={extensionDateRange}
+            selectedClosingDate={selectedClosingDate}
+            onClosingDateChange={setSelectedClosingDate}
+            currentClosingDate={state.vacancyData?.closing_date}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -1009,6 +1081,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             <CostSidebar
               selectedPackage={state.selectedPackage}
               selectedUpsells={state.selectedUpsells}
+              includedUpsellProducts={
+                (state.selectedPackage?.included_upsells || [])
+                  .map((id) => allUpsellProducts.find((u) => u.id === id))
+                  .filter((u): u is ProductRecord => !!u)
+              }
               availableCredits={availableCredits}
               showPackageInfo={false}
               onChangePackage={() => handleStepClick(1)}

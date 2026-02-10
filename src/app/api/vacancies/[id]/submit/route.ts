@@ -200,6 +200,27 @@ export async function POST(
       } : {}),
     });
 
+    // Create €0 "included" transactions for each upsell included in the package
+    // These enable the repeat_mode engine to track when included upsell effects expire
+    const includedUpsellIds = packageProduct.included_upsells || [];
+    if (includedUpsellIds.length > 0) {
+      console.log("[Submit] Creating included upsell transactions:", includedUpsellIds.length);
+      for (const includedUpsellId of includedUpsellIds) {
+        await createSpendTransaction({
+          employer_id: user.employer_id,
+          wallet_id: wallet.id,
+          user_id: user.id,
+          vacancy_id: vacancy.id,
+          total_credits: 0,
+          total_cost: 0,
+          credits_shortage: 0,
+          invoice_amount: 0,
+          product_ids: [includedUpsellId],
+          context: "included",
+        });
+      }
+    }
+
     // Update vacancy status (and set high_priority if "Vandaag online" upsell is selected)
     const updatedVacancy = await updateVacancy(id, {
       status: "wacht_op_goedkeuring",

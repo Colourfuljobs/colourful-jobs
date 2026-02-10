@@ -5,6 +5,7 @@ import {
   getUserByEmail,
   getVacancyById,
   updateVacancy,
+  getTransactionsByVacancyId,
   VacancyRecord,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
@@ -13,6 +14,8 @@ import { logEvent } from "@/lib/events";
 /**
  * GET /api/vacancies/[id]
  * Fetches a single vacancy by ID
+ * Query params:
+ * - includeTransactions: "true" to include spend/boost transactions for this vacancy
  */
 export async function GET(
   request: Request,
@@ -20,6 +23,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const includeTransactions = searchParams.get("includeTransactions") === "true";
 
     // Verify user is authenticated
     const session = await getServerSession(authOptions);
@@ -36,8 +41,12 @@ export async function GET(
       return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
     }
 
-    // Fetch vacancy
-    const vacancy = await getVacancyById(id);
+    // Fetch vacancy (and optionally transactions in parallel)
+    const [vacancy, transactions] = await Promise.all([
+      getVacancyById(id),
+      includeTransactions ? getTransactionsByVacancyId(id) : Promise.resolve(undefined),
+    ]);
+
     if (!vacancy) {
       return NextResponse.json({ error: "Vacature niet gevonden" }, { status: 404 });
     }
@@ -47,7 +56,10 @@ export async function GET(
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
-    return NextResponse.json({ vacancy });
+    return NextResponse.json({
+      vacancy,
+      ...(transactions !== undefined && { transactions }),
+    });
   } catch (error: unknown) {
     console.error("Error fetching vacancy:", getErrorMessage(error));
     return NextResponse.json(

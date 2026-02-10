@@ -11,13 +11,15 @@ import {
   Coins,
   Pencil,
   Eye,
+  EyeOff,
   Rocket,
-  Upload,
+  Send,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 import {
   Empty,
   EmptyHeader,
@@ -47,6 +49,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { DesktopHeader } from "@/components/dashboard"
 import { BoostModal } from "@/components/vacatures/BoostModal"
 
@@ -101,7 +113,7 @@ const statusConfig: Record<VacancyStatus, {
 const actionsPerStatus: Record<VacancyStatus, Array<{
   label: string
   icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren"
+  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "depubliceren"
   iconOnly?: boolean
 }>> = {
   concept: [
@@ -112,6 +124,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   ],
   wacht_op_goedkeuring: [],
   gepubliceerd: [
+    { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijk live vacature", icon: Eye, action: "bekijken", iconOnly: true },
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
@@ -121,7 +134,8 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
   ],
   gedepubliceerd: [
-    { label: "Publiceren", icon: Upload, action: "publiceren", iconOnly: false },
+    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
+    { label: "Publiceren", icon: Send, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
   ],
 }
@@ -250,6 +264,7 @@ export default function VacaturesPage() {
   const [vacancies, setVacancies] = useState<Vacancy[]>([])
   const [boostModalOpen, setBoostModalOpen] = useState(false)
   const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
+  const [depublishConfirmId, setDepublishConfirmId] = useState<string | null>(null)
 
   // Set page title
   useEffect(() => {
@@ -303,6 +318,48 @@ export default function VacaturesPage() {
     return 2
   }
 
+  const handleDepublishConfirm = async () => {
+    if (!depublishConfirmId) return
+    const vacancyId = depublishConfirmId
+    setDepublishConfirmId(null)
+
+    try {
+      const response = await fetch(`/api/vacancies/${vacancyId}/depublish`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error("Depubliceren mislukt", { description: data.error || "Er ging iets mis" })
+        return
+      }
+
+      toast.success("Vacature offline gehaald", { description: "De vacature is gedepubliceerd." })
+      fetchVacancies()
+    } catch {
+      toast.error("Depubliceren mislukt", { description: "Er ging iets mis bij het offline halen" })
+    }
+  }
+
+  const handlePublish = async (vacancyId: string) => {
+    try {
+      const response = await fetch(`/api/vacancies/${vacancyId}/publish`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast.error("Publiceren mislukt", { description: data.error || "Er ging iets mis" })
+        return
+      }
+
+      toast.success("Vacature gepubliceerd", { description: "De vacature is weer online." })
+      fetchVacancies()
+    } catch {
+      toast.error("Publiceren mislukt", { description: "Er ging iets mis bij het publiceren" })
+    }
+  }
+
   const handleVacancyAction = (action: string, vacancyId: string) => {
     const vacancy = vacancies.find((v) => v.id === vacancyId)
     if (!vacancy) return
@@ -325,8 +382,10 @@ export default function VacaturesPage() {
         setBoostModalOpen(true)
         break
       case "publiceren":
-        // TODO: Implement publish functionality
-        console.log("Publiceren:", vacancyId)
+        handlePublish(vacancyId)
+        break
+      case "depubliceren":
+        setDepublishConfirmId(vacancyId)
         break
     }
   }
@@ -376,20 +435,20 @@ export default function VacaturesPage() {
             <div className="bg-white/50 px-6 py-4">
               <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Actieve vacatures</h2>
             </div>
-            <Table className="bg-white table-fixed">
+            <Table className="bg-white">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[28%]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[20%]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[17%] whitespace-nowrap">Sluitingsdatum</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[10%] whitespace-nowrap">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Sluitingsdatum</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[1, 2, 3].map((i) => (
                   <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell className="w-full"><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
@@ -429,14 +488,14 @@ export default function VacaturesPage() {
             <div className="bg-white/50 px-6 py-4">
               <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Actieve vacatures</h2>
             </div>
-            <Table className="bg-white table-fixed">
+            <Table className="bg-white">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[28%]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[20%]">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[17%] whitespace-nowrap">Sluitingsdatum</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[10%] whitespace-nowrap">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Sluitingsdatum</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -447,15 +506,15 @@ export default function VacaturesPage() {
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
-                      <TableCell>
+                      <TableCell className="w-full max-w-0">
                         <Link
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
-                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer"
+                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
                           {vacancy.title || "Naamloze vacature"}
                         </Link>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {vacancy.status === "wacht_op_goedkeuring" ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -482,7 +541,7 @@ export default function VacaturesPage() {
                           <Badge variant={config.variant}>{config.label}</Badge>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {vacancy.closing_date ? (
                           <span className="text-[#1F2D58]/70 text-sm">
                             {formatDate(new Date(vacancy.closing_date))}
@@ -491,7 +550,7 @@ export default function VacaturesPage() {
                           <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
                           <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
                             <Coins className="h-4 w-4 flex-shrink-0" />
@@ -501,7 +560,7 @@ export default function VacaturesPage() {
                           <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {actions.filter(action => !action.iconOnly).map((action) => (
                             <Button
@@ -553,19 +612,19 @@ export default function VacaturesPage() {
             <div className="bg-white/50 px-6 py-4">
               <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Overige vacatures</h2>
             </div>
-            <Table className="bg-white table-fixed">
+            <Table className="bg-white">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[1, 2, 3].map((i) => (
                   <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell className="w-full"><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
@@ -630,13 +689,13 @@ export default function VacaturesPage() {
                 />
               </div>
             </div>
-            <Table className="bg-white table-fixed">
+            <Table className="bg-white">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[40%]">Vacature</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[25%]">Status</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right w-[25%]">Acties</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -647,15 +706,15 @@ export default function VacaturesPage() {
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
-                      <TableCell>
+                      <TableCell className="w-full max-w-0">
                         <Link
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
-                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer"
+                          className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
                           {vacancy.title || "Naamloze vacature"}
                         </Link>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {publicationInfo ? (
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -671,7 +730,7 @@ export default function VacaturesPage() {
                           <Badge variant={config.variant}>{config.label}</Badge>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
                           <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
                             <Coins className="h-4 w-4 flex-shrink-0" />
@@ -681,7 +740,7 @@ export default function VacaturesPage() {
                           <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {actions.filter(action => !action.iconOnly).map((action) => (
                             <Button
@@ -736,6 +795,27 @@ export default function VacaturesPage() {
           onSuccess={fetchVacancies}
         />
       )}
+
+      {/* Depubliceer bevestiging */}
+      <AlertDialog open={!!depublishConfirmId} onOpenChange={(open) => !open && setDepublishConfirmId(null)}>
+        <AlertDialogContent className="bg-[#E8EEF2] rounded-t-[0.75rem] rounded-b-[2rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1F2D58]">Vacature offline halen?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#1F2D58]/70">
+              Weet je zeker dat je deze vacature wilt depubliceren? De vacature is dan niet meer zichtbaar voor kandidaten. Je kunt de vacature later weer publiceren.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full border-[#193DAB]/12 text-[#1F2D58] hover:bg-[#193DAB]/12 hover:text-[#1F2D58]">Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDepublishConfirm}
+              className="rounded-full bg-[#BC0000] text-white hover:bg-[#BC0000]/80"
+            >
+              Depubliceren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

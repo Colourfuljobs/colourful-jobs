@@ -9,20 +9,25 @@ import {
   createSpendTransaction,
   getProductById,
   spendCreditsWithFIFO,
+  getActiveProductsByType,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
+import { getPackageBaseDuration } from "@/lib/vacancy-duration";
 
 /**
  * POST /api/vacancies/[id]/boost
- * Boosts a published or expired vacancy with additional upsells
- * Body: { upsell_ids: string[] }
+ * Boosts a published, expired, or depublished vacancy with additional upsells
+ * Body: { upsell_ids: string[], new_closing_date?: string }
  * - Validates vacancy ownership and status
  * - Validates upsells have "boost-option" availability
+ * - If new_closing_date provided: validates it's within 365 days from publication
  * - Checks credit balance (requires sufficient credits)
  * - Deducts credits via FIFO
  * - Creates spend transaction with context "boost"
  * - Appends new upsell IDs to vacancy selected_upsells
+ * - Updates closing_date if new_closing_date provided
+ * - Republishes vacancy if status was "verlopen" or "gedepubliceerd"
  */
 export async function POST(
   request: Request,
@@ -33,11 +38,17 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { upsell_ids } = body as { upsell_ids: string[] };
+    const { upsell_ids, new_closing_date } = body as {
+      upsell_ids: string[];
+      new_closing_date?: string;
+    };
 
-    if (!upsell_ids || !Array.isArray(upsell_ids) || upsell_ids.length === 0) {
+    if (
+      (!upsell_ids || !Array.isArray(upsell_ids) || upsell_ids.length === 0) &&
+      !new_closing_date
+    ) {
       return NextResponse.json(
-        { error: "Selecteer minimaal één boost optie" },
+        { error: "Selecteer minimaal één boost optie of een nieuwe sluitingsdatum" },
         { status: 400 }
       );
     }
@@ -51,37 +62,127 @@ export async function POST(
     // Get user and employer
     const user = await getUserByEmail(session.user.email);
     if (!user) {
-      return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Gebruiker niet gevonden" },
+        { status: 404 }
+      );
     }
     if (!user.employer_id) {
-      return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Geen werkgever gekoppeld" },
+        { status: 400 }
+      );
     }
 
     // Fetch vacancy
     const vacancy = await getVacancyById(id);
     if (!vacancy) {
-      return NextResponse.json({ error: "Vacature niet gevonden" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Vacature niet gevonden" },
+        { status: 404 }
+      );
     }
 
     // Verify vacancy belongs to user's employer
     if (vacancy.employer_id !== user.employer_id) {
-      return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Geen toegang tot deze vacature" },
+        { status: 403 }
+      );
     }
 
     // Verify vacancy is in a boostable status
-    if (vacancy.status !== "gepubliceerd" && vacancy.status !== "verlopen") {
+    const boostableStatuses = ["gepubliceerd", "verlopen", "gedepubliceerd"];
+    if (!boostableStatuses.includes(vacancy.status)) {
       return NextResponse.json(
-        { error: "Alleen gepubliceerde of verlopen vacatures kunnen worden geboost" },
+        {
+          error:
+            "Alleen gepubliceerde, verlopen of gedepubliceerde vacatures kunnen worden geboost",
+        },
         { status: 400 }
       );
     }
 
+    // Validate new_closing_date if provided
+    let validatedClosingDate: string | undefined;
+    if (new_closing_date) {
+      const newDate = new Date(new_closing_date);
+      newDate.setHours(0, 0, 0, 0);
+
+      if (isNaN(newDate.getTime())) {
+        return NextResponse.json(
+          { error: "Ongeldige datum formaat" },
+          { status: 400 }
+        );
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (newDate < today) {
+        return NextResponse.json(
+          { error: "De nieuwe sluitingsdatum moet in de toekomst liggen" },
+          { status: 400 }
+        );
+      }
+
+      // Validate against 365-day maximum from FIRST publication date
+      const publishedAt = vacancy["first-published-at"] || vacancy["last-published-at"];
+      if (publishedAt) {
+        const pubDate = new Date(publishedAt);
+        pubDate.setHours(0, 0, 0, 0);
+        const maxDate = new Date(pubDate);
+        maxDate.setDate(maxDate.getDate() + 365);
+
+        if (newDate > maxDate) {
+          return NextResponse.json(
+            {
+              error:
+                "De nieuwe sluitingsdatum mag maximaal 365 dagen na de publicatiedatum liggen",
+            },
+            { status: 400 }
+          );
+        }
+      }
+
+      // Validate this isn't a Premium package (365 days base, no extension possible)
+      if (vacancy.package_id) {
+        try {
+          const packages = await getActiveProductsByType("vacancy_package");
+          const pkg = packages.find((p) => p.id === vacancy.package_id);
+          if (pkg) {
+            const baseDuration = getPackageBaseDuration(pkg);
+            if (baseDuration >= 365) {
+              return NextResponse.json(
+                {
+                  error:
+                    "Looptijdverlenging is niet beschikbaar voor Premium vacatures",
+                },
+                { status: 400 }
+              );
+            }
+          }
+        } catch {
+          // Non-critical, continue
+          console.warn("[Boost] Could not validate package duration");
+        }
+      }
+
+      validatedClosingDate = new_closing_date;
+    }
+
     // Fetch and validate all selected upsells
+    const upsellsToProcess = upsell_ids || [];
     let totalCredits = 0;
     let totalPrice = 0;
-    const validUpsells: { id: string; display_name: string; credits: number; price: number }[] = [];
+    const validUpsells: {
+      id: string;
+      display_name: string;
+      credits: number;
+      price: number;
+    }[] = [];
 
-    for (const upsellId of upsell_ids) {
+    for (const upsellId of upsellsToProcess) {
       const upsell = await getProductById(upsellId);
       if (!upsell) {
         return NextResponse.json(
@@ -93,7 +194,9 @@ export async function POST(
       // Validate this is a boost-eligible upsell
       if (!upsell.availability?.includes("boost-option")) {
         return NextResponse.json(
-          { error: `Product "${upsell.display_name}" is niet beschikbaar als boost optie` },
+          {
+            error: `Product "${upsell.display_name}" is niet beschikbaar als boost optie`,
+          },
           { status: 400 }
         );
       }
@@ -122,7 +225,10 @@ export async function POST(
     // Boost requires sufficient credits (no invoice option)
     if (availableCredits < totalCredits) {
       return NextResponse.json(
-        { error: "Niet genoeg credits beschikbaar", shortage: totalCredits - availableCredits },
+        {
+          error: "Niet genoeg credits beschikbaar",
+          shortage: totalCredits - availableCredits,
+        },
         { status: 400 }
       );
     }
@@ -131,37 +237,66 @@ export async function POST(
       totalCredits,
       totalPrice,
       availableCredits,
-      upsellCount: upsell_ids.length,
+      upsellCount: upsellsToProcess.length,
+      new_closing_date: validatedClosingDate || null,
     });
 
     // Deduct credits via FIFO
     if (totalCredits > 0) {
-      const fifoResult = await spendCreditsWithFIFO(user.employer_id, wallet.id, totalCredits);
+      const fifoResult = await spendCreditsWithFIFO(
+        user.employer_id,
+        wallet.id,
+        totalCredits
+      );
       console.log("[Boost] FIFO spend result:", fifoResult);
     }
 
     // Create spend transaction with context "boost"
-    await createSpendTransaction({
-      employer_id: user.employer_id,
-      wallet_id: wallet.id,
-      user_id: user.id,
-      vacancy_id: vacancy.id,
-      total_credits: totalCredits,
-      total_cost: totalPrice,
-      credits_shortage: 0, // Boost always requires full credits
-      invoice_amount: 0,
-      product_ids: upsell_ids,
-      context: "boost",
-    });
+    if (totalCredits > 0) {
+      await createSpendTransaction({
+        employer_id: user.employer_id,
+        wallet_id: wallet.id,
+        user_id: user.id,
+        vacancy_id: vacancy.id,
+        total_credits: totalCredits,
+        total_cost: totalPrice,
+        credits_shortage: 0, // Boost always requires full credits
+        invoice_amount: 0,
+        product_ids: upsellsToProcess,
+        context: "boost",
+      });
+    }
+
+    // Build vacancy update object
+    const vacancyUpdate: Record<string, unknown> = {};
 
     // Append new upsell IDs to existing selected_upsells
-    const existingUpsells = vacancy.selected_upsells || [];
-    const updatedUpsells = [...existingUpsells, ...upsell_ids];
+    if (upsellsToProcess.length > 0) {
+      const existingUpsells = vacancy.selected_upsells || [];
+      vacancyUpdate.selected_upsells = [...existingUpsells, ...upsellsToProcess];
+    }
 
-    // Update vacancy with new upsells
-    const updatedVacancy = await updateVacancy(id, {
-      selected_upsells: updatedUpsells,
-    });
+    // Update closing_date if provided
+    if (validatedClosingDate) {
+      vacancyUpdate.closing_date = validatedClosingDate;
+    }
+
+    // Handle status changes for verlopen and gedepubliceerd vacancies
+    const previousStatus = vacancy.status;
+    let statusChanged = false;
+
+    if (
+      vacancy.status === "verlopen" ||
+      vacancy.status === "gedepubliceerd"
+    ) {
+      // Republish the vacancy and update last-published-at to track republication moment
+      vacancyUpdate.status = "gepubliceerd";
+      vacancyUpdate["last-published-at"] = new Date().toISOString();
+      statusChanged = true;
+    }
+
+    // Update vacancy
+    const updatedVacancy = await updateVacancy(id, vacancyUpdate);
 
     // Log event
     await logEvent({
@@ -172,11 +307,21 @@ export async function POST(
       source: "web",
       ip_address: getClientIP(request),
       payload: {
-        upsell_ids,
+        upsell_ids: upsellsToProcess,
         upsell_names: validUpsells.map((u) => u.display_name),
         total_credits: totalCredits,
         total_price: totalPrice,
         new_balance: availableCredits - totalCredits,
+        ...(validatedClosingDate && {
+          new_closing_date: validatedClosingDate,
+          previous_closing_date: vacancy.closing_date || null,
+        }),
+        ...(statusChanged && {
+          status_change: {
+            from: previousStatus,
+            to: "gepubliceerd",
+          },
+        }),
       },
     });
 

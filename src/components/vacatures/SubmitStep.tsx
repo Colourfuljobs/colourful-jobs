@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { ExtensionCard } from "./ExtensionCard";
 import type { SubmitStepProps, InvoiceDetails } from "./types";
 
 export function SubmitStep({
@@ -24,9 +25,16 @@ export function SubmitStep({
   showInvoiceError = false,
   profileComplete = true,
   profileEditUrl,
+  extensionDateRange,
+  selectedClosingDate,
+  onClosingDateChange,
+  currentClosingDate,
 }: SubmitStepProps) {
   // Get features from the selected package
   const features = selectedPackage.populatedFeatures || [];
+
+  // Extension datepicker local state
+  const [datePickerOpen, setDatePickerOpen] = React.useState(false);
 
   // Calculate if user has enough credits
   const packageCredits = selectedPackage.credits || 0;
@@ -358,75 +366,111 @@ export function SubmitStep({
       )}
 
       {/* Upsells selection */}
-      {availableUpsells.length > 0 && (
-        <div className="bg-white p-6 rounded-t-[0.75rem] rounded-b-[2rem]">
-          <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Kies extra&apos;s</h3>
-          <p className="text-sm text-[#1F2D58]/70 mb-4">
-            Vergroot de zichtbaarheid van je vacature
-          </p>
+      {availableUpsells.length > 0 && (() => {
+        // Sort all upsells by sort_order first
+        const sortedUpsells = [...availableUpsells].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        
+        // Separate extension upsell (until_max) from regular upsells while preserving order
+        const extensionUpsell = sortedUpsells.find((u) => u.repeat_mode === "until_max");
+        const regularUpsells = sortedUpsells.filter((u) => u.repeat_mode !== "until_max");
+        const extensionSelected = extensionUpsell ? selectedUpsells.some((s) => s.id === extensionUpsell.id) : false;
 
-          <div className="space-y-3">
-            {availableUpsells.map((upsell) => {
-              const isSelected = selectedUpsells.some((s) => s.id === upsell.id);
-              const isSameDay = upsell.slug === "prod_upsell_same_day";
-              const sameDaySelected = isSameDay && isSelected;
+        return (
+          <div className="bg-white p-6 rounded-t-[0.75rem] rounded-b-[2rem]">
+            <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Kies extra&apos;s</h3>
+            <p className="text-sm text-[#1F2D58]/70 mb-4">
+              Vergroot de zichtbaarheid van je vacature
+            </p>
 
-              // Determine border/bg based on state
-              let labelClasses = "border-[#1F2D58]/10 hover:border-[#1F2D58]/30";
-              if (isSelected) {
-                labelClasses = "border-[#41712F]/30 bg-[#DEEEE3]";
-              }
-              
-              return (
-                <label
-                  key={upsell.id}
-                  htmlFor={`upsell-${upsell.id}`}
-                  className={`block p-4 border rounded-lg cursor-pointer transition-colors ${labelClasses}`}
-                >
-                  {/* Top row: checkbox + title + credits */}
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      id={`upsell-${upsell.id}`}
-                      checked={isSelected}
-                      onCheckedChange={() => onToggleUpsell(upsell)}
+            <div className="space-y-3">
+              {/* Render all upsells in sort_order */}
+              {sortedUpsells.map((upsell) => {
+                // Extension upsell with datepicker (until_max)
+                if (upsell.repeat_mode === "until_max" && extensionDateRange) {
+                  return (
+                    <ExtensionCard
+                      key={upsell.id}
+                      extensionUpsell={upsell}
+                      isChecked={extensionSelected}
+                      onToggle={(checked) => {
+                        onToggleUpsell(upsell);
+                        if (!checked && onClosingDateChange) {
+                          onClosingDateChange(undefined);
+                        }
+                      }}
+                      selectedDate={selectedClosingDate}
+                      onSelectDate={(date) => onClosingDateChange?.(date)}
+                      datePickerOpen={datePickerOpen}
+                      onDatePickerOpenChange={setDatePickerOpen}
+                      dateRange={extensionDateRange}
+                      currentClosingDate={currentClosingDate}
+                      idPrefix="submit"
                     />
-                    <span className="font-medium text-[#1F2D58] flex-1">
-                      {upsell.display_name}
-                    </span>
-                    <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-                      +{upsell.credits} credits
-                    </span>
-                  </div>
-                  
-                  {/* Description below */}
-                  {upsell.description && (
-                    <p className="text-sm text-[#1F2D58]/60 mt-1 ml-7">
-                      {upsell.description}
-                    </p>
-                  )}
+                  );
+                }
 
-                  {/* Same day online: cutoff status message */}
-                  {sameDaySelected && (
-                    <div className="flex items-start gap-2 mt-3 ml-7 text-sm font-medium text-[#41712F]">
-                      {isBeforeCutoff ? (
-                        <>
-                          <Check className="w-4 h-4 shrink-0 mt-[3px]" />
-                          <span>Insturen is op tijd – je vacature wordt vandaag nog beoordeeld en gepubliceerd.</span>
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="w-4 h-4 shrink-0 mt-[3px]" />
-                          <span>Het is na 15:00 uur, daarom lukt het helaas niet meer om de vacature vandaag te plaatsen. We zorgen er wel voor dat deze morgen vóór 12:00 uur online staat, als je deze optie erbij afneemt.</span>
-                        </>
-                      )}
+                // Regular upsells (checkboxes)
+                const isSelected = selectedUpsells.some((s) => s.id === upsell.id);
+                const isSameDay = upsell.slug === "prod_upsell_same_day";
+                const sameDaySelected = isSameDay && isSelected;
+
+                // Determine border/bg based on state
+                let labelClasses = "border-[#1F2D58]/10 hover:border-[#1F2D58]/30";
+                if (isSelected) {
+                  labelClasses = "border-[#41712F]/30 bg-[#DEEEE3]";
+                }
+                
+                return (
+                  <label
+                    key={upsell.id}
+                    htmlFor={`upsell-${upsell.id}`}
+                    className={`block p-4 border rounded-lg cursor-pointer transition-colors ${labelClasses}`}
+                  >
+                    {/* Top row: checkbox + title + credits */}
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id={`upsell-${upsell.id}`}
+                        checked={isSelected}
+                        onCheckedChange={() => onToggleUpsell(upsell)}
+                      />
+                      <span className="font-medium text-[#1F2D58] flex-1">
+                        {upsell.display_name}
+                      </span>
+                      <span className="text-sm text-[#1F2D58] font-medium shrink-0">
+                        +{upsell.credits} credits
+                      </span>
                     </div>
-                  )}
-                </label>
-              );
-            })}
+                    
+                    {/* Description below */}
+                    {upsell.description && (
+                      <p className="text-sm text-[#1F2D58]/60 mt-1 ml-7">
+                        {upsell.description}
+                      </p>
+                    )}
+
+                    {/* Same day online: cutoff status message */}
+                    {sameDaySelected && (
+                      <div className="flex items-start gap-2 mt-3 ml-7 text-sm font-medium text-[#41712F]">
+                        {isBeforeCutoff ? (
+                          <>
+                            <Check className="w-4 h-4 shrink-0 mt-[3px]" />
+                            <span>Insturen is op tijd – je vacature wordt vandaag nog beoordeeld en gepubliceerd.</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-4 h-4 shrink-0 mt-[3px]" />
+                            <span>Het is na 15:00 uur, daarom lukt het helaas niet meer om de vacature vandaag te plaatsen. We zorgen er wel voor dat deze morgen vóór 12:00 uur online staat, als je deze optie erbij afneemt.</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   );

@@ -39,6 +39,7 @@ export interface StepIndicatorProps {
 export interface CostSidebarProps {
   selectedPackage: ProductRecord | null;
   selectedUpsells: ProductRecord[];
+  includedUpsellProducts?: ProductRecord[];
   availableCredits: number;
   showPackageInfo?: boolean;
   showUpsellOptions?: boolean;
@@ -107,4 +108,9 @@ export interface SubmitStepProps {
   showInvoiceError?: boolean;
   profileComplete?: boolean;
   profileEditUrl?: string;
+  /** Extension upsell (until_max) datepicker state */
+  extensionDateRange?: { minDate: Date; maxDate: Date; standardEndDate?: Date } | null;
+  selectedClosingDate?: Date;
+  onClosingDateChange?: (date: Date | undefined) => void;
+  currentClosingDate?: string;
 }

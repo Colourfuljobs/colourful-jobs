@@ -113,7 +113,7 @@ export const transactionRecordSchema = z.object({
   product_ids: z.array(z.string()).optional(), // Linked records to Products (package + upsells)
   type: z.enum(["purchase", "spend", "refund", "adjustment", "expiration"]),
   reference_type: z.enum(["vacancy", "order", "admin", "system"]).nullable().optional(),
-  context: z.enum(["dashboard", "vacancy", "boost", "renew", "transactions"]).nullable().optional(),
+  context: z.enum(["dashboard", "vacancy", "boost", "renew", "transactions", "included"]).nullable().optional(),
   status: z.enum(["paid", "failed", "refunded", "open"]),
   // Legacy field for purchases - total price in euros
   money_amount: z.number().nullable().optional(),
@@ -150,6 +150,9 @@ export const productRecordSchema = z.object({
   availability: z.array(z.enum(["add-vacancy", "boost-option"])).optional().default([]), // Multiple select: where this product is available
   validity_months: z.number().int().nullable().optional(), // Months until credits expire (for credit_bundle type)
   credit_expiry_warning_days: z.number().int().nullable().optional(), // Days before expiry to show warning (for credit_bundle type)
+  repeat_mode: z.enum(["once", "unlimited", "renewable", "until_max"]).nullable().optional(), // Controls repeat purchase behavior per vacancy
+  duration_days: z.number().int().nullable().optional(), // Base duration in days: for vacancy_package = online duration, for upsell with repeat_mode=renewable = effect duration
+  max_value: z.number().int().nullable().optional(), // Only for repeat_mode=until_max: maximum cumulative value (e.g. 365 days)
 });
 
 export const featurePackageCategoryEnum = z.enum([
@@ -172,7 +175,6 @@ export const featureRecordSchema = z.object({
   action_tags: z.string().nullable().optional(), // More permissive - accept any string
   sort_order: z.number().int().default(0),
   products: z.array(z.string()).optional(), // Linked to Products
-  duration_days: z.number().nullable().optional(),
   package_category: z.string().nullable().optional(), // More permissive - accept any string
 });
 
@@ -304,6 +306,7 @@ export const vacancyRecordSchema = z.object({
   "created-at": z.string().optional(),
   "updated-at": z.string().optional(),
   "submitted-at": z.string().optional(),
+  "first-published-at": z.string().optional(),
   "last-published-at": z.string().optional(),
   "depublished-at": z.string().optional(),
   "last-status_changed-at": z.string().optional(),
@@ -897,6 +900,7 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
         product_ids,
         type: fields.type,
         reference_type: fields.reference_type || null,
+        context: (fields.context as string) || null,
         status: fields.status,
         money_amount: fields.money_amount || null,
         total_cost: fields.total_cost || null,
@@ -917,6 +921,76 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
   } catch (error: unknown) {
     console.error("[Transactions] Error:", getErrorMessage(error));
     console.error("[Transactions] Full error:", error);
+    return [];
+  }
+}
+
+/**
+ * Get spend transactions for a specific vacancy (used for repeat_mode filtering)
+ * Returns only spend/boost transactions linked to this vacancy, sorted by created-at desc
+ */
+export async function getTransactionsByVacancyId(vacancyId: string): Promise<TransactionRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const records = await base(TRANSACTIONS_TABLE)
+      .select({
+        filterByFormula: `AND(FIND('${escapeAirtableString(vacancyId)}', ARRAYJOIN({vacancy})), OR({context} = 'vacancy', {context} = 'boost', {context} = 'included'))`,
+        sort: [{ field: "created-at", direction: "desc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+
+      const employer_id = Array.isArray(fields.employer)
+        ? fields.employer[0] || null
+        : fields.employer || null;
+      const wallet_id = Array.isArray(fields.wallet)
+        ? fields.wallet[0] || null
+        : fields.wallet || null;
+      const user_id = Array.isArray(fields.user)
+        ? fields.user[0] || null
+        : fields.user || null;
+      const vacancy_id = Array.isArray(fields.vacancy)
+        ? fields.vacancy[0] || null
+        : fields.vacancy || null;
+      const product_ids = Array.isArray(fields.product_id)
+        ? fields.product_id
+        : [];
+      const vacancy_name = Array.isArray(fields.vacancy_name)
+        ? fields.vacancy_name[0] || null
+        : fields.vacancy_name || null;
+
+      return transactionRecordSchema.parse({
+        id: record.id,
+        employer_id,
+        wallet_id,
+        vacancy_id,
+        user_id,
+        product_ids,
+        type: fields.type,
+        reference_type: fields.reference_type || null,
+        status: fields.status,
+        money_amount: fields.money_amount || null,
+        total_cost: fields.total_cost || null,
+        total_credits: fields.total_credits || null,
+        credits_shortage: fields.credits_shortage || null,
+        credits_invoiced: fields.credits_invoiced || null,
+        credits_amount: fields.total_credits || fields.credits_amount || 0,
+        vacancy_name,
+        invoice: fields.invoice || null,
+        invoice_details_snapshot: (fields.invoice_details_snapshot as string) || null,
+        invoice_trigger: (fields.invoice_trigger as "on_vacancy_publish") || null,
+        expires_at: (fields.expires_at as string) || null,
+        remaining_credits: (fields.remaining_credits as number) || null,
+        "created-at": fields["created-at"] as string | undefined,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("[Transactions] Error fetching by vacancy:", getErrorMessage(error));
     return [];
   }
 }
@@ -1501,6 +1575,9 @@ export async function getActiveProductsByType(
         availability,
         validity_months: fields.validity_months || null,
         credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
+        repeat_mode: fields.repeat_mode || null,
+        duration_days: fields.duration_days || null,
+        max_value: fields.max_value || null,
       });
     });
   } catch (error: unknown) {
@@ -1545,6 +1622,9 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       availability,
       validity_months: fields.validity_months || null,
       credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
+      repeat_mode: fields.repeat_mode || null,
+      duration_days: fields.duration_days || null,
+      max_value: fields.max_value || null,
     });
   } catch (error: unknown) {
     console.error("Error getting product by ID:", getErrorMessage(error));
@@ -1590,7 +1670,6 @@ export async function getFeaturesByIds(ids: string[]): Promise<FeatureRecord[]> 
         action_tags: fields.action_tags || null,
         sort_order: fields.sort_order || 0,
         products,
-        duration_days: fields.duration_days || null,
         package_category: fields.package_category || null,
       });
     });
@@ -1630,7 +1709,6 @@ export async function getAllActiveFeatures(): Promise<FeatureRecord[]> {
         action_tags: fields.action_tags || null,
         sort_order: fields.sort_order || 0,
         products,
-        duration_days: fields.duration_days || null,
         package_category: fields.package_category || null,
       });
     });
@@ -1909,6 +1987,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     "created-at": fields["created-at"] as string | undefined,
     "updated-at": fields["updated-at"] as string | undefined,
     "submitted-at": fields["submitted-at"] as string | undefined,
+    "first-published-at": fields["first-published-at"] as string | undefined,
     "last-published-at": fields["last-published-at"] as string | undefined,
     "depublished-at": fields["depublished-at"] as string | undefined,
     "last-status_changed-at": fields["last-status_changed-at"] as string | undefined,
@@ -2104,6 +2183,7 @@ export async function updateVacancy(
 
   // Special timestamps
   if (fields["submitted-at"] !== undefined) airtableFields["submitted-at"] = fields["submitted-at"];
+  if (fields["first-published-at"] !== undefined) airtableFields["first-published-at"] = fields["first-published-at"];
   if (fields["last-published-at"] !== undefined) airtableFields["last-published-at"] = fields["last-published-at"];
   if (fields["depublished-at"] !== undefined) airtableFields["depublished-at"] = fields["depublished-at"];
 

@@ -7,11 +7,6 @@ import {
   AlertTriangle,
   ChevronDown,
   Download,
-  Briefcase,
-  Rocket,
-  RefreshCw,
-  ShoppingCart,
-  Undo2,
   FileText,
 } from "lucide-react"
 
@@ -47,14 +42,17 @@ import { InfoTooltip } from "@/components/ui/tooltip"
 import { useCredits } from "@/lib/credits-context"
 import type { TransactionRecord } from "@/lib/airtable"
 
-// UI Transaction types (mapped from Airtable)
-type UITransactionType = "purchase" | "job_posting" | "boost" | "refund" | "correction"
+// UI Transaction types (1-on-1 mapped from Airtable type field)
+type UITransactionType = "purchase" | "spend" | "refund" | "adjustment" | "expiration"
+// Category derived from Airtable context field
+type UITransactionCategory = "vacancy" | "boost" | "credits" | "included" | null
 type UIInvoiceStatus = "open" | "betaald" | "mislukt" | "terugbetaald"
 
 interface UITransaction {
   id: string
   date: Date
   type: UITransactionType
+  category: UITransactionCategory
   description: string
   credits: number // positief = credit, negatief = debit
   invoiceStatus?: UIInvoiceStatus
@@ -67,36 +65,53 @@ interface CreditsOverview {
   total_spent: number
 }
 
-// Type configuration
+// Type configuration (for the Type column — maps 1-on-1 from Airtable type)
 const typeConfig: Record<UITransactionType, {
   label: string
-  variant: "success" | "info" | "warning" | "muted" | "destructive"
-  icon: React.ComponentType<{ className?: string }>
+  variant: "success" | "info" | "warning" | "muted" | "destructive" | "error"
 }> = {
   purchase: {
     label: "Aankoop",
     variant: "success",
-    icon: ShoppingCart,
   },
-  job_posting: {
-    label: "Vacature",
-    variant: "info",
-    icon: Briefcase,
-  },
-  boost: {
-    label: "Boost",
-    variant: "warning",
-    icon: Rocket,
+  spend: {
+    label: "Uitgave",
+    variant: "error",
   },
   refund: {
     label: "Terugbetaling",
     variant: "destructive",
-    icon: Undo2,
   },
-  correction: {
-    label: "Correctie",
+  adjustment: {
+    label: "Aanpassing",
     variant: "muted",
-    icon: RefreshCw,
+  },
+  expiration: {
+    label: "Verlopen",
+    variant: "muted",
+  },
+}
+
+// Category configuration (for the Category column — derived from Airtable context)
+const categoryConfig: Record<NonNullable<UITransactionCategory>, {
+  label: string
+  variant: "success" | "info" | "warning" | "muted" | "destructive"
+}> = {
+  vacancy: {
+    label: "Vacature",
+    variant: "info",
+  },
+  boost: {
+    label: "Boost",
+    variant: "success",
+  },
+  credits: {
+    label: "Credits",
+    variant: "success",
+  },
+  included: {
+    label: "Inbegrepen",
+    variant: "muted",
   },
 }
 
@@ -123,56 +138,85 @@ const invoiceStatusConfig: Record<UIInvoiceStatus, {
   },
 }
 
-// Filter options
-const filterTypes: { value: UITransactionType; label: string }[] = [
-  { value: "purchase", label: "Aankoop" },
-  { value: "job_posting", label: "Vacature" },
+// Filter options (based on category)
+const filterCategories: { value: NonNullable<UITransactionCategory>; label: string }[] = [
+  { value: "vacancy", label: "Vacature" },
   { value: "boost", label: "Boost" },
-  { value: "refund", label: "Terugbetaling" },
-  { value: "correction", label: "Correctie" },
+  { value: "credits", label: "Credits" },
+  { value: "included", label: "Inbegrepen" },
 ]
 
 /**
  * Map Airtable transaction to UI transaction
  */
-function mapTransactionToUI(transaction: TransactionRecord): UITransaction {
-  // Map type from Airtable to UI
-  let uiType: UITransactionType
-  let description: string
+function mapTransactionToUI(
+  transaction: TransactionRecord,
+  productNames?: Record<string, string>
+): UITransaction {
+  // Type is 1-on-1 from Airtable
+  const uiType: UITransactionType = transaction.type
 
+  // Derive category from Airtable context field
+  let category: UITransactionCategory = null
+  switch (transaction.context) {
+    case "vacancy":
+      category = "vacancy"
+      break
+    case "boost":
+    case "renew":
+      category = "boost"
+      break
+    case "transactions":
+    case "dashboard":
+      category = "credits"
+      break
+    case "included":
+      category = "included"
+      break
+    default:
+      category = null
+  }
+
+  // Helper: resolve product display names from product_ids
+  const getProductDisplayNames = (): string[] => {
+    if (!productNames || !transaction.product_ids) return []
+    return transaction.product_ids
+      .map((id) => productNames[id])
+      .filter((name): name is string => !!name)
+  }
+
+  // Build description: product + vacancy name combined
+  let description: string
   switch (transaction.type) {
     case "purchase":
-      uiType = "purchase"
       description = `Creditpakket ${transaction.credits_amount} credits`
       break
-    case "spend":
-      // Check if it's a boost (based on vacancy_name containing "Boost" or reference_type)
-      // For now, we'll use a simple heuristic - if vacancy_name exists, it's a vacancy posting
-      // You can adjust this logic based on your needs
-      if (transaction.reference_type === "vacancy" && transaction.vacancy_name) {
-        // Check if it's a boost by looking at the credits amount (boosts are typically less)
-        // Or you could add a separate field in Airtable to distinguish
-        uiType = "job_posting"
-        description = `Vacature: ${transaction.vacancy_name}`
+    case "spend": {
+      const productNamesList = getProductDisplayNames()
+      const productLabel = productNamesList.length > 0 ? productNamesList.join(", ") : null
+      if (productLabel && transaction.vacancy_name) {
+        description = `${productLabel} — ${transaction.vacancy_name}`
+      } else if (transaction.vacancy_name) {
+        description = transaction.vacancy_name
+      } else if (productLabel) {
+        description = productLabel
       } else {
-        uiType = "job_posting"
-        description = transaction.vacancy_name 
-          ? `Vacature: ${transaction.vacancy_name}` 
-          : "Vacatureplaatsing"
+        description = "Transactie"
       }
       break
+    }
     case "refund":
-      uiType = "refund"
-      description = transaction.vacancy_name 
-        ? `Terugbetaling: ${transaction.vacancy_name}` 
+      description = transaction.vacancy_name
+        ? `Terugbetaling — ${transaction.vacancy_name}`
         : "Terugbetaling"
       break
     case "adjustment":
-      uiType = "correction"
       description = "Correctie"
       break
+    case "expiration":
+      description = "Credits verlopen"
+      break
     default:
-      uiType = "correction"
       description = "Transactie"
   }
 
@@ -197,9 +241,9 @@ function mapTransactionToUI(transaction: TransactionRecord): UITransaction {
   const invoiceUrl = transaction.invoice?.[0]?.url
 
   // Calculate credits display value
-  // For spend transactions, credits should be negative in UI
+  // For spend/expiration transactions, credits should be negative in UI
   let credits = transaction.credits_amount
-  if (transaction.type === "spend") {
+  if (transaction.type === "spend" || transaction.type === "expiration") {
     credits = -Math.abs(credits) // Ensure it's negative
   } else if (transaction.type === "purchase" || transaction.type === "adjustment") {
     credits = Math.abs(credits) // Ensure it's positive for purchases
@@ -212,6 +256,7 @@ function mapTransactionToUI(transaction: TransactionRecord): UITransaction {
     id: transaction.id,
     date: transaction["created-at"] ? new Date(transaction["created-at"]) : new Date(),
     type: uiType,
+    category,
     description,
     credits,
     invoiceStatus,
@@ -228,19 +273,19 @@ function formatDate(date: Date): string {
   })
 }
 
-// Multi-select filter component
-function TypeFilter({
-  selectedTypes,
-  onTypeChange,
+// Multi-select filter component (filters by category)
+function CategoryFilter({
+  selectedCategories,
+  onCategoryChange,
 }: {
-  selectedTypes: UITransactionType[]
-  onTypeChange: (types: UITransactionType[]) => void
+  selectedCategories: NonNullable<UITransactionCategory>[]
+  onCategoryChange: (categories: NonNullable<UITransactionCategory>[]) => void
 }) {
-  const toggleType = (type: UITransactionType) => {
-    if (selectedTypes.includes(type)) {
-      onTypeChange(selectedTypes.filter((t) => t !== type))
+  const toggleCategory = (category: NonNullable<UITransactionCategory>) => {
+    if (selectedCategories.includes(category)) {
+      onCategoryChange(selectedCategories.filter((c) => c !== category))
     } else {
-      onTypeChange([...selectedTypes, type])
+      onCategoryChange([...selectedCategories, category])
     }
   }
 
@@ -252,23 +297,23 @@ function TypeFilter({
           size="sm"
           showArrow={false}
         >
-          Filter op type
+          Filter op categorie
           <ChevronDown className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="p-2 space-y-2">
-          {filterTypes.map((type) => (
+          {filterCategories.map((cat) => (
             <label
-              key={type.value}
+              key={cat.value}
               className="flex items-center gap-3 px-2 py-1.5 rounded-md hover:bg-[#193DAB]/[0.08] cursor-pointer"
             >
               <Checkbox
-                checked={selectedTypes.includes(type.value)}
-                onCheckedChange={() => toggleType(type.value)}
+                checked={selectedCategories.includes(cat.value)}
+                onCheckedChange={() => toggleCategory(cat.value)}
                 className="data-[state=checked]:bg-[#1F2D58] data-[state=checked]:border-[#1F2D58]"
               />
-              <span className="text-sm text-[#1F2D58]">{type.label}</span>
+              <span className="text-sm text-[#1F2D58]">{cat.label}</span>
             </label>
           ))}
         </div>
@@ -277,7 +322,7 @@ function TypeFilter({
   )
 }
 
-// Table skeleton for loading state
+// Table skeleton for loading state (7 columns)
 function TableSkeleton() {
   return (
     <div className="space-y-3">
@@ -285,6 +330,7 @@ function TableSkeleton() {
         <div key={i} className="flex items-center gap-4 p-4">
           <Skeleton className="h-4 w-20" />
           <Skeleton className="h-6 w-20 rounded-full" />
+          <Skeleton className="h-6 w-20 rounded-full hidden sm:block" />
           <Skeleton className="h-4 w-48 hidden sm:block" />
           <Skeleton className="h-4 w-16 ml-auto" />
           <Skeleton className="h-6 w-16 rounded-full hidden sm:block" />
@@ -307,8 +353,8 @@ export default function OrdersPage() {
     total_purchased: 0,
     total_spent: 0,
   })
-  const [selectedTypes, setSelectedTypes] = useState<UITransactionType[]>(
-    filterTypes.map((t) => t.value)
+  const [selectedCategories, setSelectedCategories] = useState<NonNullable<UITransactionCategory>[]>(
+    filterCategories.map((c) => c.value)
   )
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
 
@@ -332,8 +378,11 @@ export default function OrdersPage() {
       
       const data = await response.json()
       
-      // Map transactions to UI format
-      const uiTransactions = (data.transactions || []).map(mapTransactionToUI)
+      // Map transactions to UI format, passing product names for display
+      const productNames: Record<string, string> = data.productNames || {}
+      const uiTransactions = (data.transactions || []).map(
+        (tx: TransactionRecord) => mapTransactionToUI(tx, productNames)
+      )
       setTransactions(uiTransactions)
       
       // Set credits overview
@@ -354,9 +403,10 @@ export default function OrdersPage() {
     fetchOrders()
   }, [fetchOrders])
 
-  // Filter transactions by selected types
+  // Filter transactions by selected categories
+  // Transactions with category=null are always shown (they don't belong to a filterable category)
   const filteredTransactions = transactions.filter((t) =>
-    selectedTypes.includes(t.type)
+    t.category === null || selectedCategories.includes(t.category)
   )
 
   // Handle download click
@@ -542,9 +592,9 @@ export default function OrdersPage() {
                   </div>
                   <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
                 </div>
-                <TypeFilter
-                  selectedTypes={selectedTypes}
-                  onTypeChange={setSelectedTypes}
+                <CategoryFilter
+                  selectedCategories={selectedCategories}
+                  onCategoryChange={setSelectedCategories}
                 />
               </div>
             </div>
@@ -554,15 +604,15 @@ export default function OrdersPage() {
                   <Coins />
                 </EmptyMedia>
                 <EmptyTitle>
-                  {selectedTypes.length === 0
+                  {selectedCategories.length === 0
                     ? "Geen filter geselecteerd"
                     : "Geen transacties gevonden"
                   }
                 </EmptyTitle>
                 <EmptyDescription>
-                  {selectedTypes.length === 0
-                    ? "Selecteer minimaal één type in de filter om transacties te zien."
-                    : "Er zijn geen transacties met de geselecteerde types."
+                  {selectedCategories.length === 0
+                    ? "Selecteer minimaal één categorie in de filter om transacties te zien."
+                    : "Er zijn geen transacties met de geselecteerde categorieën."
                   }
                 </EmptyDescription>
               </EmptyHeader>
@@ -578,9 +628,9 @@ export default function OrdersPage() {
                   </div>
                   <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
                 </div>
-                <TypeFilter
-                  selectedTypes={selectedTypes}
-                  onTypeChange={setSelectedTypes}
+                <CategoryFilter
+                  selectedCategories={selectedCategories}
+                  onCategoryChange={setSelectedCategories}
                 />
               </div>
             </div>
@@ -589,6 +639,7 @@ export default function OrdersPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Datum</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Type</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Categorie</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Omschrijving</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Status</TableHead>
@@ -597,7 +648,10 @@ export default function OrdersPage() {
               </TableHeader>
               <TableBody>
                 {filteredTransactions.map((transaction) => {
-                  const config = typeConfig[transaction.type]
+                  const tConfig = typeConfig[transaction.type]
+                  const catConfig = transaction.category
+                    ? categoryConfig[transaction.category]
+                    : null
                   const statusConfig = transaction.invoiceStatus
                     ? invoiceStatusConfig[transaction.invoiceStatus]
                     : null
@@ -611,9 +665,18 @@ export default function OrdersPage() {
 
                       {/* Type badge */}
                       <TableCell>
-                        <Badge variant={config.variant}>
-                          {config.label}
+                        <Badge variant={tConfig.variant}>
+                          {tConfig.label}
                         </Badge>
+                      </TableCell>
+
+                      {/* Category badge - hidden on mobile */}
+                      <TableCell className="hidden sm:table-cell">
+                        {catConfig && (
+                          <Badge variant={catConfig.variant}>
+                            {catConfig.label}
+                          </Badge>
+                        )}
                       </TableCell>
 
                       {/* Description - hidden on mobile */}
@@ -628,7 +691,7 @@ export default function OrdersPage() {
                         {transaction.credits > 0 ? "+" : ""}{transaction.credits}
                       </TableCell>
 
-                      {/* Invoice status - hidden on mobile, only for purchase */}
+                      {/* Invoice status - hidden on mobile */}
                       <TableCell className="hidden sm:table-cell">
                         {statusConfig && (
                           <Badge variant={statusConfig.variant}>
