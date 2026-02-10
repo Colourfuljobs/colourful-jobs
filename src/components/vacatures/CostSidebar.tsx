@@ -201,7 +201,16 @@ export function CostSidebar({
                   <span className="font-bold text-[#1F2D58]">Te betalen</span>
                   <div className="text-right">
                     <span className="font-bold text-[#1F2D58]">
-                      {availableCredits} credits + €{shortagePrice}
+                      {(() => {
+                        // Conditional formatting: only show non-zero values
+                        if (availableCredits > 0 && shortagePrice > 0) {
+                          return `${availableCredits} credits + €${shortagePrice}`;
+                        } else if (availableCredits > 0) {
+                          return `${availableCredits} credits`;
+                        } else {
+                          return `€${shortagePrice}`;
+                        }
+                      })()}
                     </span>
                     <p className="text-xs text-[#1F2D58]/60">excl. btw</p>
                   </div>

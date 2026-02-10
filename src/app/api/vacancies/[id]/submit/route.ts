@@ -222,10 +222,40 @@ export async function POST(
     }
 
     // Update vacancy status (and set high_priority if "Vandaag online" upsell is selected)
+    // Strip DIY-only fields when submitting as "We do it for you"
+    // These fields may have been filled during a previous DIY session and should not
+    // be persisted in the final submission to avoid confusion for the review team.
     const updatedVacancy = await updateVacancy(id, {
       status: "wacht_op_goedkeuring",
       "submitted-at": new Date().toISOString(),
       ...(hasVandaagOnline ? { high_priority: true } : {}),
+      // Strip DIY-only fields for "We do it for you" submissions
+      // Use null for all fields to safely clear both text and select fields in Airtable
+      ...(vacancy.input_type === "we_do_it_for_you" ? {
+        title: null,
+        intro_txt: null,
+        location: null,
+        employment_type: null,
+        hrs_per_week: null,
+        salary: null,
+        closing_date: null,
+        region_id: null,
+        sector_id: null,
+        function_type_id: null,
+        education_level_id: null,
+        field_id: null,
+        contact_name: null,
+        contact_role: null,
+        contact_company: null,
+        contact_email: null,
+        contact_phone: null,
+        contact_photo_id: null,
+        gallery: [],
+        recommendations: null,
+      } : {
+        // Strip "We do it for you"-only fields for self-service submissions
+        note: null,
+      }),
     });
 
     // Determine if submitted before 15:00 NL time (for "Vandaag online" cutoff)

@@ -35,10 +35,21 @@ export function VacancyPreview({
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-white/50 rounded-[0.75rem] pt-4 px-6 pb-6 mt-6">
-        <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Voorbeeld bekijken</h2>
-        <p className="text-[#1F2D58]/70 text-sm">
-          Bekijk hoe je vacature eruit zal zien voor kandidaten
-        </p>
+        {vacancy.input_type === "we_do_it_for_you" ? (
+          <>
+            <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Jouw input bekijken</h2>
+            <p className="text-[#1F2D58]/70 text-sm">
+              Met deze input gaan we aan de slag om jouw vacature op te stellen.
+            </p>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Voorbeeld bekijken</h2>
+            <p className="text-[#1F2D58]/70 text-sm">
+              Bekijk hoe je vacature eruit zal zien voor kandidaten
+            </p>
+          </>
+        )}
       </div>
 
       {/* Preview card */}
@@ -54,37 +65,39 @@ export function VacancyPreview({
           </div>
         )}
 
-        {/* Title section */}
-        <div className="p-6 border-b border-[#E8EEF2]">
-          <div className="flex items-center justify-between gap-4">
-            {/* Title and basic info */}
-            <div>
-              <h1 className="contempora-small mb-2">
-                {vacancy.title || "Vacaturetitel"}
-              </h1>
-              
-              {vacancy.closing_date && (
-                <p className="text-sm text-[#1F2D58]/70">
-                  Solliciteer voor {formatDate(vacancy.closing_date)}
-                </p>
+        {/* Title section - hidden for "we do it for you" */}
+        {vacancy.input_type !== "we_do_it_for_you" && (
+          <div className="p-6 border-b border-[#E8EEF2]">
+            <div className="flex items-center justify-between gap-4">
+              {/* Title and basic info */}
+              <div>
+                <h1 className="contempora-small mb-2">
+                  {vacancy.title || "Vacaturetitel"}
+                </h1>
+                
+                {vacancy.closing_date && (
+                  <p className="text-sm text-[#1F2D58]/70">
+                    Solliciteer voor {formatDate(vacancy.closing_date)}
+                  </p>
+                )}
+              </div>
+
+              {/* Logo */}
+              {logoUrl && (
+                <div className="w-24 h-20 rounded-lg bg-white border border-gray-200 flex items-center justify-center p-2 flex-shrink-0">
+                  <img
+                    src={logoUrl}
+                    alt="Logo"
+                    className="max-h-full max-w-full object-contain"
+                  />
+                </div>
               )}
             </div>
-
-            {/* Logo */}
-            {logoUrl && (
-              <div className="w-24 h-20 rounded-lg bg-white border border-gray-200 flex items-center justify-center p-2 flex-shrink-0">
-                <img
-                  src={logoUrl}
-                  alt="Logo"
-                  className="max-h-full max-w-full object-contain"
-                />
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Intro text */}
-        {vacancy.intro_txt && (
+        {/* Intro text - hidden for "we do it for you" */}
+        {vacancy.input_type !== "we_do_it_for_you" && vacancy.intro_txt && (
           <div className="p-6 border-b border-[#E8EEF2]">
             <p className="text-[#1F2D58] font-medium">{vacancy.intro_txt}</p>
           </div>
@@ -234,8 +247,8 @@ export function VacancyPreview({
           )}
         </div>
 
-        {/* Note / Opmerkingen */}
-        {vacancy.note && (
+        {/* Note / Opmerkingen - only show for "We do it for you" */}
+        {vacancy.input_type === "we_do_it_for_you" && vacancy.note && (
           <div className="p-6">
             <h4 className="text-lg font-bold text-[#1F2D58] mb-3">Opmerkingen</h4>
             <p className="text-sm text-[#1F2D58]/70 whitespace-pre-line">{vacancy.note}</p>

@@ -602,6 +602,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       return {
         ...prev,
         inputType: "we_do_it_for_you",
+        vacancyData: { ...prev.vacancyData, input_type: "we_do_it_for_you" },
         selectedUpsells: newUpsells,
         isDirty: true,
       };
@@ -629,6 +630,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       return {
         ...prev,
         inputType: "self_service",
+        vacancyData: { ...prev.vacancyData, input_type: "self_service" },
         selectedUpsells: newUpsells,
         isDirty: true,
       };
@@ -1249,9 +1251,16 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                           </>
                         ) : hasEnoughCredits ? (
                           `Vacature insturen (${totalCredits} credits)`
-                        ) : (
-                          `Vacature insturen (${creditsFromBalance} credits + €${shortagePrice})`
-                        )}
+                        ) : (() => {
+                          // Conditional formatting: only show non-zero values
+                          if (creditsFromBalance > 0 && shortagePrice > 0) {
+                            return `Vacature insturen (${creditsFromBalance} credits + €${shortagePrice})`;
+                          } else if (creditsFromBalance > 0) {
+                            return `Vacature insturen (${creditsFromBalance} credits)`;
+                          } else {
+                            return `Vacature insturen (€${shortagePrice})`;
+                          }
+                        })()}
                       </Button>
                     );
                   })()
