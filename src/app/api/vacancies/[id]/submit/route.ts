@@ -316,13 +316,13 @@ export async function POST(
  */
 function validateVacancyForSubmission(vacancy: {
   input_type?: string;
-  title?: string;
-  intro_txt?: string;
-  description?: string;
-  apply_url?: string;
-  application_email?: string;
+  title?: string | null;
+  intro_txt?: string | null;
+  description?: string | null;
+  apply_url?: string | null;
+  application_email?: string | null;
   show_apply_form?: boolean;
-  location?: string;
+  location?: string | null;
   region_id?: string | null;
   sector_id?: string | null;
   function_type_id?: string | null;

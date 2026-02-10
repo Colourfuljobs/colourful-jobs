@@ -7,9 +7,9 @@ export interface RepeatModeContext {
   /** All spend/boost transactions for this vacancy */
   vacancyTransactions: TransactionRecord[];
   /** First publication date of the vacancy (for until_max calculations) */
-  firstPublishedAt?: string;
+  firstPublishedAt?: string | null;
   /** Current closing date of the vacancy */
-  closingDate?: string;
+  closingDate?: string | null;
 }
 
 /**

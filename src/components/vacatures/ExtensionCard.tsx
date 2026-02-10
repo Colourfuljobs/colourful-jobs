@@ -21,7 +21,7 @@ export interface ExtensionCardProps {
   datePickerOpen: boolean;
   onDatePickerOpenChange: (open: boolean) => void;
   dateRange: { minDate: Date; maxDate: Date; standardEndDate?: Date };
-  currentClosingDate?: string;
+  currentClosingDate?: string | null;
   required?: boolean;
   /** Prefix for the checkbox id to avoid conflicts between BoostModal and SubmitStep */
   idPrefix?: string;

@@ -239,19 +239,19 @@ export const vacancyEmploymentTypeEnum = z.enum([
 export const vacancyRecordSchema = z.object({
   id: z.string(),
   employer_id: z.string().nullable().optional(), // Linked to Employers
-  title: z.string().optional(),
+  title: z.string().nullable().optional(),
   status: vacancyStatusEnum.default("concept"),
   input_type: vacancyInputTypeEnum.default("self_service"),
   
   // Content
-  intro_txt: z.string().optional(),
-  description: z.string().optional(), // Rich text (HTML)
+  intro_txt: z.string().nullable().optional(),
+  description: z.string().nullable().optional(), // Rich text (HTML)
   
   // Location & job details
-  location: z.string().optional(),
-  employment_type: vacancyEmploymentTypeEnum.optional(),
-  hrs_per_week: z.string().optional(),
-  salary: z.string().optional(),
+  location: z.string().nullable().optional(),
+  employment_type: vacancyEmploymentTypeEnum.nullable().optional(),
+  hrs_per_week: z.string().nullable().optional(),
+  salary: z.string().nullable().optional(),
   
   // Linked lookup tables (sorted alphabetically)
   education_level_id: z.string().nullable().optional(), // Linked to EducationLevels
@@ -265,23 +265,23 @@ export const vacancyRecordSchema = z.object({
   selected_upsells: z.array(z.string()).optional(), // Linked to Products (multiple)
   
   // Application
-  apply_url: z.string().optional(),
-  application_email: z.string().optional(),
+  apply_url: z.string().nullable().optional(),
+  application_email: z.string().nullable().optional(),
   show_apply_form: z.boolean().default(false),
   
   // Contact person
-  contact_name: z.string().optional(),
-  contact_role: z.string().optional(),
-  contact_company: z.string().optional(),
-  contact_email: z.string().optional(),
-  contact_phone: z.string().optional(),
+  contact_name: z.string().nullable().optional(),
+  contact_role: z.string().nullable().optional(),
+  contact_company: z.string().nullable().optional(),
+  contact_email: z.string().nullable().optional(),
+  contact_phone: z.string().nullable().optional(),
   contact_photo_id: z.string().nullable().optional(), // Linked to Media Assets
   
   // Social proof
-  recommendations: z.string().optional(), // JSON string array
+  recommendations: z.string().nullable().optional(), // JSON string array
   
   // Notes
-  note: z.string().optional(), // Internal notes for Colourful jobs team
+  note: z.string().nullable().optional(), // Internal notes for Colourful jobs team
   
   // Media
   header_image: z.string().nullable().optional(), // Linked to Media Assets (single)
@@ -297,7 +297,7 @@ export const vacancyRecordSchema = z.object({
   events: z.array(z.string()).optional(), // Linked to Events
   
   // Webflow
-  public_url: z.string().optional(), // URL of the published vacancy on the Webflow website
+  public_url: z.string().nullable().optional(), // URL of the published vacancy on the Webflow website
 
   // Priority
   high_priority: z.boolean().default(false), // Set when "Zelfde dag online" upsell is purchased
@@ -310,7 +310,7 @@ export const vacancyRecordSchema = z.object({
   "last-published-at": z.string().optional(),
   "depublished-at": z.string().optional(),
   "last-status_changed-at": z.string().optional(),
-  closing_date: z.string().optional(),
+  closing_date: z.string().nullable().optional(),
 });
 
 // ============================================

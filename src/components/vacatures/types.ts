@@ -112,5 +112,5 @@ export interface SubmitStepProps {
   extensionDateRange?: { minDate: Date; maxDate: Date; standardEndDate?: Date } | null;
   selectedClosingDate?: Date;
   onClosingDateChange?: (date: Date | undefined) => void;
-  currentClosingDate?: string;
+  currentClosingDate?: string | null;
 }
