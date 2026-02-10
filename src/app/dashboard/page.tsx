@@ -13,7 +13,7 @@ import {
   Eye,
   EyeOff,
   Rocket,
-  Send,
+  ArrowUpFromLine,
   Building2,
   CheckCircle2,
   Circle,
@@ -145,7 +145,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   ],
   gedepubliceerd: [
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Publiceren", icon: Send, action: "publiceren", iconOnly: false },
+    { label: "Publiceren", icon: ArrowUpFromLine, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
   ],
 }

@@ -31,14 +31,6 @@ export function VacancyPreview({
     });
   };
 
-  // Parse recommendations (filter out empty entries)
-  const recommendations = vacancy.recommendations
-    ? JSON.parse(vacancy.recommendations).filter(
-        (rec: { firstName: string; lastName: string }) =>
-          rec.firstName?.trim() || rec.lastName?.trim()
-      )
-    : [];
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -221,7 +213,7 @@ export function VacancyPreview({
         )}
 
         {/* Application method */}
-        <div className={`p-6 ${vacancy.note || recommendations.length > 0 ? "border-b border-[#E8EEF2]" : ""}`}>
+        <div className={`p-6 ${vacancy.note ? "border-b border-[#E8EEF2]" : ""}`}>
           <h4 className="text-lg font-bold text-[#1F2D58] mb-3">Solliciteren</h4>
           {vacancy.show_apply_form ? (
             <p className="text-sm text-[#1F2D58]/70">
@@ -244,28 +236,9 @@ export function VacancyPreview({
 
         {/* Note / Opmerkingen */}
         {vacancy.note && (
-          <div className={`p-6 ${recommendations.length > 0 ? "border-b border-[#E8EEF2]" : ""}`}>
+          <div className="p-6">
             <h4 className="text-lg font-bold text-[#1F2D58] mb-3">Opmerkingen</h4>
             <p className="text-sm text-[#1F2D58]/70 whitespace-pre-line">{vacancy.note}</p>
-          </div>
-        )}
-
-        {/* Recommendations */}
-        {recommendations.length > 0 && (
-          <div className="p-6">
-            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Aanbevolen door collega's</h4>
-            <div className="flex flex-wrap gap-3">
-              {recommendations.map(
-                (rec: { firstName: string; lastName: string }, index: number) => (
-                  <span
-                    key={index}
-                    className="px-3 pt-0.5 pb-1.5 bg-[#193DAB]/[0.12] rounded-full text-sm text-[#1F2D58]"
-                  >
-                    {rec.firstName} {rec.lastName}
-                  </span>
-                )
-              )}
-            </div>
           </div>
         )}
       </div>

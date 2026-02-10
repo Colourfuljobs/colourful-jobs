@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Coins, Eye, EyeOff, Pencil, Rocket, Send, MapPin, Clock, Calendar } from "lucide-react"
+import { Coins, Eye, EyeOff, Pencil, Rocket, ArrowUpFromLine, MapPin, Clock, Calendar } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
@@ -87,7 +87,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
   ],
   gedepubliceerd: [
-    { label: "Publiceren", icon: Send, action: "publiceren", iconOnly: false },
+    { label: "Publiceren", icon: ArrowUpFromLine, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
     { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
   ],

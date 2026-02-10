@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MediaPickerDialog } from "@/components/MediaPickerDialog";
-import { Plus, Trash2, Image as ImageIcon, Pencil, Upload, RefreshCw, User, CalendarDays } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, Pencil, ArrowUpFromLine, RefreshCw, User, CalendarDays } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import {

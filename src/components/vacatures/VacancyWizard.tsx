@@ -34,7 +34,7 @@ import { useCredits } from "@/lib/credits-context";
 import { getVisibleUpsells } from "@/lib/upsell-filters";
 import { getPackageBaseDuration, calculateDateRange } from "@/lib/vacancy-duration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Building2, Rocket } from "lucide-react";
+import { Building2, Rocket, Users, Pencil } from "lucide-react";
 import Link from "next/link";
 
 interface VacancyWizardProps {
@@ -871,17 +871,12 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           </div>
         );
       case 4:
-        // Filter out upsells that are already included in the selected package,
-        // BUT only for "once" mode (or no repeat_mode). Products with other
-        // repeat_modes (unlimited, renewable, until_max) can be purchased
-        // even if already included in the package.
-        const includedIds = new Set(state.selectedPackage?.included_upsells || []);
+        // Filter out upsells that are already included in the selected package
+        const includedUpsellIds = new Set(state.selectedPackage?.included_upsells || []);
         const packageFilteredUpsells = upsells.filter(
-          (upsell) => {
-            if (!includedIds.has(upsell.id)) return true; // Not included → keep
-            const mode = upsell.repeat_mode || "once";
-            return mode !== "once"; // Included but repeatable → keep
-          }
+          (upsell) =>
+            !includedUpsellIds.has(upsell.id) &&
+            !includedUpsellIds.has(upsell.slug || "")
         );
         // Apply repeat_mode filtering based on existing vacancy transactions
         const filteredUpsells = getVisibleUpsells(packageFilteredUpsells, {
@@ -1035,8 +1030,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content area - full width on steps 1-3, 2/3 width on step 2 with sidebar or step 4 */}
-        <div className={state.currentStep === 4 || (state.currentStep === 2 && (hasSocialPostFeature || weDoItForYouProduct)) ? "lg:col-span-2" : "lg:col-span-3"}>
+        {/* Main content area - full width on step 1, 2/3 width on step 2-4 with sidebar */}
+        <div className={state.currentStep === 4 || (state.currentStep === 2 && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature) ? "lg:col-span-2" : "lg:col-span-3"}>
           {renderStepContent()}
         </div>
 
@@ -1069,6 +1064,68 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 </div>
                 <Button variant="link" className="px-0" showArrow={false} onClick={handleSwitchToSelfService}>
                   Toch liever zelf opstellen?
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3 sidebar: Colleagues review (read-only with link back to edit) */}
+        {state.currentStep === 3 && hasSocialPostFeature && (
+          <div className="lg:col-span-1 order-first lg:order-none mt-6">
+            {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
+              /* State B: Show tagged colleagues */
+              <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
+                    <Users className="w-5 h-5 text-[#1F2D58]" />
+                  </div>
+                </div>
+                <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Getagde collega&apos;s</h4>
+                <p className="text-sm text-[#1F2D58]/70 mb-4">
+                  Deze collega&apos;s worden getagd in de social media post van deze vacature.
+                </p>
+                
+                <div className="space-y-2 mb-4">
+                  {recommendations
+                    .filter(rec => rec.firstName?.trim() || rec.lastName?.trim())
+                    .map((rec, index) => (
+                      <div key={index} className="bg-[#E8EEF2]/50 rounded-lg p-3">
+                        <span className="text-sm font-medium text-[#1F2D58]">
+                          {[rec.firstName?.trim(), rec.lastName?.trim()].filter(Boolean).join(" ")}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+
+                <Button 
+                  variant="link" 
+                  className="px-0" 
+                  onClick={() => handleStepClick(2)}
+                  showArrow={false}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Wijzigen
+                </Button>
+              </div>
+            ) : (
+              /* State A: No colleagues tagged - info message */
+              <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
+                    <Users className="w-5 h-5 text-[#1F2D58]" />
+                  </div>
+                </div>
+                <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Geen collega&apos;s getagd</h4>
+                <p className="text-sm text-[#1F2D58]/70 mb-4">
+                  Je hebt nog geen collega&apos;s getagd voor de social media post. Wil je dit alsnog doen?
+                </p>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={() => handleStepClick(2)}
+                >
+                  Collega&apos;s taggen
                 </Button>
               </div>
             )}

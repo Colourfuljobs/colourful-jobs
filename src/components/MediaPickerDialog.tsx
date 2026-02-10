@@ -66,7 +66,7 @@ export function MediaPickerDialog({
   singleSelect = false,
   filter = "all",
 }: MediaPickerDialogProps) {
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [logo, setLogo] = useState<MediaAsset | null>(null)
@@ -213,20 +213,24 @@ export function MediaPickerDialog({
     }
   }
 
-  // Reset local selection when dialog opens
-  // Trim to maxSelection if initial selection exceeds it
+  // Fetch media when dialog opens
   useEffect(() => {
     if (open) {
-      const initialSelection = selectedIds || []
-      // If initial selection exceeds max, trim it
-      if (!singleSelect && initialSelection.length > maxSelection) {
-        setLocalSelection(initialSelection.slice(0, maxSelection))
-      } else {
-        setLocalSelection(initialSelection)
-      }
       fetchMedia()
     }
-  }, [open, selectedIds, fetchMedia, maxSelection, singleSelect])
+  }, [open, fetchMedia])
+
+  // Sync local selection from selectedIds (without fetching)
+  // Trim to maxSelection if initial selection exceeds it
+  useEffect(() => {
+    const initialSelection = selectedIds || []
+    // If initial selection exceeds max, trim it
+    if (!singleSelect && initialSelection.length > maxSelection) {
+      setLocalSelection(initialSelection.slice(0, maxSelection))
+    } else {
+      setLocalSelection(initialSelection)
+    }
+  }, [selectedIds, maxSelection, singleSelect])
 
   // Clean up localSelection when images change (e.g. after delete)
   // Remove any selected IDs that no longer exist in available images

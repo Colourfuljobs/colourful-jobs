@@ -38,7 +38,7 @@ export function CostSidebar({
       : 0;
 
   return (
-    <div className="space-y-4 mt-6">
+    <div className="space-y-4 mt-6 sticky top-6 self-start">
       {/* Cost Overview Card */}
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] pt-4 px-6 pb-6 text-sm">
         {/* Header */}

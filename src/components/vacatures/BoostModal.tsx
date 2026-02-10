@@ -247,7 +247,8 @@ export function BoostModal({
       // even if already in the package or selected_upsells.
       const availableUpsells = boostOptionUpsells.filter(
         (upsell) => {
-          if (!alreadyOwnedIds.has(upsell.id)) return true; // Not owned → keep
+          // Check both id and slug for robustness
+          if (!alreadyOwnedIds.has(upsell.id) && !alreadyOwnedIds.has(upsell.slug || "")) return true; // Not owned → keep
           const mode = upsell.repeat_mode || "once";
           return mode !== "once"; // Owned but repeatable → keep
         }

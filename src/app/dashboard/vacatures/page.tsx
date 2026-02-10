@@ -13,7 +13,7 @@ import {
   Eye,
   EyeOff,
   Rocket,
-  Send,
+  ArrowUpFromLine,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -135,7 +135,7 @@ const actionsPerStatus: Record<VacancyStatus, Array<{
   ],
   gedepubliceerd: [
     { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Publiceren", icon: Send, action: "publiceren", iconOnly: false },
+    { label: "Publiceren", icon: ArrowUpFromLine, action: "publiceren", iconOnly: false },
     { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
   ],
 }
