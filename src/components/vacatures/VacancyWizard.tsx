@@ -329,9 +329,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 }
                 
                 // Set contact photo if vacancy has one
-                if (vacancy.contact_photo && mediaData.images) {
+                if (vacancy.contact_photo_id && mediaData.images) {
                   const contactPhoto = mediaData.images.find((img: { id: string; url: string }) => 
-                    img.id === vacancy.contact_photo
+                    img.id === vacancy.contact_photo_id
                   );
                   if (contactPhoto) {
                     setContactPhotoUrl(contactPhoto.url);
