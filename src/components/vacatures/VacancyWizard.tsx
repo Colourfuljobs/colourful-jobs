@@ -979,6 +979,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             <VacancyPreview
               vacancy={state.vacancyData}
               selectedPackage={state.selectedPackage}
+              selectedUpsells={state.selectedUpsells}
               lookups={lookups}
               contactPhotoUrl={contactPhotoUrl || undefined}
               headerImageUrl={headerImageUrl || undefined}
