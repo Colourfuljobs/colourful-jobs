@@ -299,6 +299,20 @@ export default function VacaturesPage() {
       })
       // Clean up URL
       router.replace("/dashboard/vacatures", { scroll: false })
+    } else if (success === "submitted_wdify") {
+      toastShownRef.current = true
+      toast.success("Vacature ingestuurd", {
+        description: "We zullen de vacature opstellen. Je ontvangt van ons bericht als deze klaar is.",
+      })
+      // Clean up URL
+      router.replace("/dashboard/vacatures", { scroll: false })
+    } else if (success === "submitted_wdify_invoice") {
+      toastShownRef.current = true
+      toast.success("Vacature ingestuurd", {
+        description: "We zullen de vacature opstellen. Je ontvangt van ons bericht als deze klaar is. Je ontvangt de factuur per e-mail.",
+      })
+      // Clean up URL
+      router.replace("/dashboard/vacatures", { scroll: false })
     } else if (success === "updated") {
       toastShownRef.current = true
       toast.success("Vacature bijgewerkt", {

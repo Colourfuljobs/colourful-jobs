@@ -1038,14 +1038,16 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className={`w-full ${step === 1 && !joinMode ? 'max-w-[440px]' : 'max-w-[600px]'}`}>
-      <div className="flex justify-center mb-8">
-        <Link href="https://www.colourfuljobs.nl/">
-          <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-        </Link>
-      </div>
-      <Card className="p-0 overflow-hidden">
+    <div className="min-h-screen flex">
+      {/* Left side - Form */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className={`w-full ${step === 1 && !joinMode ? 'max-w-md' : 'max-w-[600px]'}`}>
+          <div className="flex justify-center mb-8">
+            <Link href="https://www.colourfuljobs.nl/">
+              <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+            </Link>
+          </div>
+          <Card className="p-0 overflow-hidden">
         {/* Header - step 1: full intro, hidden during email verification waiting state */}
         {!joinMode && step === 1 && !(emailSent && !emailVerified) && (
           <div className="bg-white/50 px-6 sm:px-8 pt-6 sm:pt-8 pb-6 sm:pb-8">
@@ -1142,24 +1144,40 @@ export default function OnboardingPage() {
         </CardContent>
       </Card>
 
-      {/* Login link - hidden during email verification, join verification, and step 2 form */}
-      {!(joinMode && joinStep === "verification") && !(emailSent && !emailVerified) && !(step === 2 && !showKVKSearch) && (
-        <div className="mt-4 text-center">
-          <p className="text-sm text-[#1F2D58]">
-            Heb je al een account?{" "}
-            <button
-              onClick={async () => {
-                // Sign out first (if authenticated) to allow login with different account
-                if (status === "authenticated") {
-                  await signOut({ redirect: false });
-                }
-                router.push("/login");
-              }}
-              className="text-[#39ADE5] font-semibold hover:underline"
-            >
-              Log in
-            </button>
-          </p>
+        {/* Login link - hidden during email verification, join verification, and step 2 form */}
+        {!(joinMode && joinStep === "verification") && !(emailSent && !emailVerified) && !(step === 2 && !showKVKSearch) && (
+          <div className="mt-4 text-center">
+            <p className="text-sm text-[#1F2D58]">
+              Heb je al een account?{" "}
+              <button
+                onClick={async () => {
+                  // Sign out first (if authenticated) to allow login with different account
+                  if (status === "authenticated") {
+                    await signOut({ redirect: false });
+                  }
+                  router.push("/login");
+                }}
+                className="text-[#39ADE5] font-semibold hover:underline"
+              >
+                Log in
+              </button>
+            </p>
+          </div>
+        )}
+        </div>
+      </div>
+      
+      {/* Right side - Screenshot (only on step 1, hidden during email verification and join mode) */}
+      {step === 1 && !joinMode && !(emailSent && !emailVerified) && (
+        <div className="hidden lg:flex flex-shrink-0 items-center">
+          <Image
+            src="/onboarding-screenshot.png"
+            alt="Colourful jobs dashboard"
+            width={800}
+            height={900}
+            className="h-[80vh] w-auto"
+            priority
+          />
         </div>
       )}
 
@@ -1235,7 +1253,6 @@ export default function OnboardingPage() {
           </div>
         </DialogContent>
       </Dialog>
-      </div>
     </div>
   );
 }

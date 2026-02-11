@@ -124,4 +124,5 @@ export interface SubmitStepProps {
   selectedClosingDate?: Date;
   onClosingDateChange?: (date: Date | undefined) => void;
   currentClosingDate?: string | null;
+  inputType?: VacancyInputType;
 }

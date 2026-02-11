@@ -592,10 +592,12 @@ export default function OrdersPage() {
                   </div>
                   <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
                 </div>
-                <CategoryFilter
-                  selectedCategories={selectedCategories}
-                  onCategoryChange={setSelectedCategories}
-                />
+                <div className="hidden">
+                  <CategoryFilter
+                    selectedCategories={selectedCategories}
+                    onCategoryChange={setSelectedCategories}
+                  />
+                </div>
               </div>
             </div>
             <Empty className="bg-white rounded-t-none">
@@ -628,10 +630,12 @@ export default function OrdersPage() {
                   </div>
                   <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">Transacties</h2>
                 </div>
-                <CategoryFilter
-                  selectedCategories={selectedCategories}
-                  onCategoryChange={setSelectedCategories}
-                />
+                <div className="hidden">
+                  <CategoryFilter
+                    selectedCategories={selectedCategories}
+                    onCategoryChange={setSelectedCategories}
+                  />
+                </div>
               </div>
             </div>
             <Table className="bg-white">

@@ -307,9 +307,11 @@ export default function LoginPage() {
                       </p>
                     )}
                   </div>
-                  <Button type="submit" disabled={!email || loading}>
-                    {loading ? "Versturen..." : "Stuur e-mail link"}
-                  </Button>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={!email || loading}>
+                      {loading ? "Versturen..." : "Stuur e-mail link"}
+                    </Button>
+                  </div>
                 </form>
               )}
             </CardContent>

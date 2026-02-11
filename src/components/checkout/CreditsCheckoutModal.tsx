@@ -432,7 +432,7 @@ export function CreditsCheckoutModal({
             {/* Invoice details section */}
             <div className={cn(
               "border border-[#1F2D58]/10 rounded-[0.75rem] p-4 transition-colors",
-              invoiceDetailsOpen && useAccountDetails && invoiceDetails.contact_name
+              invoiceDetailsOpen && useAccountDetails
                 ? "bg-white"
                 : "bg-transparent"
             )}>
@@ -455,7 +455,7 @@ export function CreditsCheckoutModal({
                 </Field>
 
                 {/* Collapsible invoice details toggle */}
-                {useAccountDetails && invoiceDetails.contact_name && (
+                {useAccountDetails && (
                   <button
                     type="button"
                     onClick={() => setInvoiceDetailsOpen(!invoiceDetailsOpen)}
@@ -473,13 +473,13 @@ export function CreditsCheckoutModal({
               </div>
 
               {/* Collapsible invoice details content */}
-              {useAccountDetails && invoiceDetails.contact_name && invoiceDetailsOpen && (
+              {useAccountDetails && invoiceDetailsOpen && (
                 <div className="mt-4 space-y-4">
                       {/* Row 1: Contact person (1/3) - Email (1/3) - Ref nr (1/3) */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="contact_name" className="text-[#1F2D58]">
-                            Contactpersoon
+                            Contactpersoon <span className="text-slate-400 text-sm">*</span>
                           </Label>
                           <Input
                             id="contact_name"
@@ -496,7 +496,7 @@ export function CreditsCheckoutModal({
 
                         <div className="space-y-2">
                           <Label htmlFor="email" className="text-[#1F2D58]">
-                            E-mail
+                            E-mail <span className="text-slate-400 text-sm">*</span>
                           </Label>
                           <Input
                             id="email"
@@ -514,7 +514,7 @@ export function CreditsCheckoutModal({
 
                         <div className="space-y-2">
                           <Label htmlFor="reference_nr" className="text-[#1F2D58]">
-                            Referentie/Inkooporder nr
+                            Referentie
                           </Label>
                           <Input
                             id="reference_nr"
@@ -525,7 +525,7 @@ export function CreditsCheckoutModal({
                                 reference_nr: e.target.value,
                               })
                             }
-                            placeholder="Uw referentie"
+                            placeholder="Referentie/Inkooporder nr."
                           />
                         </div>
                       </div>
@@ -534,7 +534,7 @@ export function CreditsCheckoutModal({
                       <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr] gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="street" className="text-[#1F2D58]">
-                            Straat en huisnummer
+                            Straat en huisnummer <span className="text-slate-400 text-sm">*</span>
                           </Label>
                           <Input
                             id="street"
@@ -551,7 +551,7 @@ export function CreditsCheckoutModal({
 
                         <div className="space-y-2">
                           <Label htmlFor="postal_code" className="text-[#1F2D58]">
-                            Postcode
+                            Postcode <span className="text-slate-400 text-sm">*</span>
                           </Label>
                           <Input
                             id="postal_code"
@@ -568,7 +568,7 @@ export function CreditsCheckoutModal({
 
                         <div className="space-y-2">
                           <Label htmlFor="city" className="text-[#1F2D58]">
-                            Plaats
+                            Plaats <span className="text-slate-400 text-sm">*</span>
                           </Label>
                           <Input
                             id="city"

@@ -163,7 +163,7 @@ export async function searchKVK(
     }
 
     // Transform API response to KVKSearchResult[]
-    return data.resultaten.map((item) => {
+    const allResults = data.resultaten.map((item) => {
       const binnenlands = item.adres?.binnenlandsAdres;
       const buitenlands = item.adres?.buitenlandsAdres;
 
@@ -206,6 +206,38 @@ export async function searchKVK(
         typeLabel,
       };
     });
+
+    // Deduplicate results by KVK number
+    // Prefer hoofdvestiging > nevenvestiging > rechtspersoon
+    const deduplicatedResults = Object.values(
+      allResults.reduce((acc, result) => {
+        const existing = acc[result.kvkNumber];
+        
+        if (!existing) {
+          // No existing result for this KVK number, add it
+          acc[result.kvkNumber] = result;
+        } else {
+          // Decide which one to keep based on type priority
+          const typePriority: Record<string, number> = {
+            hoofdvestiging: 1,
+            nevenvestiging: 2,
+            rechtspersoon: 3,
+          };
+          
+          const existingPriority = typePriority[existing.type] || 999;
+          const newPriority = typePriority[result.type] || 999;
+          
+          // Keep the one with lower priority number (higher importance)
+          if (newPriority < existingPriority) {
+            acc[result.kvkNumber] = result;
+          }
+        }
+        
+        return acc;
+      }, {} as Record<string, KVKSearchResult>)
+    );
+
+    return deduplicatedResults;
   } catch (error) {
     console.error("Error searching KVK:", error);
     throw error;

@@ -29,6 +29,7 @@ export function SubmitStep({
   selectedClosingDate,
   onClosingDateChange,
   currentClosingDate,
+  inputType = "self_service",
 }: SubmitStepProps) {
   // Get features from the selected package
   const features = selectedPackage.populatedFeatures || [];
@@ -146,8 +147,10 @@ export function SubmitStep({
             </div>
             <div className="flex-1 text-left">
               <p className="text-sm">
-                Na plaatsing wordt je vacature beoordeeld door ons team. Je ontvangt een
-                notificatie zodra je vacature is goedgekeurd of als er aanpassingen nodig zijn.{!hasEnoughCredits && " Je ontvangt de factuur automatisch per e-mail."}
+                {inputType === "we_do_it_for_you" 
+                  ? "Na plaatsing stelt ons team je vacature op. Je ontvangt een notificatie zodra je vacature gereed is of als er aanpassingen nodig zijn."
+                  : "Na plaatsing wordt je vacature beoordeeld door ons team. Je ontvangt een notificatie zodra je vacature is goedgekeurd of als er aanpassingen nodig zijn."
+                }{!hasEnoughCredits && " Je ontvangt de factuur automatisch per e-mail."}
               </p>
             </div>
           </div>

@@ -916,9 +916,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       // This prevents any React effects or router.replace calls from interfering
       // Credits will be fresh on the new page load anyway
       // Pass success=submit parameter to show toast on the vacatures page
-      const successMessage = data.credits_invoiced > 0 
-        ? "submitted_invoice"
-        : "submitted";
+      const isWeDoItForYou = state.inputType === "we_do_it_for_you";
+      let successMessage: string;
+      if (isWeDoItForYou) {
+        successMessage = data.credits_invoiced > 0 ? "submitted_wdify_invoice" : "submitted_wdify";
+      } else {
+        successMessage = data.credits_invoiced > 0 ? "submitted_invoice" : "submitted";
+      }
       window.location.href = `/dashboard/vacatures?success=${successMessage}`;
     } catch (error) {
       console.error("Error submitting vacancy:", error);
@@ -928,7 +932,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     } finally {
       setIsSaving(false);
     }
-  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, availableCredits, invoiceDetails, profileComplete, selectedClosingDate]);
+  }, [state.vacancyId, state.selectedPackage, state.selectedUpsells, state.inputType, availableCredits, invoiceDetails, profileComplete, selectedClosingDate]);
 
   // Render loading state
   if (isLoading) {
@@ -1140,6 +1144,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             selectedClosingDate={selectedClosingDate}
             onClosingDateChange={setSelectedClosingDate}
             currentClosingDate={state.vacancyData?.closing_date}
+            inputType={state.inputType}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">

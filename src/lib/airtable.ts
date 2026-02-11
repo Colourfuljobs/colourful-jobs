@@ -2184,6 +2184,9 @@ export async function updateVacancy(
   // Priority
   if (fields.high_priority !== undefined) airtableFields.high_priority = fields.high_priority;
 
+  // Webflow sync
+  if (fields.needs_webflow_sync !== undefined) airtableFields.needs_webflow_sync = fields.needs_webflow_sync;
+
   // Special timestamps
   if (fields["submitted-at"] !== undefined) airtableFields["submitted-at"] = fields["submitted-at"];
   if (fields["first-published-at"] !== undefined) airtableFields["first-published-at"] = fields["first-published-at"];
