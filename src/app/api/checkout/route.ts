@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 
     // Create the transaction with expiration date
     const transaction = await createPurchaseTransaction({
-      employer_id: user.employer_id || undefined, // For intermediaries, this may be undefined
+      employer_id: user.employer_id || null, // For intermediaries, this may be null
       wallet_id: wallet.id,
       user_id: user.id,
       product_id: product.id,
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
     await logEvent({
       event_type: "credits_purchased",
       actor_user_id: user.id,
-      employer_id: user.employer_id || undefined,
+      employer_id: user.employer_id || null,
       source: "web",
       ip_address: ipAddress,
       payload: {

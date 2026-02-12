@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { X, ChevronDown, Coins, Check } from "lucide-react";
 import { ProductRecord } from "@/lib/airtable";
@@ -57,6 +58,8 @@ export function CreditsCheckoutModal({
 }: CreditsCheckoutModalProps) {
   const [products, setProducts] = React.useState<ProductRecord[]>([]);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductRecord | null>(null);
+  const [billingCycle, setBillingCycle] = React.useState<"one_time" | "yearly">("one_time");
+  const [isTransitioning, setIsTransitioning] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [useAccountDetails, setUseAccountDetails] = React.useState(false);
@@ -77,6 +80,7 @@ export function CreditsCheckoutModal({
       fetchProducts();
       // Reset state when opening
       setSelectedProduct(null);
+      setBillingCycle("one_time");
       setUseAccountDetails(false);
       setInvoiceDetailsOpen(false);
       setInvoiceDetails({
@@ -155,6 +159,31 @@ export function CreditsCheckoutModal({
       setInvoiceDetailsOpen(false);
     }
   };
+
+  const handleBillingCycleChange = (checked: boolean) => {
+    // Start fade-out animatie
+    setIsTransitioning(true);
+    
+    // Na fade-out, wissel billing cycle
+    setTimeout(() => {
+      setBillingCycle(checked ? "yearly" : "one_time");
+      setSelectedProduct(null); // Reset selectie bij wisselen
+      
+      // Start fade-in animatie
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 50);
+    }, 200);
+  };
+
+  // Filter products based on billing cycle
+  const filteredProducts = React.useMemo(() => {
+    return products.filter((p) => {
+      // Als product geen billing_cycle heeft, toon bij one_time (backwards compatible)
+      const cycle = p.billing_cycle || "one_time";
+      return cycle === billingCycle;
+    });
+  }, [products, billingCycle]);
 
   const handleSelectProduct = (product: ProductRecord) => {
     setSelectedProduct(product);
@@ -322,10 +351,26 @@ export function CreditsCheckoutModal({
             </div>
           ) : (
             <div className="space-y-6 pt-6">
+            {/* Billing cycle toggle */}
+            <div className="flex items-center justify-end gap-3">
+              <span className="text-sm font-medium text-[#1F2D58]">
+                Bespaar met jaarlijks abonnement
+              </span>
+              <Switch
+                checked={billingCycle === "yearly"}
+                onCheckedChange={handleBillingCycleChange}
+              />
+            </div>
+
             {/* Product cards */}
             <div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                {products.map((product) => {
+              <div 
+                className={cn(
+                  "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 transition-opacity duration-200",
+                  isTransitioning ? "opacity-0" : "opacity-100"
+                )}
+              >
+                {filteredProducts.map((product) => {
                   const isSelected = selectedProduct?.id === product.id;
                   const vacancyEstimate = getVacancyEstimate(product.credits);
 
@@ -357,7 +402,6 @@ export function CreditsCheckoutModal({
                         {/* Credits */}
                         <p className="text-base text-[#1F2D58] mt-1">
                           <span className="font-bold">{product.credits} credits</span>
-                          <span className="text-sm font-normal text-[#1F2D58]/60 ml-1.5">{formatValidity(product.validity_months)} geldig</span>
                         </p>
 
                       </div>
@@ -389,6 +433,9 @@ export function CreditsCheckoutModal({
                             <span className="text-xl font-bold text-[#1F2D58]">
                               {formatPrice(product.price)}
                             </span>
+                            {billingCycle === "yearly" && (
+                              <span className="text-xs text-[#1F2D58]/60 ml-1">/ jaar</span>
+                            )}
                           </div>
                           
                           {/* Savings badge */}
@@ -420,7 +467,9 @@ export function CreditsCheckoutModal({
                                 Geselecteerd
                               </>
                             ) : (
-                              `Koop ${product.credits} credits`
+                              billingCycle === "yearly"
+                                ? `${product.credits} credits / jaar`
+                                : `Koop ${product.credits} credits`
                             )}
                           </Button>
                         </div>
@@ -429,6 +478,11 @@ export function CreditsCheckoutModal({
                   );
                 })}
               </div>
+              <p className="text-xs text-[#1F2D58]/60 mt-3">
+                {billingCycle === "yearly" 
+                  ? "* Het abonnement wordt jaarlijks gefactureerd. Opzegbaar na de eerste verlenging en credits zijn 1 jaar geldig."
+                  : "* De credits zijn 1 jaar geldig."}
+              </p>
             </div>
 
             {/* Invoice details section */}
@@ -611,8 +665,9 @@ export function CreditsCheckoutModal({
                   "Haal factuurgegevens op"
                 ) : (
                   <>
-                    Koop {selectedProduct.credits} credits /{" "}
+                    {billingCycle === "yearly" ? "Start abonnement" : "Koop"} {selectedProduct.credits} credits /{" "}
                     {formatPrice(selectedProduct.price)}
+                    {billingCycle === "yearly" && " per jaar"}
                   </>
                 )}
               </Button>

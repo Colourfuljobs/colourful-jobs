@@ -2006,7 +2006,7 @@ export async function addCreditsToWallet(
  * Includes expiration date calculation based on product's validity_months
  */
 export async function createPurchaseTransaction(fields: {
-  employer_id: string;
+  employer_id?: string | null; // Optional for intermediary purchases
   wallet_id: string;
   user_id: string;
   product_id: string;
@@ -2027,7 +2027,7 @@ export async function createPurchaseTransaction(fields: {
   expiresAt.setMonth(expiresAt.getMonth() + monthsToExpire);
 
   const airtableFields: Record<string, any> = {
-    employer: [fields.employer_id], // Linked record requires array
+    ...(fields.employer_id && { employer: [fields.employer_id] }), // Only add employer if present
     wallet: [fields.wallet_id], // Linked record requires array
     user: [fields.user_id], // Linked record to Users - requires array
     product_id: [fields.product_id], // Linked record to Products - requires array
