@@ -20,12 +20,25 @@ export async function POST(
 
     // Get user and verify ownership
     const user = await getUserByEmail(session.user.email);
-    if (!user || !user.employer_id) {
+    if (!user) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
+    // Get allowed employer IDs based on role
+    const allowedEmployers: string[] = [];
+    if (user.role_id === "intermediary") {
+      // Intermediaries can access vacancies from all managed employers
+      allowedEmployers.push(...(user.managed_employers || []));
+    } else {
+      // Regular users can only access their employer's vacancies
+      if (!user.employer_id) {
+        return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 403 });
+      }
+      allowedEmployers.push(user.employer_id);
+    }
+
     const vacancy = await getVacancyById(id);
-    if (!vacancy || vacancy.employer_id !== user.employer_id) {
+    if (!vacancy || !vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
       return NextResponse.json({ error: "Vacature niet gevonden" }, { status: 404 });
     }
 
@@ -45,7 +58,7 @@ export async function POST(
     await logEvent({
       event_type: "vacancy_updated",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: vacancy.employer_id || null,
       vacancy_id: id,
       source: "web",
       payload: { action: "webflow_sync_requested" },

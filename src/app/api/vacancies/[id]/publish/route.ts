@@ -39,11 +39,21 @@ export async function POST(
         { status: 404 }
       );
     }
-    if (!user.employer_id) {
-      return NextResponse.json(
-        { error: "Geen werkgever gekoppeld" },
-        { status: 400 }
-      );
+
+    // Get allowed employer IDs based on role
+    const allowedEmployers: string[] = [];
+    if (user.role_id === "intermediary") {
+      // Intermediaries can access vacancies from all managed employers
+      allowedEmployers.push(...(user.managed_employers || []));
+    } else {
+      // Regular users can only access their employer's vacancies
+      if (!user.employer_id) {
+        return NextResponse.json(
+          { error: "Geen werkgever gekoppeld" },
+          { status: 400 }
+        );
+      }
+      allowedEmployers.push(user.employer_id);
     }
 
     // Fetch vacancy
@@ -55,8 +65,8 @@ export async function POST(
       );
     }
 
-    // Verify vacancy belongs to user's employer
-    if (vacancy.employer_id !== user.employer_id) {
+    // Verify vacancy belongs to user's employer or managed employers
+    if (!vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
       return NextResponse.json(
         { error: "Geen toegang tot deze vacature" },
         { status: 403 }
@@ -106,7 +116,7 @@ export async function POST(
     await logEvent({
       event_type: "vacancy_publish",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: vacancy.employer_id || null,
       vacancy_id: vacancy.id,
       source: "web",
       ip_address: getClientIP(request),

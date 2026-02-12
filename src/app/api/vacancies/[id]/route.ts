@@ -62,7 +62,7 @@ export async function GET(
     }
 
     // Verify user has access to this vacancy's employer
-    if (!allowedEmployers.includes(vacancy.employer_id)) {
+    if (!vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
@@ -123,7 +123,7 @@ export async function PATCH(
     }
 
     // Verify user has access to this vacancy's employer
-    if (!allowedEmployers.includes(existingVacancy.employer_id)) {
+    if (!existingVacancy.employer_id || !allowedEmployers.includes(existingVacancy.employer_id)) {
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
@@ -180,7 +180,7 @@ export async function PATCH(
     await logEvent({
       event_type: "vacancy_updated",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: existingVacancy.employer_id || null,
       vacancy_id: vacancy.id,
       source: "web",
       payload: {

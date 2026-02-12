@@ -68,11 +68,21 @@ export async function POST(
         { status: 404 }
       );
     }
-    if (!user.employer_id) {
-      return NextResponse.json(
-        { error: "Geen werkgever gekoppeld" },
-        { status: 400 }
-      );
+
+    // Get allowed employer IDs based on role
+    const allowedEmployers: string[] = [];
+    if (user.role_id === "intermediary") {
+      // Intermediaries can access vacancies from all managed employers
+      allowedEmployers.push(...(user.managed_employers || []));
+    } else {
+      // Regular users can only access their employer's vacancies
+      if (!user.employer_id) {
+        return NextResponse.json(
+          { error: "Geen werkgever gekoppeld" },
+          { status: 400 }
+        );
+      }
+      allowedEmployers.push(user.employer_id);
     }
 
     // Fetch vacancy
@@ -84,8 +94,8 @@ export async function POST(
       );
     }
 
-    // Verify vacancy belongs to user's employer
-    if (vacancy.employer_id !== user.employer_id) {
+    // Verify vacancy belongs to user's employer or managed employers
+    if (!vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
       return NextResponse.json(
         { error: "Geen toegang tot deze vacature" },
         { status: 403 }
@@ -212,8 +222,8 @@ export async function POST(
       });
     }
 
-    // Get wallet and check balance
-    const wallet = await getWalletByEmployerId(user.employer_id);
+    // Get wallet and check balance (use vacancy's employer_id)
+    const wallet = await getWalletByEmployerId(vacancy.employer_id);
     if (!wallet) {
       return NextResponse.json(
         { error: "Wallet niet gevonden" },
@@ -245,7 +255,7 @@ export async function POST(
     // Deduct credits via FIFO
     if (totalCredits > 0) {
       const fifoResult = await spendCreditsWithFIFO(
-        user.employer_id,
+        vacancy.employer_id,
         wallet.id,
         totalCredits
       );
@@ -255,7 +265,7 @@ export async function POST(
     // Create spend transaction with context "boost"
     if (totalCredits > 0) {
       await createSpendTransaction({
-        employer_id: user.employer_id,
+        employer_id: vacancy.employer_id,
         wallet_id: wallet.id,
         user_id: user.id,
         vacancy_id: vacancy.id,
@@ -309,7 +319,7 @@ export async function POST(
     await logEvent({
       event_type: "vacancy_boost",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: vacancy.employer_id || null,
       vacancy_id: vacancy.id,
       source: "web",
       ip_address: getClientIP(request),

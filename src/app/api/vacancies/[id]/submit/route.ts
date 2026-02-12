@@ -55,8 +55,18 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
     }
-    if (!user.employer_id) {
-      return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+
+    // Get allowed employer IDs based on role
+    const allowedEmployers: string[] = [];
+    if (user.role_id === "intermediary") {
+      // Intermediaries can access vacancies from all managed employers
+      allowedEmployers.push(...(user.managed_employers || []));
+    } else {
+      // Regular users can only access their employer's vacancies
+      if (!user.employer_id) {
+        return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+      }
+      allowedEmployers.push(user.employer_id);
     }
 
     // Fetch vacancy
@@ -65,8 +75,8 @@ export async function POST(
       return NextResponse.json({ error: "Vacature niet gevonden" }, { status: 404 });
     }
 
-    // Verify vacancy belongs to user's employer
-    if (vacancy.employer_id !== user.employer_id) {
+    // Verify vacancy belongs to user's employer or managed employers
+    if (!vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
@@ -121,8 +131,8 @@ export async function POST(
       }
     }
 
-    // Get wallet and check balance
-    const wallet = await getWalletByEmployerId(user.employer_id);
+    // Get wallet and check balance (use vacancy's employer_id for wallet lookup)
+    const wallet = await getWalletByEmployerId(vacancy.employer_id);
     if (!wallet) {
       return NextResponse.json(
         { error: "Wallet niet gevonden" },
@@ -186,13 +196,13 @@ export async function POST(
     // This uses credits from the oldest non-expired batches first
     let fifoResult = null;
     if (creditsToDeduct > 0) {
-      fifoResult = await spendCreditsWithFIFO(user.employer_id, wallet.id, creditsToDeduct);
+      fifoResult = await spendCreditsWithFIFO(vacancy.employer_id, wallet.id, creditsToDeduct);
       console.log("[Submit] FIFO spend result:", fifoResult);
     }
 
     // Create a single spend transaction (with optional invoice details for partial payment)
     await createSpendTransaction({
-      employer_id: user.employer_id,
+      employer_id: vacancy.employer_id,
       wallet_id: wallet.id,
       user_id: user.id, // Track which user initiated the transaction
       vacancy_id: vacancy.id,
@@ -216,7 +226,7 @@ export async function POST(
       console.log("[Submit] Creating included upsell transactions:", includedUpsellIds.length);
       for (const includedUpsellId of includedUpsellIds) {
         await createSpendTransaction({
-          employer_id: user.employer_id,
+          employer_id: vacancy.employer_id,
           wallet_id: wallet.id,
           user_id: user.id,
           vacancy_id: vacancy.id,
@@ -281,7 +291,7 @@ export async function POST(
     await logEvent({
       event_type: "vacancy_created",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: vacancy.employer_id || null,
       vacancy_id: vacancy.id,
       source: "web",
       ip_address: getClientIP(request),
