@@ -125,6 +125,15 @@ export default function WerkgeversprofielPage() {
       return a.every((img, i) => img.id === b[i]?.id)
     }
 
+    const compareFaq = (a: FAQItem[], b: FAQItem[]) => {
+      if (a.length !== b.length) return false
+      return a.every((item, i) =>
+        item.id === b[i]?.id &&
+        item.question === b[i]?.question &&
+        item.answer === b[i]?.answer
+      )
+    }
+
     return (
       editData.display_name !== profileData.display_name ||
       editData.sector_id !== profileData.sector_id ||
@@ -132,8 +141,8 @@ export default function WerkgeversprofielPage() {
       editData.logo_id !== profileData.logo_id ||
       editData.header_image_id !== profileData.header_image_id ||
       editData.video_url !== profileData.video_url ||
-      !compareGallery(editData.gallery_images, profileData.gallery_images)
-      // Note: FAQ changes are saved immediately, so we don't track them here
+      !compareGallery(editData.gallery_images, profileData.gallery_images) ||
+      !compareFaq(editData.faq, profileData.faq)
     )
   }, [editData, profileData])
 
@@ -307,7 +316,51 @@ export default function WerkgeversprofielPage() {
         throw new Error(errorData.error || "Kon gegevens niet opslaan")
       }
 
-      setProfileData({ ...editData })
+      // Check if FAQ changed
+      const compareFaqArrays = (a: FAQItem[], b: FAQItem[]) => {
+        if (a.length !== b.length) return false
+        return a.every((item, i) =>
+          item.id === b[i]?.id &&
+          item.question === b[i]?.question &&
+          item.answer === b[i]?.answer
+        )
+      }
+
+      const faqChanged = !compareFaqArrays(editData.faq, profileData.faq)
+      let syncedFaqs = editData.faq
+
+      if (faqChanged) {
+        const faqResponse = await fetch("/api/account", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            section: "faq",
+            action: "sync",
+            data: {
+              items: editData.faq.map((item, index) => ({
+                id: item.id,
+                question: item.question,
+                answer: item.answer,
+                order: index,
+              })),
+            },
+          }),
+        })
+
+        if (!faqResponse.ok) {
+          const errorData = await faqResponse.json()
+          throw new Error(errorData.error || "Kon FAQ niet opslaan")
+        }
+
+        const faqResult = await faqResponse.json()
+        syncedFaqs = faqResult.data
+      }
+
+      // Update local state with saved data (including real FAQ IDs)
+      const savedData = { ...editData, faq: syncedFaqs }
+      setProfileData(savedData)
+      setEditData(savedData)
+
       window.dispatchEvent(new Event('profile-updated'))
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 3000)
@@ -397,8 +450,50 @@ export default function WerkgeversprofielPage() {
         throw new Error(errorData.error || "Kon gegevens niet opslaan")
       }
 
-      // Update local state with saved data
-      setProfileData({ ...editData })
+      // Check if FAQ changed
+      const compareFaqArrays = (a: FAQItem[], b: FAQItem[]) => {
+        if (a.length !== b.length) return false
+        return a.every((item, i) =>
+          item.id === b[i]?.id &&
+          item.question === b[i]?.question &&
+          item.answer === b[i]?.answer
+        )
+      }
+
+      const faqChanged = !compareFaqArrays(editData.faq, profileData.faq)
+      let syncedFaqs = editData.faq
+
+      if (faqChanged) {
+        const faqResponse = await fetch("/api/account", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            section: "faq",
+            action: "sync",
+            data: {
+              items: editData.faq.map((item, index) => ({
+                id: item.id,
+                question: item.question,
+                answer: item.answer,
+                order: index,
+              })),
+            },
+          }),
+        })
+
+        if (!faqResponse.ok) {
+          const errorData = await faqResponse.json()
+          throw new Error(errorData.error || "Kon FAQ niet opslaan")
+        }
+
+        const faqResult = await faqResponse.json()
+        syncedFaqs = faqResult.data // Contains real Airtable IDs for new items
+      }
+
+      // Update local state with saved data (including real FAQ IDs)
+      const savedData = { ...editData, faq: syncedFaqs }
+      setProfileData(savedData)
+      setEditData(savedData) // Important: update editData with real IDs
 
       // Dispatch event to notify layout to refresh profile status
       window.dispatchEvent(new Event('profile-updated'))
@@ -903,14 +998,12 @@ function ProfileForm({
   }
 
   // FAQ state (newFaqQuestion and newFaqAnswer are now props)
-  const [isSavingFaq, setIsSavingFaq] = useState(false)
-  const [isReorderingFaq, setIsReorderingFaq] = useState(false)
   const [editingFaqId, setEditingFaqId] = useState<string | null>(null)
   const [editFaqQuestion, setEditFaqQuestion] = useState("")
   const [editFaqAnswer, setEditFaqAnswer] = useState("")
 
-  // Add new FAQ item
-  const handleAddFaq = async () => {
+  // Add new FAQ item (local state only)
+  const handleAddFaq = () => {
     if (!newFaqQuestion.trim() || !newFaqAnswer.trim()) {
       toast.error("Vul beide velden in", {
         description: "Vraag en antwoord zijn verplicht.",
@@ -918,43 +1011,17 @@ function ProfileForm({
       return
     }
 
-    setIsSavingFaq(true)
-    try {
-      const response = await fetch("/api/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section: "faq",
-          action: "create",
-          data: {
-            question: newFaqQuestion,
-            answer: newFaqAnswer,
-            order: data.faq.length,
-          },
-        }),
-      })
-
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Kon vraag niet toevoegen")
-      }
-
-      onChange({
-        ...data,
-        faq: [...data.faq, result.data],
-      })
-      setNewFaqQuestion("")
-      setNewFaqAnswer("")
-      toast.success("Vraag toegevoegd")
-    } catch (error) {
-      console.error("FAQ create error:", error)
-      toast.error("Fout bij toevoegen", {
-        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
-      })
-    } finally {
-      setIsSavingFaq(false)
-    }
+    onChange({
+      ...data,
+      faq: [...data.faq, {
+        id: `temp-${Date.now()}`, // Tijdelijk ID, wordt bij sync vervangen door Airtable ID
+        question: newFaqQuestion,
+        answer: newFaqAnswer,
+        order: data.faq.length,
+      }],
+    })
+    setNewFaqQuestion("")
+    setNewFaqAnswer("")
   }
 
   // Start editing FAQ item
@@ -971,88 +1038,30 @@ function ProfileForm({
     setEditFaqAnswer("")
   }
 
-  // Save edited FAQ item
-  const handleSaveFaq = async (id: string) => {
+  // Save edited FAQ item (local state only)
+  const handleSaveFaq = (id: string) => {
     if (!editFaqQuestion.trim() || !editFaqAnswer.trim()) {
       toast.error("Vul beide velden in")
       return
     }
 
-    setIsSavingFaq(true)
-    try {
-      const response = await fetch("/api/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section: "faq",
-          action: "update",
-          data: {
-            id,
-            question: editFaqQuestion,
-            answer: editFaqAnswer,
-          },
-        }),
-      })
-
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Kon vraag niet bijwerken")
-      }
-
-      onChange({
-        ...data,
-        faq: data.faq.map((item) =>
-          item.id === id
-            ? { ...item, question: editFaqQuestion, answer: editFaqAnswer }
-            : item
-        ),
-      })
-      cancelEditFaq()
-      toast.success("Vraag bijgewerkt")
-    } catch (error) {
-      console.error("FAQ update error:", error)
-      toast.error("Fout bij bijwerken", {
-        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
-      })
-    } finally {
-      setIsSavingFaq(false)
-    }
+    onChange({
+      ...data,
+      faq: data.faq.map((item) =>
+        item.id === id
+          ? { ...item, question: editFaqQuestion, answer: editFaqAnswer }
+          : item
+      ),
+    })
+    cancelEditFaq()
   }
 
-  // Delete FAQ item
-  const handleDeleteFaq = async (id: string) => {
-    setIsSavingFaq(true)
-    try {
-      const response = await fetch("/api/account", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          section: "faq",
-          action: "delete",
-          data: { id },
-        }),
-      })
-
-      const result = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(result.error || "Kon vraag niet verwijderen")
-      }
-
-      onChange({
-        ...data,
-        faq: data.faq.filter((item) => item.id !== id),
-      })
-      toast.success("Vraag verwijderd")
-    } catch (error) {
-      console.error("FAQ delete error:", error)
-      toast.error("Fout bij verwijderen", {
-        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
-      })
-    } finally {
-      setIsSavingFaq(false)
-    }
+  // Delete FAQ item (local state only)
+  const handleDeleteFaq = (id: string) => {
+    onChange({
+      ...data,
+      faq: data.faq.filter((item) => item.id !== id),
+    })
   }
 
   // DnD sensors for FAQ reordering
@@ -1073,45 +1082,15 @@ function ProfileForm({
     })
   )
 
-  // Handle FAQ reorder (drag & drop)
-  // Updates the linked field order on Employer which determines Webflow display order
-  const handleFaqDragEnd = async (event: DragEndEvent) => {
+  // Handle FAQ reorder (drag & drop - local state only)
+  const handleFaqDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
     if (over && active.id !== over.id) {
       const oldIndex = data.faq.findIndex((item) => item.id === active.id)
       const newIndex = data.faq.findIndex((item) => item.id === over.id)
-      
       const newOrder = arrayMove(data.faq, oldIndex, newIndex)
-      
-      // Update local state immediately
       onChange({ ...data, faq: newOrder })
-      
-      // Save new order to database by updating the employer's faq linked field
-      setIsReorderingFaq(true)
-      try {
-        const response = await fetch("/api/account", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            section: "faq",
-            action: "reorder",
-            data: { faqIds: newOrder.map((item) => item.id) },
-          }),
-        })
-
-        if (!response.ok) {
-          const result = await response.json()
-          throw new Error(result.error || "Kon volgorde niet opslaan")
-        }
-      } catch (error) {
-        console.error("FAQ reorder error:", error)
-        toast.error("Fout bij opslaan volgorde", {
-          description: error instanceof Error ? error.message : "Probeer het opnieuw.",
-        })
-      } finally {
-        setIsReorderingFaq(false)
-      }
     }
   }
 
@@ -1378,7 +1357,7 @@ function ProfileForm({
                       onCancelEdit={cancelEditFaq}
                       onSave={() => handleSaveFaq(item.id!)}
                       onDelete={() => handleDeleteFaq(item.id!)}
-                      isSaving={isSavingFaq}
+                      isSaving={isSaving}
                       disabled={isSaving}
                     />
                   ))}
@@ -1400,7 +1379,7 @@ function ProfileForm({
               }
             }}
             placeholder="Vraag (bijv. Hoe ziet het sollicitatieproces eruit?)"
-            disabled={isSaving || isSavingFaq}
+            disabled={isSaving}
             className={errors.unsavedFaq ? "border-red-500" : ""}
           />
           <Textarea
@@ -1413,7 +1392,7 @@ function ProfileForm({
             }}
             placeholder="Antwoord"
             rows={3}
-            disabled={isSaving || isSavingFaq}
+            disabled={isSaving}
             className={errors.unsavedFaq ? "border-red-500" : ""}
           />
           {errors.unsavedFaq && (
@@ -1424,20 +1403,11 @@ function ProfileForm({
             variant="secondary"
             size="sm"
             onClick={handleAddFaq}
-            disabled={isSaving || isSavingFaq || !newFaqQuestion.trim() || !newFaqAnswer.trim()}
+            disabled={isSaving || !newFaqQuestion.trim() || !newFaqAnswer.trim()}
             showArrow={false}
           >
-            {isSavingFaq ? (
-              <>
-                <Spinner className="h-4 w-4 mr-1" />
-                Opslaan...
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4 mr-1" />
-                Vraag opslaan
-              </>
-            )}
+            <Plus className="h-4 w-4" />
+            Toevoegen
           </Button>
         </div>
       </div>

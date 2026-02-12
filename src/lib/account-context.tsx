@@ -16,6 +16,19 @@ interface CreditsData {
   expiring_soon: ExpiringCredits | null
 }
 
+interface ManagedEmployer {
+  id: string
+  company_name: string
+  display_name: string
+  logo_url: string | null
+}
+
+interface ActiveEmployer {
+  id: string
+  company_name: string
+  display_name: string
+}
+
 interface AccountData {
   personal: {
     first_name: string
@@ -23,10 +36,14 @@ interface AccountData {
     email: string
     role: string
   }
+  role_id: string // "employer" | "intermediary"
   profile_complete: boolean
   profile_missing_fields: string[]
   credits: CreditsData
   onboarding_dismissed: boolean
+  // Intermediary-specific fields
+  managed_employers?: ManagedEmployer[]
+  active_employer?: ActiveEmployer | null
 }
 
 interface AccountContextType {
@@ -55,6 +72,7 @@ const defaultAccountData: AccountData = {
     email: "",
     role: "",
   },
+  role_id: "employer", // Default to employer
   profile_complete: true,
   profile_missing_fields: [],
   credits: defaultCredits,
@@ -79,6 +97,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             email: data.personal?.email || session?.user?.email || "",
             role: data.personal?.role || "",
           },
+          role_id: data.role_id || "employer",
           profile_complete: data.profile_complete ?? true,
           profile_missing_fields: data.profile_missing_fields ?? [],
           credits: {
@@ -88,6 +107,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             expiring_soon: data.credits?.expiring_soon ?? null,
           },
           onboarding_dismissed: data.onboarding_dismissed ?? false,
+          // Intermediary-specific fields
+          managed_employers: data.managed_employers,
+          active_employer: data.active_employer,
         })
       }
     } catch (error) {
@@ -169,4 +191,32 @@ export function useAccount() {
     throw new Error("useAccount must be used within an AccountProvider")
   }
   return context
+}
+
+/**
+ * Check if the current user is an intermediary
+ */
+export function useIsIntermediary(): boolean {
+  const { accountData } = useAccount()
+  return accountData?.role_id === "intermediary"
+}
+
+/**
+ * Get the active employer for intermediaries
+ * Returns null for non-intermediaries or if no employer is selected
+ */
+export function useActiveEmployer(): ActiveEmployer | null {
+  const { accountData } = useAccount()
+  if (accountData?.role_id !== "intermediary") return null
+  return accountData?.active_employer || null
+}
+
+/**
+ * Get all managed employers for intermediaries
+ * Returns empty array for non-intermediaries
+ */
+export function useManagedEmployers(): ManagedEmployer[] {
+  const { accountData } = useAccount()
+  if (accountData?.role_id !== "intermediary") return []
+  return accountData?.managed_employers || []
 }

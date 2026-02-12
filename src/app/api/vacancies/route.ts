@@ -25,13 +25,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    // Get user and employer
+    // Get user
     const user = await getUserByEmail(session.user.email);
     if (!user) {
       return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
     }
-    if (!user.employer_id) {
-      return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+
+    // Determine which employer(s) to fetch vacancies for
+    let employerId: string | null = null;
+    if (user.role_id === "intermediary") {
+      // For intermediaries, use active_employer if set
+      if (!user.active_employer) {
+        // No active employer selected - return empty list or all managed employers' vacancies
+        // For now, return empty list (they need to select an employer first)
+        return NextResponse.json({ vacancies: [] });
+      }
+      employerId = user.active_employer;
+    } else {
+      // For regular employers, use employer_id
+      if (!user.employer_id) {
+        return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+      }
+      employerId = user.employer_id;
     }
 
     // Get status filter from query params
@@ -45,7 +60,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch vacancies
-    const vacancies = await getVacanciesByEmployerId(user.employer_id, {
+    const vacancies = await getVacanciesByEmployerId(employerId, {
       status: statusFilter,
     });
 
@@ -75,13 +90,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    // Get user and employer
+    // Get user
     const user = await getUserByEmail(session.user.email);
     if (!user) {
       return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
     }
-    if (!user.employer_id) {
-      return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+
+    // Determine employer_id based on role
+    let employerId: string | null = null;
+    if (user.role_id === "intermediary") {
+      // For intermediaries, use active_employer
+      if (!user.active_employer) {
+        return NextResponse.json(
+          { error: "Selecteer eerst een werkgever" },
+          { status: 400 }
+        );
+      }
+      employerId = user.active_employer;
+    } else {
+      // For regular employers, use employer_id
+      if (!user.employer_id) {
+        return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
+      }
+      employerId = user.employer_id;
     }
 
     // Parse request body
@@ -94,7 +125,7 @@ export async function POST(request: Request) {
 
     // Create vacancy
     const vacancy = await createVacancy({
-      employer_id: user.employer_id,
+      employer_id: employerId,
       user_id: user.id,
       title,
       input_type,
@@ -105,12 +136,13 @@ export async function POST(request: Request) {
     await logEvent({
       event_type: "vacancy_created",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: employerId,
       vacancy_id: vacancy.id,
       source: "web",
       payload: {
         input_type: vacancy.input_type,
         package_id: vacancy.package_id,
+        role_id: user.role_id,
       },
     });
 

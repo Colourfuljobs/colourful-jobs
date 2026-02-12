@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { EmployerSwitcher } from "@/components/intermediary/EmployerSwitcher"
 
 // Navigation items
 const navItems = [
@@ -96,7 +97,7 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
   return (
     <Sidebar collapsible="none">
       <SidebarHeader className="p-4">
-        <Link href="/dashboard" className="flex items-center">
+        <Link href="/dashboard" className="flex items-center mb-4">
           <img
             src="/logo.svg"
             alt="Colourful jobs"
@@ -105,6 +106,8 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
             className="h-8 w-auto"
           />
         </Link>
+        {/* Employer switcher for intermediaries */}
+        <EmployerSwitcher />
       </SidebarHeader>
 
       <SidebarContent className="h-full">

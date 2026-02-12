@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { 
-  getActiveProductsByType, 
+  getActiveProductsByType,
+  getActiveProductsByTypeAndRole,
+  getUserByEmail,
   getAllActiveFeatures,
   ProductRecord,
   FeatureRecord 
@@ -16,7 +18,7 @@ export interface ProductWithFeatures extends ProductRecord {
 
 /**
  * GET /api/products
- * Fetches active products by type
+ * Fetches active products by type with role-based filtering
  * Query params:
  * - type: "credit_bundle" | "vacancy_package" | "upsell"
  * - includeFeatures: "true" to include populated feature data
@@ -28,6 +30,14 @@ export async function GET(request: Request) {
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
+
+    // Get user to determine role
+    const user = await getUserByEmail(session.user.email);
+    if (!user) {
+      return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
+    }
+
+    const roleId = user.role_id || "employer"; // Default to employer for existing users
 
     // Get type from query params
     const { searchParams } = new URL(request.url);
@@ -42,8 +52,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch products
-    let products = await getActiveProductsByType(type);
+    // Fetch products with role filtering
+    let products = await getActiveProductsByTypeAndRole(type, roleId);
 
     // Filter by availability if specified
     if (availability) {

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import {
   getUserByEmail,
   getWalletByEmployerId,
+  getWalletForUser,
   getProductById,
   addCreditsToWallet,
   createPurchaseTransaction,
@@ -41,13 +42,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    // Get user and verify they have an employer
+    // Get user and verify requirements
     const user = await getUserByEmail(session.user.email);
     if (!user) {
       return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
     }
 
-    if (!user.employer_id) {
+    // For employer users: require employer_id
+    // For intermediary users: no employer_id check needed
+    if (user.role_id !== "intermediary" && !user.employer_id) {
       return NextResponse.json(
         { error: "Geen werkgever gekoppeld aan account" },
         { status: 400 }
@@ -85,17 +88,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get the employer's wallet
-    const wallet = await getWalletByEmployerId(user.employer_id);
+    // Get the wallet (handles both employer and intermediary wallets)
+    const wallet = await getWalletForUser(user);
     if (!wallet) {
       return NextResponse.json(
-        { error: "Geen wallet gevonden voor deze werkgever" },
+        { error: "Geen wallet gevonden" },
         { status: 400 }
       );
     }
 
-    // Get employer for additional context
-    const employer = await getEmployerById(user.employer_id);
+    // Get employer for additional context (for employer users only)
+    const employer = user.employer_id ? await getEmployerById(user.employer_id) : null;
 
     // Create invoice details snapshot (JSON string)
     const invoiceDetailsSnapshot = JSON.stringify({
@@ -103,11 +106,12 @@ export async function POST(request: Request) {
       company_name: employer?.company_name || employer?.display_name || "",
       kvk: employer?.kvk || "",
       purchased_at: new Date().toISOString(),
+      billing_cycle: product.billing_cycle || "one_time",
     });
 
     // Create the transaction with expiration date
     const transaction = await createPurchaseTransaction({
-      employer_id: user.employer_id,
+      employer_id: user.employer_id || undefined, // For intermediaries, this may be undefined
       wallet_id: wallet.id,
       user_id: user.id,
       product_id: product.id,
@@ -126,7 +130,7 @@ export async function POST(request: Request) {
     await logEvent({
       event_type: "credits_purchased",
       actor_user_id: user.id,
-      employer_id: user.employer_id,
+      employer_id: user.employer_id || undefined,
       source: "web",
       ip_address: ipAddress,
       payload: {
@@ -136,6 +140,7 @@ export async function POST(request: Request) {
         money_amount: product.price,
         context,
         transaction_id: transaction.id,
+        role_id: user.role_id,
       },
     });
 

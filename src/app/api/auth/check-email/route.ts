@@ -7,6 +7,7 @@ import { z } from "zod";
 const emailSchema = z.string().email();
 
 export async function POST(request: Request) {
+  let email: string | undefined;
   try {
     // Rate limiting: 5 attempts per minute per IP
     const identifier = getIdentifier(request);
@@ -26,7 +27,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { email } = await request.json();
+    const body = await request.json();
+    email = body.email;
 
     if (!email) {
       return NextResponse.json(
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
     const existingUser = await getUserByEmail(email);
 
     if (!existingUser) {
+      console.log(`[check-email] User not found for email: ${email}`);
       return NextResponse.json(
         { 
           exists: false,
@@ -56,6 +59,8 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+
+    console.log(`[check-email] User found: ${existingUser.id}, status: ${existingUser.status}`);
 
     // Check if user is active (completed onboarding)
     if (existingUser.status !== "active") {
@@ -76,7 +81,12 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error("Error checking email:", error);
+    console.error("[check-email] Error checking email:", error);
+    console.error("[check-email] Error details:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      email,
+    });
     return NextResponse.json(
       { error: "Er ging iets mis bij het controleren van het e-mailadres" },
       { status: 500 }

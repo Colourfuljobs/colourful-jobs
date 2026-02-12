@@ -30,6 +30,10 @@ export const userRecordSchema = z.object({
   first_name: z.string().optional(),
   last_name: z.string().optional(),
   role: z.string().optional(),
+  // Intermediary role fields
+  role_id: z.string().nullable().optional(), // Lookup from role → Roles.id
+  managed_employers: z.array(z.string()).optional(), // Array of employer IDs for intermediaries
+  active_employer: z.string().nullable().optional(), // Currently active employer ID for intermediaries
   // Invitation fields
   invite_token: z.string().nullable().optional(),
   invite_expires: z.string().nullable().optional(),
@@ -147,9 +151,11 @@ export const productRecordSchema = z.object({
   sort_order: z.number().int().default(0),
   features: z.array(z.string()).optional(), // Linked records to Features
   included_upsells: z.array(z.string()).optional(), // Linked records to Products (upsells included in this package)
+  target_roles: z.array(z.string()).optional(), // Linked records to Roles - empty = visible for all roles
   availability: z.array(z.enum(["add-vacancy", "boost-option"])).optional().default([]), // Multiple select: where this product is available
   validity_months: z.number().int().nullable().optional(), // Months until credits expire (for credit_bundle type)
   credit_expiry_warning_days: z.number().int().nullable().optional(), // Days before expiry to show warning (for credit_bundle type)
+  billing_cycle: z.enum(["one_time", "yearly"]).nullable().optional(), // Billing cycle for credit bundles
   repeat_mode: z.enum(["once", "unlimited", "renewable", "until_max"]).nullable().optional(), // Controls repeat purchase behavior per vacancy
   duration_days: z.number().int().nullable().optional(), // Base duration in days: for vacancy_package = online duration, for upsell with repeat_mode=renewable = effect duration
   max_value: z.number().int().nullable().optional(), // Only for repeat_mode=until_max: maximum cumulative value (e.g. 365 days)
@@ -400,33 +406,61 @@ async function getEmployerRoleId(): Promise<string | null> {
   }
 }
 
-export async function getUserByEmail(email: string): Promise<UserRecord | null> {
-  if (!baseId || !apiKey) return null;
-
-  const records = await base(USERS_TABLE)
-    .select({
-      filterByFormula: `{email} = '${escapeAirtableString(email)}'`,
-      maxRecords: 1,
-    })
-    .firstPage();
-
-  if (!records[0]) return null;
-
-  const fields = records[0].fields;
-  // Airtable Link fields return arrays, extract first value
+/**
+ * Helper to extract linked/lookup fields from Airtable user record fields.
+ * Airtable Link and Lookup fields return arrays, but our schema expects
+ * single values (strings) or specific array shapes.
+ */
+function extractUserFields(fields: Record<string, unknown>) {
   const employer_id = Array.isArray(fields.employer_id)
     ? fields.employer_id[0] || null
     : fields.employer_id || null;
   const invited_by = Array.isArray(fields.invited_by)
     ? fields.invited_by[0] || null
     : fields.invited_by || null;
+  const active_employer = Array.isArray(fields.active_employer)
+    ? fields.active_employer[0] || null
+    : fields.active_employer || null;
+  const managed_employers = Array.isArray(fields.managed_employers)
+    ? fields.managed_employers
+    : [];
+  // role is a Link field → returns array, extract first value
+  const role = Array.isArray(fields.role)
+    ? fields.role[0] || undefined
+    : fields.role || undefined;
+  // role_id is a Lookup field → returns array, extract first value
+  const role_id = Array.isArray(fields.role_id)
+    ? fields.role_id[0] || null
+    : fields.role_id || null;
 
-  return userRecordSchema.parse({
-    id: records[0].id,
-    ...fields,
-    employer_id,
-    invited_by,
-  });
+  return { employer_id, invited_by, active_employer, managed_employers, role, role_id };
+}
+
+export async function getUserByEmail(email: string): Promise<UserRecord | null> {
+  try {
+    if (!baseId || !apiKey) return null;
+
+    const records = await base(USERS_TABLE)
+      .select({
+        filterByFormula: `{email} = '${escapeAirtableString(email)}'`,
+        maxRecords: 1,
+      })
+      .firstPage();
+
+    if (!records[0]) return null;
+
+    const fields = records[0].fields;
+    const extracted = extractUserFields(fields as Record<string, unknown>);
+
+    return userRecordSchema.parse({
+      id: records[0].id,
+      ...fields,
+      ...extracted,
+    });
+  } catch (error) {
+    console.error("Error fetching user by email:", getErrorMessage(error));
+    return null;
+  }
 }
 
 export async function createUser(fields: {
@@ -458,7 +492,15 @@ export async function createUser(fields: {
 
   if (fields.first_name) airtableFields.first_name = fields.first_name;
   if (fields.last_name) airtableFields.last_name = fields.last_name;
-  if (fields.role) airtableFields.role = fields.role;
+  if (fields.role) {
+    airtableFields.role = fields.role;
+  } else {
+    // Automatically assign employer role if no role is provided (regular onboarding)
+    const employerRoleId = await getEmployerRoleId();
+    if (employerRoleId) {
+      airtableFields.role = [employerRoleId];
+    }
+  }
 
   // Invitation fields
   if (fields.invite_token) airtableFields.invite_token = fields.invite_token;
@@ -475,19 +517,12 @@ export async function createUser(fields: {
     await base(USERS_TABLE).update(record.id, { id: record.id });
 
     const resultFields = record.fields;
-    // Airtable Link fields return arrays, extract first value
-    const employer_id = Array.isArray(resultFields.employer_id)
-      ? resultFields.employer_id[0] || null
-      : resultFields.employer_id || null;
-    const invited_by = Array.isArray(resultFields.invited_by)
-      ? resultFields.invited_by[0] || null
-      : resultFields.invited_by || null;
+    const extracted = extractUserFields(resultFields as Record<string, unknown>);
 
     return userRecordSchema.parse({
       id: record.id,
       ...resultFields,
-      employer_id,
-      invited_by,
+      ...extracted,
     });
   } catch (error: unknown) {
     console.error("Error creating user in Airtable:", {
@@ -635,18 +670,12 @@ export async function updateUser(
   const record = await base(USERS_TABLE).update(id, airtableFields);
 
   const fields_result = record.fields;
-  const employer_id = Array.isArray(fields_result.employer_id)
-    ? fields_result.employer_id[0] || null
-    : fields_result.employer_id || null;
-  const invited_by = Array.isArray(fields_result.invited_by)
-    ? fields_result.invited_by[0] || null
-    : fields_result.invited_by || null;
+  const extracted = extractUserFields(fields_result as Record<string, unknown>);
 
   return userRecordSchema.parse({
     id: record.id,
     ...fields_result,
-    employer_id,
-    invited_by,
+    ...extracted,
   });
 }
 
@@ -839,6 +868,206 @@ export async function deleteWalletByEmployerId(employerId: string): Promise<void
   } catch (error: unknown) {
     console.error("Error deleting wallet by employer ID:", getErrorMessage(error));
     throw new Error(`Failed to delete wallet: ${getErrorMessage(error)}`);
+  }
+}
+
+// ============================================
+// INTERMEDIARY WALLET FUNCTIONS
+// ============================================
+
+/**
+ * Get wallet for an intermediary user (by user ID)
+ * Intermediaries have user-level wallets instead of employer-level wallets
+ */
+export async function getWalletByUserId(userId: string): Promise<WalletRecord | null> {
+  if (!baseId || !apiKey) {
+    return null;
+  }
+
+  try {
+    const records = await base(WALLETS_TABLE)
+      .select({
+        filterByFormula: `FIND('${escapeAirtableString(userId)}', ARRAYJOIN({owner_user}))`,
+        maxRecords: 1,
+      })
+      .firstPage();
+
+    if (!records[0]) return null;
+
+    const fields = records[0].fields;
+    const owner_employer = Array.isArray(fields.owner_employer)
+      ? fields.owner_employer[0] || null
+      : fields.owner_employer || null;
+    const owner_user = Array.isArray(fields.owner_user)
+      ? fields.owner_user[0] || null
+      : fields.owner_user || null;
+
+    return walletRecordSchema.parse({
+      id: records[0].id,
+      ...fields,
+      owner_employer,
+      owner_user,
+    });
+  } catch (error: unknown) {
+    console.error("Error getting wallet by user ID:", getErrorMessage(error));
+    return null;
+  }
+}
+
+/**
+ * Create a wallet for an intermediary user
+ */
+export async function createUserWallet(userId: string): Promise<WalletRecord> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    const records = await base(WALLETS_TABLE).create([
+      {
+        fields: {
+          owner_user: [userId],
+          owner_type: "user",
+          balance: 0,
+          total_purchased: 0,
+          total_spent: 0,
+          "created-at": new Date().toISOString(),
+          "last-updated": new Date().toISOString(),
+        },
+      },
+    ]);
+
+    const fields = records[0].fields;
+    const owner_user = Array.isArray(fields.owner_user)
+      ? fields.owner_user[0] || null
+      : fields.owner_user || null;
+
+    return walletRecordSchema.parse({
+      id: records[0].id,
+      ...fields,
+      owner_user,
+      owner_employer: null,
+    });
+  } catch (error: unknown) {
+    console.error("Error creating user wallet:", getErrorMessage(error));
+    throw new Error(`Failed to create user wallet: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Get wallet for a user - handles both employer users and intermediary users
+ * For intermediaries (role_id = "intermediary"): returns user-level wallet
+ * For employers: returns employer-level wallet
+ */
+export async function getWalletForUser(user: UserRecord): Promise<WalletRecord | null> {
+  if (user.role_id === "intermediary") {
+    return getWalletByUserId(user.id);
+  }
+  if (user.employer_id) {
+    return getWalletByEmployerId(user.employer_id);
+  }
+  return null;
+}
+
+/**
+ * Get all employers managed by an intermediary
+ * Returns employer records for the IDs in managed_employers
+ */
+export async function getManagedEmployers(userId: string): Promise<EmployerRecord[]> {
+  if (!baseId || !apiKey) {
+    return [];
+  }
+
+  try {
+    const user = await getUserById(userId);
+    if (!user || !user.managed_employers || user.managed_employers.length === 0) {
+      return [];
+    }
+
+    // Fetch each employer by ID
+    const employers: EmployerRecord[] = [];
+    for (const employerId of user.managed_employers) {
+      const employer = await getEmployerById(employerId);
+      if (employer) {
+        employers.push(employer);
+      }
+    }
+
+    return employers;
+  } catch (error: unknown) {
+    console.error("Error getting managed employers:", getErrorMessage(error));
+    return [];
+  }
+}
+
+/**
+ * Set the active employer for an intermediary user
+ * Updates the active_employer field in the Users table
+ */
+export async function setActiveEmployer(userId: string, employerId: string): Promise<void> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    await base(USERS_TABLE).update(userId, {
+      active_employer: [employerId],
+    });
+  } catch (error: unknown) {
+    console.error("Error setting active employer:", getErrorMessage(error));
+    throw new Error(`Failed to set active employer: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Get all transactions for a wallet
+ * Used for intermediaries who have user-level wallets
+ */
+export async function getTransactionsByWalletId(walletId: string): Promise<TransactionRecord[]> {
+  if (!baseId || !apiKey) {
+    console.log("[Transactions] Airtable not configured");
+    return [];
+  }
+
+  try {
+    const records = await base(TRANSACTIONS_TABLE)
+      .select({
+        filterByFormula: `FIND('${escapeAirtableString(walletId)}', ARRAYJOIN({wallet_id}))`,
+        sort: [{ field: "created-at", direction: "desc" }],
+      })
+      .all();
+
+    return records.map((record) => {
+      const fields = record.fields;
+      const employer_id = Array.isArray(fields.employer_id)
+        ? fields.employer_id[0] || null
+        : fields.employer_id || null;
+      const wallet_id = Array.isArray(fields.wallet_id)
+        ? fields.wallet_id[0] || null
+        : fields.wallet_id || null;
+      const vacancy_id = Array.isArray(fields.vacancy_id)
+        ? fields.vacancy_id[0] || null
+        : fields.vacancy_id || null;
+      const user_id = Array.isArray(fields.user_id)
+        ? fields.user_id[0] || null
+        : fields.user_id || null;
+      const product_ids = Array.isArray(fields.product_ids) ? fields.product_ids : [];
+      const invoice = Array.isArray(fields.invoice) ? fields.invoice : null;
+
+      return transactionRecordSchema.parse({
+        id: record.id,
+        ...fields,
+        employer_id,
+        wallet_id,
+        vacancy_id,
+        user_id,
+        product_ids,
+        invoice,
+      });
+    });
+  } catch (error: unknown) {
+    console.error("Error getting transactions by wallet ID:", getErrorMessage(error));
+    return [];
   }
 }
 
@@ -1399,18 +1628,12 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
     if (!record) return null;
 
     const fields = record.fields;
-    const employer_id = Array.isArray(fields.employer_id)
-      ? fields.employer_id[0] || null
-      : fields.employer_id || null;
-    const invited_by = Array.isArray(fields.invited_by)
-      ? fields.invited_by[0] || null
-      : fields.invited_by || null;
+    const extracted = extractUserFields(fields as Record<string, unknown>);
 
     return userRecordSchema.parse({
       id: record.id,
       ...fields,
-      employer_id,
-      invited_by,
+      ...extracted,
     });
   } catch (error: unknown) {
     console.error("Error getting user by ID:", getErrorMessage(error));
@@ -1437,18 +1660,12 @@ export async function getUsersByEmployerId(employerId: string): Promise<UserReco
 
     return records.map((record) => {
       const fields = record.fields;
-      const employer_id = Array.isArray(fields.employer_id)
-        ? fields.employer_id[0] || null
-        : fields.employer_id || null;
-      const invited_by = Array.isArray(fields.invited_by)
-        ? fields.invited_by[0] || null
-        : fields.invited_by || null;
+      const extracted = extractUserFields(fields as Record<string, unknown>);
 
       return userRecordSchema.parse({
         id: record.id,
         ...fields,
-        employer_id,
-        invited_by,
+        ...extracted,
       });
     });
   } catch (error: unknown) {
@@ -1477,18 +1694,12 @@ export async function getUserByInviteToken(token: string): Promise<UserRecord | 
     if (!records[0]) return null;
 
     const fields = records[0].fields;
-    const employer_id = Array.isArray(fields.employer_id)
-      ? fields.employer_id[0] || null
-      : fields.employer_id || null;
-    const invited_by = Array.isArray(fields.invited_by)
-      ? fields.invited_by[0] || null
-      : fields.invited_by || null;
+    const extracted = extractUserFields(fields as Record<string, unknown>);
 
     return userRecordSchema.parse({
       id: records[0].id,
       ...fields,
-      employer_id,
-      invited_by,
+      ...extracted,
     });
   } catch (error: unknown) {
     console.error("Error getting user by invite token:", getErrorMessage(error));
@@ -1512,18 +1723,12 @@ export async function unlinkUserFromEmployer(userId: string): Promise<UserRecord
   });
 
   const fields = record.fields;
-  const employer_id = Array.isArray(fields.employer_id)
-    ? fields.employer_id[0] || null
-    : fields.employer_id || null;
-  const invited_by = Array.isArray(fields.invited_by)
-    ? fields.invited_by[0] || null
-    : fields.invited_by || null;
+  const extracted = extractUserFields(fields as Record<string, unknown>);
 
   return userRecordSchema.parse({
     id: record.id,
     ...fields,
-    employer_id,
-    invited_by,
+    ...extracted,
   });
 }
 
@@ -1556,6 +1761,7 @@ export async function getActiveProductsByType(
       // Extract linked record IDs from arrays
       const features = Array.isArray(fields.features) ? fields.features : [];
       const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
+      const target_roles = Array.isArray(fields.target_roles) ? fields.target_roles : [];
 
       const availability = Array.isArray(fields.availability) ? fields.availability : [];
 
@@ -1573,9 +1779,11 @@ export async function getActiveProductsByType(
         sort_order: fields.sort_order || 0,
         features,
         included_upsells,
+        target_roles,
         availability,
         validity_months: fields.validity_months || null,
         credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
+        billing_cycle: fields.billing_cycle || null,
         repeat_mode: fields.repeat_mode || null,
         duration_days: fields.duration_days || null,
         max_value: fields.max_value || null,
@@ -1585,6 +1793,26 @@ export async function getActiveProductsByType(
     console.error("Error getting products by type:", getErrorMessage(error));
     return [];
   }
+}
+
+/**
+ * Get active products by type with role filtering
+ * Returns products visible to the specified role
+ * - If target_roles is empty: product is visible to all roles
+ * - If target_roles has values: product is only visible if the role is included
+ */
+export async function getActiveProductsByTypeAndRole(
+  type: ProductRecord["type"],
+  roleId: string
+): Promise<ProductRecord[]> {
+  const allProducts = await getActiveProductsByType(type);
+  
+  return allProducts.filter(product => {
+    // Empty target_roles = visible for everyone
+    if (!product.target_roles || product.target_roles.length === 0) return true;
+    // Otherwise: check if the user's role is in target_roles
+    return product.target_roles.includes(roleId);
+  });
 }
 
 /**
@@ -1603,6 +1831,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
     const fields = record.fields;
     const features = Array.isArray(fields.features) ? fields.features : [];
     const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
+    const target_roles = Array.isArray(fields.target_roles) ? fields.target_roles : [];
 
     const availability = Array.isArray(fields.availability) ? fields.availability : [];
 
@@ -1620,9 +1849,11 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       sort_order: fields.sort_order || 0,
       features,
       included_upsells,
+      target_roles,
       availability,
       validity_months: fields.validity_months || null,
       credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
+      billing_cycle: fields.billing_cycle || null,
       repeat_mode: fields.repeat_mode || null,
       duration_days: fields.duration_days || null,
       max_value: fields.max_value || null,

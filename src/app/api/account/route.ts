@@ -5,6 +5,8 @@ import {
   getMediaAssetsByIds,
   getFAQByEmployerId,
   getWalletByEmployerId,
+  getWalletForUser,
+  getManagedEmployers,
   updateUser,
   updateEmployer,
   createFAQ,
@@ -52,12 +54,68 @@ export async function GET() {
         email: user.email,
         role: user.role || "",
       },
+      role_id: user.role_id || "employer", // Default to employer for existing users
       // Default profile status (will be overwritten if employer exists)
       profile_complete: false,
       profile_missing_fields: ["Weergavenaam", "Sector", "Logo"],
     };
 
-    // Get employer data if user has an employer
+    // Get wallet - handles both employer and intermediary users
+    const wallet = await getWalletForUser(user);
+
+    // For intermediaries, add managed employers and active employer
+    if (user.role_id === "intermediary") {
+      const managedEmployers = await getManagedEmployers(user.id);
+      
+      response.managed_employers = managedEmployers.map((employer) => ({
+        id: employer.id,
+        company_name: employer.company_name || "",
+        display_name: employer.display_name || "",
+        logo_url: employer.logo && employer.logo.length > 0 
+          ? null // Will be fetched separately if needed
+          : null,
+      }));
+
+      // Get active employer data if set
+      if (user.active_employer) {
+        const activeEmployer = await getEmployerById(user.active_employer);
+        if (activeEmployer) {
+          response.active_employer = {
+            id: activeEmployer.id,
+            company_name: activeEmployer.company_name || "",
+            display_name: activeEmployer.display_name || "",
+          };
+        }
+      } else {
+        response.active_employer = null;
+      }
+
+      // Process wallet/credits for intermediary
+      if (wallet) {
+        // Intermediaries don't have credit expiry on their user wallet
+        response.credits = {
+          available: wallet.balance,
+          total_purchased: wallet.total_purchased,
+          total_spent: wallet.total_spent,
+          expiring_soon: null,
+        };
+      } else {
+        response.credits = {
+          available: 0,
+          total_purchased: 0,
+          total_spent: 0,
+          expiring_soon: null,
+        };
+      }
+
+      // Intermediaries don't have profile completion requirements
+      response.profile_complete = true;
+      response.profile_missing_fields = [];
+
+      return NextResponse.json(response);
+    }
+
+    // Get employer data if user has an employer (regular employer flow)
     if (user.employer_id) {
       const employer = await getEmployerById(user.employer_id);
 
@@ -86,7 +144,6 @@ export async function GET() {
           headerAssets,
           galleryAssets,
           faqItems,
-          wallet,
         ] = await Promise.all([
           // Sector lookup
           employer.sector && employer.sector.length > 0
@@ -106,8 +163,6 @@ export async function GET() {
             : Promise.resolve([]),
           // FAQ items
           getFAQByEmployerId(user.employer_id),
-          // Wallet/credits data
-          getWalletByEmployerId(user.employer_id),
         ]);
 
         // Process sector
@@ -522,6 +577,91 @@ export async function PATCH(request: Request) {
         });
 
         return NextResponse.json({ success: true });
+      }
+
+      // Sync FAQ items - full sync that handles creates, updates, deletes, and reorder
+      if (action === "sync") {
+        if (!data.items || !Array.isArray(data.items)) {
+          return NextResponse.json({ error: "items array is required for sync" }, { status: 400 });
+        }
+
+        // Get current FAQs from database
+        const currentFaqs = await getFAQByEmployerId(user.employer_id);
+        const currentIds = new Set(currentFaqs.map(f => f.id));
+        const incomingIds = new Set(
+          data.items
+            .filter((item: any) => item.id && !item.id.startsWith("temp-"))
+            .map((item: any) => item.id)
+        );
+
+        const results: any[] = [];
+
+        // Process each item
+        for (let i = 0; i < data.items.length; i++) {
+          const item = data.items[i];
+          
+          if (item.id && !item.id.startsWith("temp-")) {
+            // Existing item - update if changed
+            const current = currentFaqs.find(f => f.id === item.id);
+            if (current && (current.question !== item.question || current.answer !== item.answer)) {
+              const updated = await updateFAQ(item.id, { 
+                question: item.question, 
+                answer: item.answer 
+              });
+              results.push({ 
+                id: updated.id, 
+                question: updated.question, 
+                answer: updated.answer, 
+                order: i 
+              });
+            } else {
+              // No changes, keep as is
+              results.push({ 
+                id: item.id, 
+                question: item.question, 
+                answer: item.answer, 
+                order: i 
+              });
+            }
+          } else {
+            // New item - create
+            const created = await createFAQ({
+              employer_id: user.employer_id,
+              question: item.question,
+              answer: item.answer,
+              order: i,
+            });
+            results.push({ 
+              id: created.id, 
+              question: created.question, 
+              answer: created.answer, 
+              order: i 
+            });
+          }
+        }
+
+        // Delete items that are no longer in the list
+        for (const currentId of currentIds) {
+          if (!incomingIds.has(currentId)) {
+            await deleteFAQ(currentId);
+          }
+        }
+
+        // Update order on employer record
+        await updateEmployer(user.employer_id, {
+          faq: results.map(r => r.id),
+        });
+
+        await logEvent({
+          event_type: "employer_updated",
+          actor_user_id: user.id,
+          employer_id: user.employer_id,
+          source: "web",
+          ip_address: clientIP,
+          payload: { section: "faq", action: "sync", count: results.length },
+        });
+
+        return NextResponse.json({ success: true, data: results });
       }
 
       return NextResponse.json({ error: "Invalid FAQ action" }, { status: 400 });

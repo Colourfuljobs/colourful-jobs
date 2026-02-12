@@ -183,6 +183,14 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         if (accountRes.ok) {
           const accountData = await accountRes.json();
           setProfileComplete(accountData.profile_complete ?? true);
+          
+          // Check if intermediary has an active employer selected
+          if (accountData.role_id === "intermediary" && !accountData.active_employer) {
+            setProfileComplete(false);
+            toast.error("Geen werkgever geselecteerd", {
+              description: "Selecteer eerst een werkgever in de sidebar voordat je een vacature aanmaakt.",
+            });
+          }
         }
 
         if (packagesRes.ok) {
