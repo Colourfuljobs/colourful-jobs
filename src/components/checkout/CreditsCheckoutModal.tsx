@@ -275,11 +275,13 @@ export function CreditsCheckoutModal({
                 </p>
               </DialogHeader>
 
-              {/* Current balance - inline on one line, aligned with content below (24px from right) */}
-              <div className="flex items-center justify-center sm:justify-end gap-1.5 text-sm">
+              {/* Current balance - two lines, right aligned with padding from close button */}
+              <div className="flex flex-col items-center sm:items-end text-sm sm:pr-8">
                 <span className="text-[#1F2D58]/70">Huidig saldo</span>
-                <Coins className="h-4 w-4 text-[#1F2D58]" />
-                <span className="font-bold text-[#1F2D58]">{currentBalance} credits</span>
+                <div className="flex items-center gap-1.5">
+                  <Coins className="h-4 w-4 text-[#1F2D58]" />
+                  <span className="font-bold text-[#1F2D58]">{currentBalance} credits</span>
+                </div>
               </div>
             </div>
           </div>

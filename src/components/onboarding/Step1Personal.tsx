@@ -149,7 +149,7 @@ export function Step1Personal({
             onClick={handleSubmit}
             disabled={!contact.firstName || !contact.lastName || !contact.email || loading}
           >
-            {loading ? "Bezig..." : "Verstuur email link"}
+            {loading ? "Bezig..." : "Stuur e-mail link"}
           </Button>
         </div>
       </div>
