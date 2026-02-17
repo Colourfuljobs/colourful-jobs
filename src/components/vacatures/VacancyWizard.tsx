@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -91,8 +91,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Data state
   const [packages, setPackages] = useState<ProductWithFeatures[]>([]);
-  const [upsells, setUpsells] = useState<ProductRecord[]>([]);
-  const [allUpsellProducts, setAllUpsellProducts] = useState<ProductRecord[]>([]);
+  const [upsells, setUpsells] = useState<ProductWithFeatures[]>([]);
+  const [allUpsellProducts, setAllUpsellProducts] = useState<ProductWithFeatures[]>([]);
   const [vacancyTransactions, setVacancyTransactions] = useState<TransactionRecord[]>([]);
   const [lookups, setLookups] = useState<{
     educationLevels: LookupRecord[];
@@ -101,6 +101,14 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     regions: LookupRecord[];
     sectors: LookupRecord[];
   } | null>(null);
+  
+  // Calculate if we should hide all prices in PackageSelector (step 1)
+  // Hide prices only if user can afford the most expensive package with credits
+  const hideAllPrices = useMemo(() => {
+    if (packages.length === 0) return false;
+    const maxPackageCredits = Math.max(...packages.map(pkg => pkg.credits));
+    return availableCredits >= maxPackageCredits;
+  }, [packages, availableCredits]);
   
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -115,12 +123,16 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const [contactPhotoUrl, setContactPhotoUrl] = useState<string | null>(null);
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [employerSectorId, setEmployerSectorId] = useState<string | null>(null);
   
   // Extension closing date state (for until_max upsell in step 4)
   const [selectedClosingDate, setSelectedClosingDate] = useState<Date | undefined>();
 
   // Track recommendations in wizard state (for ColleaguesSidebar)
   const [recommendations, setRecommendations] = useState<{firstName: string; lastName: string}[]>([]);
+
+  // Colleagues modal state (for social post upsell)
+  const [showColleaguesModal, setShowColleaguesModal] = useState(false);
 
   // Auto-save ref
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -131,6 +143,25 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   
   // Track if vacancy was submitted (prevents URL sync from overriding redirect)
   const isSubmittedRef = useRef(false);
+  
+  // Track if we've done the initial history push (to avoid duplicate on mount)
+  const initialStepPushedRef = useRef(false);
+  
+  // Flag: true when navigating via popstate (browser back/forward)
+  // Prevents URL sync from creating a new pushState entry after popstate navigation
+  const isPopStateNavRef = useRef(false);
+  
+  // Refs for latest state values (avoids stale closures in popstate handler)
+  const currentStepRef = useRef(state.currentStep);
+  const isDirtyRef = useRef(state.isDirty);
+  const vacancyIdRef = useRef(state.vacancyId);
+  const isExistingVacancyRef = useRef(isExistingVacancy);
+  
+  // Keep refs in sync with state
+  useEffect(() => { currentStepRef.current = state.currentStep; }, [state.currentStep]);
+  useEffect(() => { isDirtyRef.current = state.isDirty; }, [state.isDirty]);
+  useEffect(() => { vacancyIdRef.current = state.vacancyId; }, [state.vacancyId]);
+  useEffect(() => { isExistingVacancyRef.current = isExistingVacancy; }, [isExistingVacancy]);
 
   // Check if vacancy is in read-only mode (waiting for approval)
   const isReadOnly = state.vacancyData?.status === "wacht_op_goedkeuring";
@@ -150,16 +181,86 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   }, [state.isDirty]);
 
   // Sync state to URL for persistence across refreshes
+  // Uses pushState so browser back button navigates between wizard steps
   useEffect(() => {
-    // Only update URL if we have a vacancy ID (after step 1)
-    // Skip if vacancy was submitted (prevents overriding the redirect to dashboard)
-    if (state.vacancyId && !isSubmittedRef.current) {
-      const params = new URLSearchParams();
+    if (isSubmittedRef.current) return;
+
+    const params = new URLSearchParams();
+    if (state.vacancyId) {
       params.set("id", state.vacancyId);
-      params.set("step", state.currentStep.toString());
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }
-  }, [state.vacancyId, state.currentStep, pathname, router]);
+    params.set("step", state.currentStep.toString());
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    
+    // After popstate navigation: only replaceState (update URL without new history entry)
+    // The browser already moved to the right history entry, we just sync the URL
+    if (isPopStateNavRef.current) {
+      window.history.replaceState(
+        { wizardStep: state.currentStep, vacancyId: state.vacancyId },
+        "",
+        newUrl
+      );
+      isPopStateNavRef.current = false;
+      return;
+    }
+
+    // Normal navigation (user clicks next/previous in wizard):
+    // pushState to create a new history entry, replaceState for initial load
+    if (initialStepPushedRef.current) {
+      window.history.pushState(
+        { wizardStep: state.currentStep, vacancyId: state.vacancyId },
+        "",
+        newUrl
+      );
+    } else {
+      window.history.replaceState(
+        { wizardStep: state.currentStep, vacancyId: state.vacancyId },
+        "",
+        newUrl
+      );
+      initialStepPushedRef.current = true;
+    }
+  }, [state.currentStep, state.vacancyId, pathname]);
+
+  // Handle browser back/forward buttons
+  // Uses refs instead of state to avoid stale closure issues
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      const popStateData = e.state;
+
+      // If the popstate has wizard data, navigate to that step
+      if (popStateData?.wizardStep) {
+        const targetStep = popStateData.wizardStep as WizardStep;
+        const minStep = isExistingVacancyRef.current ? 2 : 1;
+        
+        if (targetStep >= minStep) {
+          isPopStateNavRef.current = true;
+          setState((prev) => ({ ...prev, currentStep: targetStep }));
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+      }
+
+      // No wizard state in popstate → user is navigating away from the wizard
+      const minStep = isExistingVacancyRef.current ? 2 : 1;
+      if (currentStepRef.current <= minStep) {
+        if (isDirtyRef.current) {
+          // Push state back to prevent navigation, show dialog
+          window.history.pushState(
+            { wizardStep: currentStepRef.current, vacancyId: vacancyIdRef.current },
+            "",
+            window.location.href
+          );
+          setShowLeaveDialog(true);
+        } else {
+          router.push("/dashboard");
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [router]);
 
   // Fetch initial data - only runs once on mount or when vacancyId changes
   useEffect(() => {
@@ -174,7 +275,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         // Credits are handled by CreditsContext, no need to fetch here
         const [packagesRes, upsellsRes, lookupsRes, accountRes] = await Promise.all([
           fetch("/api/products?type=vacancy_package&includeFeatures=true"),
-          fetch("/api/products?type=upsell"),
+          fetch("/api/products?type=upsell&includeFeatures=true"),
           fetch("/api/lookups?type=all"),
           fetch("/api/account"),
         ]);
@@ -183,6 +284,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         if (accountRes.ok) {
           const accountData = await accountRes.json();
           setProfileComplete(accountData.profile_complete ?? true);
+          
+          // Store employer's sector_id for prefilling
+          if (accountData.website?.sector_id) {
+            setEmployerSectorId(accountData.website.sector_id);
+          }
           
           // Check if intermediary has an active employer selected
           if (accountData.role_id === "intermediary" && !accountData.active_employer) {
@@ -203,12 +309,12 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         if (upsellsRes.ok) {
           const data = await upsellsRes.json();
-          const allUpsells: ProductRecord[] = data.products || [];
+          const allUpsells: ProductWithFeatures[] = data.products || [];
           // Store all upsell products for lookup (e.g. included upsells in packages)
           setAllUpsellProducts(allUpsells);
           // Find "We do it for you" product by slug
           const wdify = allUpsells.find(
-            (p: ProductRecord) => p.slug === "prod_upsell_we-do-it-for-you"
+            (p) => p.slug === "prod_upsell_we-do-it-for-you"
           );
           if (wdify) {
             setWeDoItForYouProduct(wdify);
@@ -216,7 +322,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           }
           // Filter for add-vacancy availability and exclude "We do it for you" from regular upsells
           setUpsells(allUpsells.filter(
-            (p: ProductRecord) =>
+            (p) =>
               p.slug !== "prod_upsell_we-do-it-for-you" &&
               p.availability?.includes("add-vacancy")
           ));
@@ -388,6 +494,48 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const hasSocialPostFeature = state.selectedPackage?.populatedFeatures?.some(
     (feature) => feature.action_tags?.includes("cj_social_post")
   ) ?? false;
+
+  // Determine which upsell product IDs represent the social media post
+  // by comparing included_upsells across packages with and without the cj_social_post feature
+  const socialPostUpsellIds = useMemo(() => {
+    const withSocial = new Set<string>();
+    const withoutSocial = new Set<string>();
+
+    for (const pkg of packages) {
+      const hasSocial = pkg.populatedFeatures?.some(
+        (f) => f.action_tags?.includes("cj_social_post")
+      );
+      const included = pkg.included_upsells || [];
+      if (hasSocial) {
+        included.forEach((id) => withSocial.add(id));
+      } else {
+        included.forEach((id) => withoutSocial.add(id));
+      }
+    }
+
+    // Social post upsells = in social packages but NOT in non-social packages
+    const socialIds = new Set<string>();
+    for (const id of withSocial) {
+      if (!withoutSocial.has(id)) {
+        socialIds.add(id);
+      }
+    }
+
+    // Map to actual upsell product IDs (included_upsells may contain slugs or record IDs)
+    const result = new Set<string>();
+    for (const upsell of allUpsellProducts) {
+      if (socialIds.has(upsell.id) || (upsell.slug && socialIds.has(upsell.slug))) {
+        result.add(upsell.id);
+      }
+    }
+
+    return result;
+  }, [packages, allUpsellProducts]);
+
+  // Helper to check if a given upsell is the social media post upsell
+  const isSocialPostUpsell = useCallback((product: ProductRecord) => {
+    return socialPostUpsellIds.has(product.id);
+  }, [socialPostUpsellIds]);
 
   // Clean up empty recommendation entries from local state
   const cleanupEmptyRecommendations = useCallback(() => {
@@ -792,7 +940,15 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         selectedUpsells: newUpsells,
       };
     });
-  }, []);
+
+    // If the social media post upsell is being selected (not deselected),
+    // and the selected package doesn't have the social post feature built-in,
+    // open the colleagues modal
+    const isCurrentlySelected = state.selectedUpsells.some((u) => u.id === upsell.id);
+    if (!isCurrentlySelected && isSocialPostUpsell(upsell) && !hasSocialPostFeature) {
+      setShowColleaguesModal(true);
+    }
+  }, [state.selectedUpsells, hasSocialPostFeature, isSocialPostUpsell]);
 
   // Handle invoice details change from SubmitStep
   const handleInvoiceDetailsChange = useCallback((details: InvoiceDetails | null) => {
@@ -1039,6 +1195,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               selectedPackage={state.selectedPackage}
               onSelectPackage={handleSelectPackage}
               availableCredits={availableCredits}
+              hideAllPrices={hideAllPrices}
               onBuyCredits={() => setShowCheckoutModal(true)}
             />
           </>
@@ -1069,6 +1226,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 onContactPhotoChange={setContactPhotoUrl}
                 onHeaderImageChange={setHeaderImageUrl}
                 onLogoChange={setLogoUrl}
+                employerSectorId={employerSectorId}
               />
             )}
           </div>
@@ -1153,6 +1311,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             onClosingDateChange={setSelectedClosingDate}
             currentClosingDate={state.vacancyData?.closing_date}
             inputType={state.inputType}
+            isSocialPostUpsell={isSocialPostUpsell}
+            onOpenColleaguesModal={() => setShowColleaguesModal(true)}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -1276,6 +1436,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               <WeDoItForYouBanner
                 product={weDoItForYouProduct}
                 onSelect={handleWeDoItForYou}
+                hasEnoughCredits={(() => {
+                  const pkgCredits = state.selectedPackage?.credits || 0;
+                  const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+                  const wdifyCredits = weDoItForYouProduct.credits;
+                  const totalWithWdify = pkgCredits + upsellCreds + wdifyCredits;
+                  return availableCredits >= totalWithWdify;
+                })()}
               />
             )}
             {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
@@ -1286,7 +1453,15 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   </div>
                   <div>
                     <h4 className="text-lg font-bold text-[#1F2D58]">{weDoItForYouProduct.display_name}</h4>
-                    <p className="text-xs text-[#1F2D58]/60">+{weDoItForYouProduct.credits} credits (€{weDoItForYouProduct.price.toFixed(2).replace(".", ",")})</p>
+                    <p className="text-xs text-[#1F2D58]/60">
+                      +{weDoItForYouProduct.credits} credits{(() => {
+                        const pkgCredits = state.selectedPackage?.credits || 0;
+                        const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+                        const totalCredits = pkgCredits + upsellCreds;
+                        const hasEnoughCredits = availableCredits >= totalCredits;
+                        return !hasEnoughCredits ? ` (€${weDoItForYouProduct.price.toFixed(2).replace(".", ",")})` : '';
+                      })()}
+                    </p>
                   </div>
                 </div>
                 <Button variant="link" className="px-0" showArrow={false} onClick={handleSwitchToSelfService}>
@@ -1368,6 +1543,64 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         {/* Cost sidebar - only show in step 4 for NEW vacancies (not for existing ones) */}
         {state.currentStep === 4 && !isExistingVacancy && (
           <div className="lg:col-span-1 space-y-4">
+            {/* Show tagged colleagues if social post is active (via package OR upsell) */}
+            {(hasSocialPostFeature || state.selectedUpsells.some(u => isSocialPostUpsell(u))) && (
+              <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
+                    <Users className="w-5 w-5 text-[#1F2D58]" />
+                  </div>
+                </div>
+                
+                {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
+                  /* Show tagged colleagues */
+                  <>
+                    <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Getagde collega&apos;s</h4>
+                    <p className="text-sm text-[#1F2D58]/70 mb-4">
+                      Deze collega&apos;s worden getagd in de social media post van deze vacature.
+                    </p>
+                    
+                    <div className="space-y-2 mb-4">
+                      {recommendations
+                        .filter(rec => rec.firstName?.trim() || rec.lastName?.trim())
+                        .map((rec, index) => (
+                          <div key={index} className="bg-[#E8EEF2]/50 rounded-lg p-3">
+                            <span className="text-sm font-medium text-[#1F2D58]">
+                              {[rec.firstName?.trim(), rec.lastName?.trim()].filter(Boolean).join(" ")}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+
+                    <Button 
+                      variant="link" 
+                      className="px-0" 
+                      onClick={() => setShowColleaguesModal(true)}
+                      showArrow={false}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Wijzigen
+                    </Button>
+                  </>
+                ) : (
+                  /* No colleagues tagged */
+                  <>
+                    <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Geen collega&apos;s getagd</h4>
+                    <p className="text-sm text-[#1F2D58]/70 mb-4">
+                      Je hebt nog geen collega&apos;s getagd voor de social media post. Wil je dit alsnog doen?
+                    </p>
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={() => setShowColleaguesModal(true)}
+                    >
+                      Collega&apos;s taggen
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+            
             <CostSidebar
               selectedPackage={state.selectedPackage}
               selectedUpsells={state.selectedUpsells}
@@ -1435,19 +1668,41 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                         return pkgCredits + upsellCreds;
                       })()} credits
                     </span>
-                    <span className="text-[#1F2D58]/30 font-normal">|</span>
-                    <span>
-                      €{(() => {
+                    {(() => {
+                      const pkgCredits = state.selectedPackage?.credits || 0;
+                      const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+                      const totalCredits = pkgCredits + upsellCreds;
+                      const hasEnoughCredits = availableCredits >= totalCredits;
+                      
+                      if (!hasEnoughCredits) {
                         const pkgPrice = state.selectedPackage?.price || 0;
                         const upsellsPrice = state.selectedUpsells.reduce((sum, u) => sum + u.price, 0);
                         const total = pkgPrice + upsellsPrice;
-                        return total % 1 === 0 ? total.toLocaleString("nl-NL") : total.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                      })()}
-                    </span>
+                        return (
+                          <>
+                            <span className="text-[#1F2D58]/30 font-normal">|</span>
+                            <span>
+                              €{total % 1 === 0 ? total.toLocaleString("nl-NL") : total.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                   {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
                     <span className="text-[#1F2D58]/60 text-xs">
-                      We do it for you (+{weDoItForYouProduct.credits} credits / €{weDoItForYouProduct.price.toFixed(2).replace(".", ",")})
+                      We do it for you (+{weDoItForYouProduct.credits} credits{(() => {
+                        const pkgCredits = state.selectedPackage?.credits || 0;
+                        const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
+                        const totalCredits = pkgCredits + upsellCreds;
+                        const hasEnoughCredits = availableCredits >= totalCredits;
+                        
+                        if (!hasEnoughCredits) {
+                          return ` / €${weDoItForYouProduct.price.toFixed(2).replace(".", ",")}`;
+                        }
+                        return "";
+                      })()})
                     </span>
                   )}
                 </div>
@@ -1486,11 +1741,11 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                         ) : (() => {
                           // Bepaal het label van de "Verder naar" knop
                           const nextButtonLabel = isExistingVacancy
-                            ? "Verder naar voorbeeld"  // Edit stap 2 → 3 (er is maar één "verder" stap)
+                            ? "Verder naar controle"  // Edit stap 2 → 3 (er is maar één "verder" stap)
                             : state.currentStep === 1
                               ? "Verder naar opstellen"
                               : state.currentStep === 2
-                                ? "Verder naar voorbeeld"
+                                ? "Verder naar controle"
                                 : "Verder naar plaatsen";
                           return nextButtonLabel;
                         })()}
@@ -1587,6 +1842,45 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               Opslaan en verlaten
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Collega's taggen modal - shown when social post upsell is selected */}
+      <Dialog open={showColleaguesModal} onOpenChange={setShowColleaguesModal}>
+        <DialogContent className="max-w-[540px] max-h-[90vh] rounded-t-[0.75rem] rounded-b-[2rem] p-0 gap-0 bg-white overflow-hidden">
+          {/* Close button - absolute positioned, always 16px from top and right */}
+          <div className="absolute top-4 right-4 z-20 flex w-[30px] h-[30px] rounded-full bg-white border border-[#1F2D58]/20 items-center justify-center hover:bg-[#1F2D58]/5 transition-colors shadow-sm cursor-pointer" onClick={() => setShowColleaguesModal(false)}>
+            <svg className="h-4 w-4 text-[#1F2D58]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18"/>
+              <path d="m6 6 12 12"/>
+            </svg>
+            <span className="sr-only">Sluiten</span>
+          </div>
+
+          {/* Scrollable content */}
+          <div className="overflow-y-auto max-h-[90vh] p-6 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-[#1F2D58] mb-2">Vergroot het bereik van je post</h2>
+              <p className="text-sm text-[#1F2D58]/70">
+                We delen je vacature op LinkedIn en Instagram. Voeg collega&apos;s toe, wij taggen ze in de post voor extra bereik.
+              </p>
+            </div>
+
+            <ColleaguesSidebar
+              recommendations={recommendations}
+              onChange={handleRecommendationsChange}
+              variant="modal"
+            />
+
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setShowColleaguesModal(false)} showArrow={false}>
+                Overslaan
+              </Button>
+              <Button onClick={() => setShowColleaguesModal(false)} showArrow={false}>
+                Opslaan
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -7,9 +7,10 @@ import type { ProductRecord } from "@/lib/airtable";
 interface WeDoItForYouBannerProps {
   product: ProductRecord;
   onSelect: () => void;
+  hasEnoughCredits?: boolean;
 }
 
-export function WeDoItForYouBanner({ product, onSelect }: WeDoItForYouBannerProps) {
+export function WeDoItForYouBanner({ product, onSelect, hasEnoughCredits = false }: WeDoItForYouBannerProps) {
   return (
     <div className="border border-[#193DAB]/[0.12] rounded-t-[0.75rem] rounded-b-[2rem] p-5 mt-6">
       <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center mb-3">
@@ -23,7 +24,7 @@ export function WeDoItForYouBanner({ product, onSelect }: WeDoItForYouBannerProp
         </p>
       )}
       <p className="text-sm font-medium text-[#1F2D58] mb-4">
-        +{product.credits} credits <span className="text-[#1F2D58]/60">(€{product.price.toFixed(2).replace(".", ",")})</span>
+        +{product.credits} credits{!hasEnoughCredits && <span className="text-[#1F2D58]/60"> (€{product.price.toFixed(2).replace(".", ",")})</span>}
       </p>
       <Button
         variant="secondary"

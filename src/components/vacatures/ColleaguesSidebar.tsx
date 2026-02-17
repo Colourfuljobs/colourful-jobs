@@ -16,12 +16,14 @@ interface ColleaguesSidebarProps {
   recommendations: Recommendation[];
   onChange: (recommendations: Recommendation[]) => void;
   packageName?: string;
+  variant?: "sidebar" | "modal"; // NEW: modal variant hides wrapper styling and header
 }
 
 export function ColleaguesSidebar({
   recommendations,
   onChange,
   packageName,
+  variant = "sidebar",
 }: ColleaguesSidebarProps) {
   // Track which indices are currently being edited
   const [editingIndices, setEditingIndices] = useState<Set<number>>(new Set());
@@ -76,6 +78,125 @@ export function ColleaguesSidebar({
   const isFilled = (rec: Recommendation) =>
     rec.firstName?.trim() || rec.lastName?.trim();
 
+  // Modal variant: just show the form without wrapper styling
+  if (variant === "modal") {
+    return (
+      <div className="space-y-3">
+        {recommendations.map((rec, index) =>
+          isEditing(index) ? (
+            /* Editing mode */
+            <div key={index} className="bg-[#E8EEF2]/50 rounded-lg p-3">
+              <div className="flex items-end gap-2">
+                <div className="flex-1 space-y-2">
+                  <Input
+                    value={rec.firstName}
+                    onChange={(e) => updateRecommendation(index, "firstName", e.target.value)}
+                    placeholder="Voornaam"
+                    autoFocus
+                  />
+                  <Input
+                    value={rec.lastName}
+                    onChange={(e) => updateRecommendation(index, "lastName", e.target.value)}
+                    placeholder="Achternaam"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveRecommendation(index);
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col gap-1 shrink-0 justify-end">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="tertiary"
+                        size="icon"
+                        onClick={() => removeRecommendation(index)}
+                        className="w-[30px] h-[30px]"
+                        showArrow={false}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Verwijderen</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="icon"
+                        onClick={() => saveRecommendation(index)}
+                        className="w-[30px] h-[30px]"
+                        showArrow={false}
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Opslaan</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Saved mode */
+            isFilled(rec) && (
+              <div key={index} className="bg-[#E8EEF2]/50 rounded-lg p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-[#1F2D58] truncate min-w-0">
+                    {[rec.firstName?.trim(), rec.lastName?.trim()].filter(Boolean).join(" ")}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="tertiary"
+                          size="icon"
+                          onClick={() => startEditing(index)}
+                          className="w-[30px] h-[30px]"
+                          showArrow={false}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Bewerken</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="tertiary"
+                          size="icon"
+                          onClick={() => removeRecommendation(index)}
+                          className="w-[30px] h-[30px]"
+                          showArrow={false}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Verwijderen</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </div>
+              </div>
+            )
+          )
+        )}
+        <Button
+          type="button"
+          variant="tertiary"
+          size="sm"
+          onClick={addRecommendation}
+          showArrow={false}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          Collega toevoegen
+        </Button>
+      </div>
+    );
+  }
+
+  // Sidebar variant: full styling with wrapper and header
   return (
     <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
       <div className="flex items-start justify-between gap-2 mb-3">

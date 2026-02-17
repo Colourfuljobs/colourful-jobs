@@ -40,8 +40,8 @@ export function EmployerSwitcher() {
       await refreshAccount();
       
       const data = await response.json();
-      toast.success("Werkgever gewisseld", {
-        description: `Nu werkt u namens ${data.data.display_name || data.data.company_name}`,
+      toast.success("Gelukt!", {
+        description: `Je bent overgestapt naar ${data.data.display_name || data.data.company_name}.`,
       });
     } catch (error) {
       console.error("Error switching employer:", error);
@@ -81,10 +81,7 @@ export function EmployerSwitcher() {
           ) : (
             managedEmployers.map((employer) => (
               <SelectItem key={employer.id} value={employer.id}>
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-[#1F2D58]/60" />
-                  <span>{employer.display_name || employer.company_name}</span>
-                </div>
+                {employer.display_name || employer.company_name}
               </SelectItem>
             ))
           )}

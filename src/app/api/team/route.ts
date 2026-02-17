@@ -31,15 +31,22 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (!user.employer_id) {
+    // Determine effective employer ID
+    const effectiveEmployerId = user.role_id === "intermediary" 
+      ? user.active_employer 
+      : user.employer_id;
+
+    if (!effectiveEmployerId) {
       return NextResponse.json(
-        { error: "No employer linked to this account" },
+        { error: user.role_id === "intermediary"
+            ? "Selecteer eerst een werkgever"
+            : "No employer linked to this account" },
         { status: 400 }
       );
     }
 
     // Get all team members (active and invited)
-    const teamMembers = await getUsersByEmployerId(user.employer_id);
+    const teamMembers = await getUsersByEmployerId(effectiveEmployerId);
 
     // Transform to response format
     const response = teamMembers.map((member) => ({
@@ -93,9 +100,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (!currentUser.employer_id) {
+    // Determine effective employer ID
+    const effectiveEmployerId = currentUser.role_id === "intermediary" 
+      ? currentUser.active_employer 
+      : currentUser.employer_id;
+
+    if (!effectiveEmployerId) {
       return NextResponse.json(
-        { error: "No employer linked to this account" },
+        { error: currentUser.role_id === "intermediary"
+            ? "Selecteer eerst een werkgever"
+            : "No employer linked to this account" },
         { status: 400 }
       );
     }
@@ -111,7 +125,7 @@ export async function DELETE(request: Request) {
     }
 
     // Verify the target user belongs to the same employer
-    if (targetUser.employer_id !== currentUser.employer_id) {
+    if (targetUser.employer_id !== effectiveEmployerId) {
       return NextResponse.json(
         { error: "User does not belong to your team" },
         { status: 403 }
@@ -119,7 +133,7 @@ export async function DELETE(request: Request) {
     }
 
     // Check if this would leave the team with no members
-    const allTeamMembers = await getUsersByEmployerId(currentUser.employer_id);
+    const allTeamMembers = await getUsersByEmployerId(effectiveEmployerId);
     const activeMembers = allTeamMembers.filter(
       (member) => member.status !== "invited"
     );
@@ -146,7 +160,7 @@ export async function DELETE(request: Request) {
       event_type: "user_removed",
       actor_user_id: currentUser.id,
       target_user_id: user_id,
-      employer_id: currentUser.employer_id,
+      employer_id: effectiveEmployerId,
       source: "web",
       ip_address: clientIP,
       payload: {

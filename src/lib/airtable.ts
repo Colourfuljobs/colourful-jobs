@@ -1,6 +1,6 @@
 import Airtable from "airtable";
 import { z } from "zod";
-import { getErrorMessage, hasStatusCode } from "./utils";
+import { getErrorMessage, hasStatusCode, sortLookupWithOverigeLast } from "./utils";
 
 const baseId = process.env.AIRTABLE_BASE_ID;
 const apiKey = process.env.AIRTABLE_API_KEY;
@@ -233,15 +233,6 @@ function mapVacancyStatusToAirtable(status: string | undefined): string {
 
 export const vacancyInputTypeEnum = z.enum(["self_service", "we_do_it_for_you"]);
 
-export const vacancyEmploymentTypeEnum = z.enum([
-  "Full-time",
-  "Part-time",
-  "Contract",
-  "Temporary",
-  "Internship",
-  "Other",
-]);
-
 export const vacancyRecordSchema = z.object({
   id: z.string(),
   employer_id: z.string().nullable().optional(), // Linked to Employers
@@ -255,7 +246,6 @@ export const vacancyRecordSchema = z.object({
   
   // Location & job details
   location: z.string().nullable().optional(),
-  employment_type: vacancyEmploymentTypeEnum.nullable().optional(),
   hrs_per_week: z.string().nullable().optional(),
   salary: z.string().nullable().optional(),
   
@@ -278,7 +268,6 @@ export const vacancyRecordSchema = z.object({
   // Contact person
   contact_name: z.string().nullable().optional(),
   contact_role: z.string().nullable().optional(),
-  contact_company: z.string().nullable().optional(),
   contact_email: z.string().nullable().optional(),
   contact_phone: z.string().nullable().optional(),
   contact_photo_id: z.string().nullable().optional(), // Linked to Media Assets
@@ -338,7 +327,7 @@ export const sectorRecordSchema = lookupRecordSchema;
 
 export type UserRecord = z.infer<typeof userRecordSchema>;
 type EmployerRecord = z.infer<typeof employerRecordSchema>;
-type WalletRecord = z.infer<typeof walletRecordSchema>;
+export type WalletRecord = z.infer<typeof walletRecordSchema>;
 export type TransactionRecord = z.infer<typeof transactionRecordSchema>;
 export type MediaAssetRecord = z.infer<typeof mediaAssetRecordSchema>;
 export type FAQRecord = z.infer<typeof faqRecordSchema>;
@@ -348,7 +337,6 @@ export type FeaturePackageCategory = z.infer<typeof featurePackageCategoryEnum>;
 export type VacancyRecord = z.infer<typeof vacancyRecordSchema>;
 export type VacancyStatus = z.infer<typeof vacancyStatusEnum>;
 export type VacancyInputType = z.infer<typeof vacancyInputTypeEnum>;
-export type VacancyEmploymentType = z.infer<typeof vacancyEmploymentTypeEnum>;
 export type LookupRecord = z.infer<typeof lookupRecordSchema>;
 
 const USERS_TABLE = process.env.AIRTABLE_USERS_TABLE || "Users";
@@ -2187,7 +2175,6 @@ function parseVacancyFields(record: any): VacancyRecord {
     intro_txt: fields.intro_txt || "",
     description: fields.description || "",
     location: fields.location || "",
-    employment_type: fields.employment_type || undefined,
     hrs_per_week: fields.hrs_per_week || undefined,
     salary: fields.salary || "",
     education_level_id,
@@ -2202,7 +2189,6 @@ function parseVacancyFields(record: any): VacancyRecord {
     show_apply_form: fields.show_apply_form || false,
     contact_name: fields.contact_name || "",
     contact_role: fields.contact_role || "",
-    contact_company: fields.contact_company || "",
     contact_email: fields.contact_email || "",
     contact_phone: fields.contact_phone || "",
     contact_photo_id,
@@ -2352,7 +2338,6 @@ export async function updateVacancy(
   if (fields.intro_txt !== undefined) airtableFields.intro_txt = fields.intro_txt;
   if (fields.description !== undefined) airtableFields.description = fields.description;
   if (fields.location !== undefined) airtableFields.location = fields.location;
-  if (fields.employment_type !== undefined) airtableFields.employment_type = fields.employment_type;
   if (fields.hrs_per_week !== undefined) airtableFields.hrs_per_week = fields.hrs_per_week;
   if (fields.salary !== undefined) airtableFields.salary = fields.salary;
   if (fields.closing_date !== undefined) airtableFields.closing_date = fields.closing_date;
@@ -2390,7 +2375,6 @@ export async function updateVacancy(
   // Contact
   if (fields.contact_name !== undefined) airtableFields.contact_name = fields.contact_name;
   if (fields.contact_role !== undefined) airtableFields.contact_role = fields.contact_role;
-  if (fields.contact_company !== undefined) airtableFields.contact_company = fields.contact_company;
   if (fields.contact_email !== undefined) airtableFields.contact_email = fields.contact_email;
   if (fields.contact_phone !== undefined) airtableFields.contact_phone = fields.contact_phone;
   if (fields.contact_photo_id !== undefined) {
@@ -2558,11 +2542,11 @@ export async function getAllLookups(): Promise<{
   ]);
 
   return {
-    educationLevels,
-    fields,
-    functionTypes,
-    regions,
-    sectors,
+    educationLevels: sortLookupWithOverigeLast(educationLevels),
+    fields: sortLookupWithOverigeLast(fields),
+    functionTypes: sortLookupWithOverigeLast(functionTypes),
+    regions: sortLookupWithOverigeLast(regions),
+    sectors: sortLookupWithOverigeLast(sectors),
   };
 }
 

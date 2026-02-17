@@ -9,7 +9,7 @@ import {
   getRegions,
   getSectors,
 } from "@/lib/airtable";
-import { getErrorMessage } from "@/lib/utils";
+import { getErrorMessage, sortLookupWithOverigeLast } from "@/lib/utils";
 
 /**
  * GET /api/lookups
@@ -45,35 +45,35 @@ export async function GET(request: Request) {
     if (types.includes("education_levels")) {
       fetchPromises.push(
         getEducationLevels().then((data) => {
-          result.educationLevels = data;
+          result.educationLevels = sortLookupWithOverigeLast(data);
         })
       );
     }
     if (types.includes("fields")) {
       fetchPromises.push(
         getFields().then((data) => {
-          result.fields = data;
+          result.fields = sortLookupWithOverigeLast(data);
         })
       );
     }
     if (types.includes("function_types")) {
       fetchPromises.push(
         getFunctionTypes().then((data) => {
-          result.functionTypes = data;
+          result.functionTypes = sortLookupWithOverigeLast(data);
         })
       );
     }
     if (types.includes("regions")) {
       fetchPromises.push(
         getRegions().then((data) => {
-          result.regions = data;
+          result.regions = sortLookupWithOverigeLast(data);
         })
       );
     }
     if (types.includes("sectors")) {
       fetchPromises.push(
         getSectors().then((data) => {
-          result.sectors = data;
+          result.sectors = sortLookupWithOverigeLast(data);
         })
       );
     }

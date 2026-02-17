@@ -155,7 +155,6 @@ interface VacancyCardProps {
   status: VacancyStatus
   creditsUsed?: number
   location?: string
-  employmentType?: string
   publishedAt?: Date
   closingDate?: Date
   variant?: "compact" | "full"
@@ -168,7 +167,6 @@ export function VacancyCard({
   status,
   creditsUsed = 10,
   location,
-  employmentType,
   publishedAt,
   closingDate,
   variant = "compact",
@@ -314,14 +312,6 @@ export function VacancyCard({
             <div className="flex items-center gap-1.5">
               <MapPin className="h-4 w-4" />
               <span className="mb-[2px]">{location}</span>
-            </div>
-          )}
-
-          {/* Employment type */}
-          {employmentType && (
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4" />
-              <span>{employmentType}</span>
             </div>
           )}
 

@@ -111,8 +111,8 @@ export function CostSidebar({
           <div className="space-y-2">
             {/* Package cost */}
             <div className="flex justify-between">
-              <span className="text-[#1F2D58]">Compleet</span>
-              <span className="text-[#1F2D58]">{packageCredits}</span>
+              <span className="text-[#1F2D58]">{selectedPackage.display_name}</span>
+              <span className="text-[#1F2D58]">{packageCredits} credits</span>
             </div>
 
             {/* Extras cost (only if any) */}
@@ -121,20 +121,22 @@ export function CostSidebar({
                 <span className="text-[#1F2D58]">
                   Extra&apos;s ({extraUpsells.length})
                 </span>
-                <span className="text-[#1F2D58]">{extraCredits}</span>
+                <span className="text-[#1F2D58]">+{extraCredits} credits</span>
               </div>
             )}
+
+            <hr className="border-[#1F2D58]/10" />
 
             {/* Totaal */}
             <div className="flex justify-between">
               <span className="font-bold text-[#1F2D58]">Totaal</span>
-              <span className="font-bold text-[#1F2D58]">{totalCredits}</span>
+              <span className="font-bold text-[#1F2D58]">{totalCredits} credits</span>
             </div>
 
             {/* Beschikbare credits */}
             <div className="flex justify-between pt-2 border-t border-[#1F2D58]/10">
               <span className="text-[#1F2D58]">Beschikbare credits</span>
-              <span className="text-[#1F2D58]">{availableCredits}</span>
+              <span className="text-[#1F2D58]">{availableCredits} credits</span>
             </div>
 
             {/* Scenario 1: Genoeg credits */}

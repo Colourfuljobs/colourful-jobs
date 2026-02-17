@@ -197,7 +197,6 @@ interface Vacancy {
   credits_spent?: number
   money_invoiced?: number
   location?: string
-  employment_type?: string
   "last-published-at"?: string
   closing_date?: string
   "created-at"?: string

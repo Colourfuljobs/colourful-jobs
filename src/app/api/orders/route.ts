@@ -1,9 +1,13 @@
 import { authOptions } from "@/lib/auth";
 import {
   getTransactionsByEmployerId,
+  getTransactionsByWalletId,
   getWalletByEmployerId,
+  getWalletByUserId,
   getUserByEmail,
   getActiveProductsByType,
+  TransactionRecord,
+  WalletRecord,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { NextResponse } from "next/server";
@@ -24,16 +28,45 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (!user.employer_id) {
+    const isIntermediary = user.role_id === "intermediary";
+
+    if (!isIntermediary && !user.employer_id) {
       return NextResponse.json({ error: "No employer linked to user" }, { status: 400 });
     }
 
-    console.log("[Orders GET] Fetching for employer_id:", user.employer_id);
+    if (isIntermediary && !user.active_employer) {
+      return NextResponse.json({ error: "Selecteer eerst een werkgever" }, { status: 400 });
+    }
 
-    // Fetch transactions, wallet, and products in parallel
-    const [allTransactions, wallet, upsells, packages] = await Promise.all([
-      getTransactionsByEmployerId(user.employer_id),
-      getWalletByEmployerId(user.employer_id),
+    console.log("[Orders GET] Fetching for", isIntermediary ? "intermediary with active_employer:" : "employer_id:", isIntermediary ? user.active_employer : user.employer_id);
+
+    // Fetch transactions and wallet based on user type
+    let allTransactions: TransactionRecord[];
+    let wallet: WalletRecord | null;
+
+    if (isIntermediary) {
+      // Intermediary: fetch from user-level wallet, filtered by active employer
+      wallet = await getWalletByUserId(user.id);
+      
+      if (wallet) {
+        const walletTransactions = await getTransactionsByWalletId(wallet.id);
+        // Filter to only show transactions for the active employer
+        allTransactions = walletTransactions.filter(
+          (tx) => tx.employer_id === user.active_employer
+        );
+      } else {
+        allTransactions = [];
+      }
+    } else {
+      // Regular employer: existing logic
+      [allTransactions, wallet] = await Promise.all([
+        getTransactionsByEmployerId(user.employer_id!),
+        getWalletByEmployerId(user.employer_id!),
+      ]);
+    }
+
+    // Fetch products for product name mapping
+    const [upsells, packages] = await Promise.all([
       getActiveProductsByType("upsell"),
       getActiveProductsByType("vacancy_package"),
     ]);

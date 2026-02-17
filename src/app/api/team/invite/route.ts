@@ -174,15 +174,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    if (!currentUser.employer_id) {
+    // Determine effective employer ID
+    const effectiveEmployerId = currentUser.role_id === "intermediary" 
+      ? currentUser.active_employer 
+      : currentUser.employer_id;
+
+    if (!effectiveEmployerId) {
       return NextResponse.json(
-        { error: "No employer linked to this account" },
+        { error: currentUser.role_id === "intermediary"
+            ? "Selecteer eerst een werkgever"
+            : "No employer linked to this account" },
         { status: 400 }
       );
     }
 
     // Get employer details for the email
-    const employer = await getEmployerById(currentUser.employer_id);
+    const employer = await getEmployerById(effectiveEmployerId);
 
     if (!employer) {
       return NextResponse.json(
@@ -202,7 +209,7 @@ export async function POST(request: Request) {
 
     if (existingUser) {
       // Check if already a team member of this employer
-      if (existingUser.employer_id === currentUser.employer_id) {
+      if (existingUser.employer_id === effectiveEmployerId) {
         if (existingUser.status === "invited") {
           return NextResponse.json(
             { error: "Dit e-mailadres heeft al een openstaande uitnodiging." },
@@ -228,7 +235,7 @@ export async function POST(request: Request) {
       // User was deleted or is in pending_onboarding - reactivate with new invitation
       if (existingUser.status === "deleted" || existingUser.status === "pending_onboarding") {
         invitedUser = await updateUser(existingUser.id, {
-          employer_id: currentUser.employer_id,
+          employer_id: effectiveEmployerId,
           status: "invited",
           invite_token: inviteToken,
           invite_expires: inviteExpires,
@@ -238,7 +245,7 @@ export async function POST(request: Request) {
         // Fallback: create new user (shouldn't happen but just in case)
         invitedUser = await createUser({
           email: email.toLowerCase(),
-          employer_id: currentUser.employer_id,
+          employer_id: effectiveEmployerId,
           status: "invited",
           invite_token: inviteToken,
           invite_expires: inviteExpires,
@@ -249,7 +256,7 @@ export async function POST(request: Request) {
       // No existing user, create new invited user record
       invitedUser = await createUser({
         email: email.toLowerCase(),
-        employer_id: currentUser.employer_id,
+        employer_id: effectiveEmployerId,
         status: "invited",
         invite_token: inviteToken,
         invite_expires: inviteExpires,
@@ -300,7 +307,7 @@ export async function POST(request: Request) {
       event_type: "user_invited",
       actor_user_id: currentUser.id,
       target_user_id: invitedUser.id,
-      employer_id: currentUser.employer_id,
+      employer_id: effectiveEmployerId,
       source: "web",
       ip_address: clientIP,
       payload: {

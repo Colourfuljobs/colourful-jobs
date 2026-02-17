@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { MediaPickerDialog } from "@/components/MediaPickerDialog";
-import { Plus, Trash2, Image as ImageIcon, Pencil, ArrowUpFromLine, RefreshCw, User, CalendarDays } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, Pencil, ArrowUpFromLine, RefreshCw, User, UserPlus, CalendarDays } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { InfoTooltip } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { uploadMedia, validateFile } from "@/lib/cloudinary-upload";
+import { formatSalaryInput } from "@/lib/utils";
 import type { VacancyFormProps } from "./types";
 
 interface MediaAsset {
@@ -35,15 +36,6 @@ interface MediaAsset {
   url: string;
 }
 
-// Employment type options (from Airtable dropdown)
-const EMPLOYMENT_TYPES = [
-  { value: "Full-time", label: "Fulltime" },
-  { value: "Part-time", label: "Parttime" },
-  { value: "Contract", label: "Contract" },
-  { value: "Temporary", label: "Tijdelijk" },
-  { value: "Internship", label: "Stage" },
-  { value: "Other", label: "Anders" },
-];
 
 export function VacancyForm({
   vacancy,
@@ -54,6 +46,7 @@ export function VacancyForm({
   onContactPhotoChange,
   onHeaderImageChange,
   onLogoChange,
+  employerSectorId,
 }: VacancyFormProps) {
   const [showHeaderDialog, setShowHeaderDialog] = useState(false);
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
@@ -252,7 +245,7 @@ export function VacancyForm({
               <Label className="!mb-0">
                 Headerafbeelding <span className="text-slate-400 text-sm">*</span>
               </Label>
-              <InfoTooltip content="Selecteer een headerafbeelding uit je Beeldbank. Dit beeld wordt prominent bovenaan de vacaturepagina getoond." />
+              <InfoTooltip content="Groot beeld bovenaan je vacature. Liggend beeld, min. 1440 × 480 px (JPG). De vacaturetitel wordt automatisch over het beeld geplaatst. Kies daarom een rustig sfeerbeeld zonder tekst." />
             </div>
             <div className="space-y-3">
               {headerImage?.url ? (
@@ -390,7 +383,7 @@ export function VacancyForm({
                 <Label className="!mb-0">
                   Headerafbeelding <span className="text-slate-400 text-sm">*</span>
                 </Label>
-                <InfoTooltip content="Selecteer een headerafbeelding uit je Beeldbank. Dit beeld wordt prominent bovenaan de vacaturepagina getoond." />
+                <InfoTooltip content="Groot beeld bovenaan je vacature. Liggend beeld, min. 1440 × 480 px (JPG). De vacaturetitel wordt automatisch over het beeld geplaatst. Kies daarom een rustig sfeerbeeld zonder tekst." />
               </div>
               <div className="space-y-3">
                 {headerImage?.url ? (
@@ -568,31 +561,20 @@ export function VacancyForm({
           </div>
 
           <div className="flex flex-col">
-            <Label htmlFor="employment_type">Dienstverband</Label>
-            <Select
-              value={vacancy.employment_type || ""}
-              onValueChange={(value) => updateField("employment_type", value)}
-            >
-              <SelectTrigger className="mt-1.5">
-                <SelectValue placeholder="Selecteer dienstverband" />
-              </SelectTrigger>
-              <SelectContent>
-                {EMPLOYMENT_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col">
             <Label htmlFor="hrs_per_week">Uren per week</Label>
             <Input
               id="hrs_per_week"
               type="text"
               value={vacancy.hrs_per_week || ""}
               onChange={(e) => updateField("hrs_per_week", e.target.value || undefined)}
+              onBlur={(e) => {
+                const trimmed = e.target.value.trim();
+                if (!trimmed) return;
+                const lastChar = trimmed.slice(-1);
+                if (/\d/.test(lastChar)) {
+                  updateField("hrs_per_week", `${trimmed} uur`);
+                }
+              }}
               placeholder="Bijv. 32-40"
               className="mt-1.5"
             />
@@ -664,7 +646,7 @@ export function VacancyForm({
           <div className="flex flex-col">
             <Label htmlFor="sector">Sector <span className="text-slate-400 text-sm">*</span></Label>
             <Select
-              value={vacancy.sector_id || ""}
+              value={vacancy.sector_id || employerSectorId || ""}
               onValueChange={(value) => updateField("sector_id", value)}
             >
               <SelectTrigger className={`mt-1.5 ${validationErrors.sector_id ? "border-red-500" : ""}`}>
@@ -689,13 +671,19 @@ export function VacancyForm({
               id="salary"
               value={vacancy.salary || ""}
               onChange={(e) => updateField("salary", e.target.value)}
+              onBlur={(e) => {
+                const formatted = formatSalaryInput(e.target.value);
+                if (formatted !== e.target.value) {
+                  updateField("salary", formatted);
+                }
+              }}
               placeholder="Bijv. €4.000 - €5.500"
               className="mt-1.5"
             />
           </div>
 
           <div className="flex flex-col">
-            <Label htmlFor="closing_date">Sluitingsdatum</Label>
+            <Label htmlFor="closing_date">Uiterste sollicitatiedatum</Label>
             <Popover open={closingDateOpen} onOpenChange={setClosingDateOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -740,8 +728,8 @@ export function VacancyForm({
       {/* Section 4: Contactpersoon */}
       <FormSection title="Contactpersoon" description="Deze gegevens worden getoond bij de vacature zodat kandidaten je kunnen bereiken.">
         <div className="space-y-4">
-          {/* Row 1: Naam, Functie, Bedrijf */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Row 1: Naam, Functie */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="contact_name">Naam</Label>
               <Input
@@ -760,17 +748,6 @@ export function VacancyForm({
                 value={vacancy.contact_role || ""}
                 onChange={(e) => updateField("contact_role", e.target.value)}
                 placeholder="Bijv. HR Manager"
-                className="mt-1.5"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="contact_company">Bedrijf</Label>
-              <Input
-                id="contact_company"
-                value={vacancy.contact_company || ""}
-                onChange={(e) => updateField("contact_company", e.target.value)}
-                placeholder="Bedrijfsnaam"
                 className="mt-1.5"
               />
             </div>
@@ -809,24 +786,31 @@ export function VacancyForm({
           {/* Row 3: Foto */}
           <div>
             <Label>Foto</Label>
-            <button
-              type="button"
-              onClick={() => setShowContactPhotoDialog(true)}
-              className="mt-1.5 w-20 h-20 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-1 hover:border-[#1F2D58]/40 hover:bg-[#1F2D58]/5 transition-colors overflow-hidden group"
-            >
-              {contactPhoto?.url ? (
-                <img
-                  src={contactPhoto.url}
-                  alt="Contactpersoon"
-                  className="w-full h-full object-cover rounded-md"
-                />
-              ) : (
-                <>
-                  <User className="h-6 w-6 text-[#1F2D58]/40" />
-                  <span className="text-[10px] text-[#1F2D58]/50">Foto kiezen</span>
-                </>
-              )}
-            </button>
+            <div className="mt-1.5 flex items-center gap-3">
+              <div className="w-20 h-20 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-1 overflow-hidden">
+                {contactPhoto?.url ? (
+                  <img
+                    src={contactPhoto.url}
+                    alt="Contactpersoon"
+                    className="w-full h-full object-cover rounded-md"
+                  />
+                ) : (
+                  <>
+                    <UserPlus className="h-6 w-6 text-[#1F2D58]/40" />
+                    <span className="text-[10px] text-[#1F2D58]/50">Foto kiezen</span>
+                  </>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                showArrow={false}
+                onClick={() => setShowContactPhotoDialog(true)}
+              >
+                {contactPhoto?.url ? "Wijzigen" : "Kiezen"}
+              </Button>
+            </div>
           </div>
         </div>
       </FormSection>

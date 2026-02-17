@@ -32,7 +32,7 @@ export function RichTextEditor({
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [2, 3, 4, 5],
+          levels: [2, 3],
         },
       }),
       Placeholder.configure({
@@ -182,24 +182,6 @@ export function RichTextEditor({
           title="Kop 3"
         >
           <span className="text-xs font-bold">H3</span>
-        </ToolbarButton>
-
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()}
-          isActive={editor.isActive("heading", { level: 4 })}
-          disabled={disabled}
-          title="Kop 4"
-        >
-          <span className="text-xs font-bold">H4</span>
-        </ToolbarButton>
-
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleHeading({ level: 5 }).run()}
-          isActive={editor.isActive("heading", { level: 5 })}
-          disabled={disabled}
-          title="Kop 5"
-        >
-          <span className="text-xs font-bold">H5</span>
         </ToolbarButton>
 
         <div className="w-px h-6 bg-[#1F2D58]/20 mx-1" />

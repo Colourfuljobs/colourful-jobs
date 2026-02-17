@@ -30,6 +30,8 @@ export function SubmitStep({
   onClosingDateChange,
   currentClosingDate,
   inputType = "self_service",
+  isSocialPostUpsell,
+  onOpenColleaguesModal,
 }: SubmitStepProps) {
   // Get features from the selected package
   const features = selectedPackage.populatedFeatures || [];
@@ -261,6 +263,8 @@ export function SubmitStep({
                 const isSelected = selectedUpsells.some((s) => s.id === upsell.id);
                 const isSameDay = upsell.slug === "prod_upsell_same_day";
                 const sameDaySelected = isSameDay && isSelected;
+                const isSocialPost = isSocialPostUpsell?.(upsell) ?? false;
+                const socialPostSelected = isSocialPost && isSelected;
 
                 // Determine border/bg based on state
                 let labelClasses = "border-[#1F2D58]/10 hover:border-[#1F2D58]/30";
@@ -296,6 +300,27 @@ export function SubmitStep({
                       </p>
                     )}
 
+                    {/* Social post: colleagues tagging option */}
+                    {socialPostSelected && onOpenColleaguesModal && (
+                      <div className="flex items-center gap-3 mt-3 ml-7">
+                        <span className="text-sm font-medium text-[#1F2D58]">
+                          Vergroot het bereik van je post
+                        </span>
+                        <Button
+                          type="button"
+                          variant="tertiary"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            onOpenColleaguesModal();
+                          }}
+                          showArrow={false}
+                        >
+                          Tag collega&apos;s
+                        </Button>
+                      </div>
+                    )}
+
                     {/* Same day online: cutoff status message */}
                     {sameDaySelected && (
                       <div className="flex items-start gap-2 mt-3 ml-7 text-sm font-medium text-[#41712F]">
@@ -307,7 +332,7 @@ export function SubmitStep({
                         ) : (
                           <>
                             <Clock className="w-4 h-4 shrink-0 mt-[3px]" />
-                            <span>Het is na 15:00 uur, daarom lukt het helaas niet meer om de vacature vandaag te plaatsen. We zorgen er wel voor dat deze morgen vóór 12:00 uur online staat, als je deze optie erbij afneemt.</span>
+                            <span>Het is na 15:00 uur. Vaak lukt het ons nog wel om de vacature vandaag te plaatsen, maar mocht dat niet meer lukken, dan zorgen we ervoor dat deze morgenochtend vóór 12:00 uur online staat.</span>
                           </>
                         )}
                       </div>

@@ -106,12 +106,14 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
             className="h-8 w-auto"
           />
         </Link>
-        {/* Employer switcher for intermediaries */}
-        <EmployerSwitcher />
+        {/* Employer switcher for intermediaries - negative margins to match menu item width */}
+        <div className="-ml-4 -mr-4">
+          <EmployerSwitcher />
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="h-full">
-        <SidebarGroup className="h-full pl-0">
+        <SidebarGroup className="h-full pl-0 pr-0">
           <SidebarGroupContent className="h-full">
             <SidebarMenu className="h-full">
               {navItems.map((item) => {

@@ -16,7 +16,7 @@ export interface WizardStepConfig {
 export const WIZARD_STEPS_NEW: WizardStepConfig[] = [
   { number: 1, label: "Pakketten", shortLabel: "Pakketten" },
   { number: 2, label: "Opstellen", shortLabel: "Opstellen" },
-  { number: 3, label: "Bekijken", shortLabel: "Bekijken" },
+  { number: 3, label: "Controleren", shortLabel: "Controleren" },
   { number: 4, label: "Plaatsen", shortLabel: "Plaatsen" },
 ];
 
@@ -78,6 +78,7 @@ export interface VacancyFormProps {
   onContactPhotoChange?: (url: string | null) => void;
   onHeaderImageChange?: (url: string | null) => void;
   onLogoChange?: (url: string | null) => void;
+  employerSectorId?: string | null;
 }
 
 export interface VacancyPreviewProps {
@@ -125,4 +126,8 @@ export interface SubmitStepProps {
   onClosingDateChange?: (date: Date | undefined) => void;
   currentClosingDate?: string | null;
   inputType?: VacancyInputType;
+  /** Helper to check if an upsell is the social post upsell */
+  isSocialPostUpsell?: (product: ProductRecord) => boolean;
+  /** Callback to open colleagues modal */
+  onOpenColleaguesModal?: () => void;
 }

@@ -47,9 +47,9 @@ export function VacancyPreview({
             </>
           ) : (
             <>
-              <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Voorbeeld bekijken</h2>
+              <h2 className="text-xl font-bold text-[#1F2D58] mb-1">3. Vacature controleren</h2>
               <p className="text-[#1F2D58]/70 text-sm">
-                Bekijk hoe je vacature eruit zal zien voor kandidaten
+                Controleer je vacature voordat je verder gaat
               </p>
             </>
           )}
@@ -60,7 +60,7 @@ export function VacancyPreview({
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
         {/* Header image */}
         {headerImageUrl && (
-          <div className="aspect-[21/9] w-full overflow-hidden">
+          <div className="aspect-[3/1] w-full overflow-hidden">
             <img
               src={headerImageUrl}
               alt="Header"
@@ -81,7 +81,7 @@ export function VacancyPreview({
                 
                 {vacancy.closing_date && (
                   <p className="text-sm text-[#1F2D58]/70">
-                    Solliciteer voor {formatDate(vacancy.closing_date)}
+                    Sluitingsdatum: {formatDate(vacancy.closing_date)}
                   </p>
                 )}
               </div>
@@ -132,14 +132,11 @@ export function VacancyPreview({
                   value={getLookupName(vacancy.region_id, lookups.regions)}
                 />
               )}
-              {vacancy.employment_type && (
-                <DetailItem icon={Clock} label="Dienstverband" value={vacancy.employment_type} />
-              )}
               {vacancy.hrs_per_week && (
                 <DetailItem
                   icon={Clock}
                   label="Uren per week"
-                  value={`${vacancy.hrs_per_week} uur/week`}
+                  value={vacancy.hrs_per_week}
                 />
               )}
               {vacancy.function_type_id && (
@@ -209,9 +206,6 @@ export function VacancyPreview({
                   )}
                   {vacancy.contact_role && (
                     <p className="text-sm text-[#1F2D58]/70">{vacancy.contact_role}</p>
-                  )}
-                  {vacancy.contact_company && (
-                    <p className="text-sm text-[#1F2D58]/70">{vacancy.contact_company}</p>
                   )}
                 </div>
                 {(vacancy.contact_email || vacancy.contact_phone) && (

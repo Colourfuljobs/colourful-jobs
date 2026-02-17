@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     }
 
     // If features are requested, fetch and populate them
-    if (includeFeatures && type === "vacancy_package") {
+    if (includeFeatures && (type === "vacancy_package" || type === "upsell")) {
       // Get all features at once (more efficient than per-product)
       const allFeatures = await getAllActiveFeatures();
       

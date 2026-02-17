@@ -37,6 +37,7 @@ import { MediaPickerDialog } from "@/components/MediaPickerDialog"
 import { SortableGallery } from "@/components/SortableGallery"
 import { DesktopHeader } from "@/components/dashboard"
 import { uploadMedia, validateFile } from "@/lib/cloudinary-upload"
+import { sortLookupWithOverigeLast } from "@/lib/utils"
 
 // Types for form data
 interface GalleryImage {
@@ -195,7 +196,7 @@ export default function WerkgeversprofielPage() {
         if (response.ok) {
           const data = await response.json()
           if (data.sectors) {
-            setSectors(data.sectors)
+            setSectors(sortLookupWithOverigeLast(data.sectors))
           }
         }
       } catch (error) {

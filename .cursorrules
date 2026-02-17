@@ -1,5 +1,10 @@
 # Styling & Component Richtlijnen
 
+## Documentatie
+- **NOOIT implementatie documentatie maken** (geen `*_IMPLEMENTATION.md`, `*_FIX_*.md` bestanden)
+- Code en comments in de code zijn voldoende documentatie
+- Bij voltooiing van een taak: enkel een korte samenvatting in de chat, geen aparte bestanden
+
 ## Text
 - Schrijf altijd 'Colourful jobs', dus met hoofdletter C en kleine letter j
 

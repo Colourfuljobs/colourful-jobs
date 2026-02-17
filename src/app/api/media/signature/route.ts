@@ -29,16 +29,25 @@ export async function POST(request: NextRequest) {
     let userId = session.user.id || null;
     let employerId = session.user.employerId || null;
 
-    // If no employerId in session, try to get it from the user record
+    // Get user record to access employer_id or active_employer
+    let user = null;
     if ((!employerId || !userId) && session.user.email) {
-      const user = await getUserByEmail(session.user.email);
-      employerId = employerId || user?.employer_id || null;
+      user = await getUserByEmail(session.user.email);
       userId = userId || user?.id || null;
+      
+      // For intermediaries, use active_employer instead of employer_id
+      if (user?.role_id === "intermediary") {
+        employerId = user.active_employer || null;
+      } else {
+        employerId = employerId || user?.employer_id || null;
+      }
     }
 
     if (!employerId || !userId) {
       return NextResponse.json(
-        { error: "Geen werkgeversaccount gevonden" },
+        { error: user?.role_id === "intermediary"
+            ? "Selecteer eerst een werkgever"
+            : "Geen werkgeversaccount gevonden" },
         { status: 400 }
       );
     }

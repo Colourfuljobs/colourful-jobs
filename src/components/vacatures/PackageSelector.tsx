@@ -13,6 +13,7 @@ interface PackageSelectorProps {
   selectedPackage: ProductWithFeatures | null;
   onSelectPackage: (pkg: ProductWithFeatures) => void;
   availableCredits: number;
+  hideAllPrices?: boolean;
   onBuyCredits?: () => void;
 }
 
@@ -50,6 +51,7 @@ export function PackageSelector({
   selectedPackage,
   onSelectPackage,
   availableCredits,
+  hideAllPrices = false,
   onBuyCredits,
 }: PackageSelectorProps) {
   const { isPendingUpdate } = useCredits();
@@ -185,9 +187,11 @@ index !== 1 && "hover:shadow-md"
                   <span className="text-2xl font-bold text-[#1F2D58]">
                     {pkg.credits} credits
                   </span>
-                  <span className="text-sm text-[#1F2D58]/50">
-                    €{pkg.price % 1 === 0 ? pkg.price.toLocaleString("nl-NL") : pkg.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
+                  {!hideAllPrices && (
+                    <span className="text-sm text-[#1F2D58]/50">
+                      €{pkg.price % 1 === 0 ? pkg.price.toLocaleString("nl-NL") : pkg.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  )}
                 </div>
 
                 {/* Divider under price */}

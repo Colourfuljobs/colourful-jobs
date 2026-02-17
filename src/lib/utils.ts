@@ -118,3 +118,55 @@ export function isProfileComplete(profile: EmployerProfileData): ProfileComplete
     missingFields,
   };
 }
+
+/**
+ * Sorts lookup records alphabetically, but always places "Overig" or "Overige" at the end.
+ * Case-insensitive match on both "overig" and "overige" to be safe.
+ * 
+ * @param records - Array of lookup records to sort
+ * @returns Sorted array with "Overig"/"Overige" last
+ */
+export function sortLookupWithOverigeLast<T extends { id: string; name: string }>(records: T[]): T[] {
+  return [...records].sort((a, b) => {
+    const aLower = a.name.toLowerCase();
+    const bLower = b.name.toLowerCase();
+    const aIsOverig = aLower === "overig" || aLower === "overige";
+    const bIsOverig = bLower === "overig" || bLower === "overige";
+    
+    if (aIsOverig && !bIsOverig) return 1;
+    if (!aIsOverig && bIsOverig) return -1;
+    return a.name.localeCompare(b.name, "nl");
+  });
+}
+
+/**
+ * Adds Dutch thousand separators (dots) to numbers of 4+ digits in a string.
+ * Already formatted numbers (with dots) are left untouched.
+ * "4000 - 5500" → "4.000 - 5.500"
+ */
+function addThousandSeparators(value: string): string {
+  return value.replace(/\d{4,}/g, (match) => {
+    return match.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  });
+}
+
+/**
+ * Ensures salary strings that start with a digit get a € prefix.
+ * If the value starts with a letter or €, it's returned as-is.
+ * Also adds thousand separators to numbers of 4+ digits.
+ */
+export function formatSalaryInput(value: string): string {
+  const trimmed = value.trimStart();
+  if (!trimmed) return value;
+
+  // Step 1: Add thousand separators to all bare numbers
+  let result = addThousandSeparators(trimmed);
+
+  // Step 2: Add € prefix if starts with a digit
+  const firstChar = result.charAt(0);
+  if (/[0-9]/.test(firstChar)) {
+    result = `€${result}`;
+  }
+
+  return result;
+}

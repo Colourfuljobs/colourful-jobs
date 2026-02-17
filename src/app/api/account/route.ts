@@ -112,12 +112,20 @@ export async function GET() {
       response.profile_complete = true;
       response.profile_missing_fields = [];
 
-      return NextResponse.json(response);
+      // Intermediaries always have onboarding dismissed (no onboarding for intermediaries)
+      response.onboarding_dismissed = true;
+
+      // Don't return early - fall through to load employer data for active_employer
     }
 
-    // Get employer data if user has an employer (regular employer flow)
-    if (user.employer_id) {
-      const employer = await getEmployerById(user.employer_id);
+    // After intermediary-specific setup, determine effective employer ID for data fetching
+    const effectiveEmployerId = user.role_id === "intermediary" 
+      ? user.active_employer 
+      : user.employer_id;
+
+    // Get employer data if user has an employer (or intermediary has active employer)
+    if (effectiveEmployerId) {
+      const employer = await getEmployerById(effectiveEmployerId);
 
       if (employer) {
         response.company = {
@@ -162,7 +170,7 @@ export async function GET() {
             ? getMediaAssetsByIds(employer.gallery)
             : Promise.resolve([]),
           // FAQ items
-          getFAQByEmployerId(user.employer_id),
+          getFAQByEmployerId(effectiveEmployerId),
         ]);
 
         // Process sector
@@ -203,30 +211,33 @@ export async function GET() {
         };
 
         // Process wallet/credits
-        if (wallet) {
-          // Get expiry warning days from product settings
-          const warningDays = await getCreditExpiryWarningDays();
-          
-          // Check for credits expiring soon
-          const expiringCredits = await getExpiringCredits(user.employer_id, warningDays);
-          
-          response.credits = {
-            available: wallet.balance,
-            total_purchased: wallet.total_purchased,
-            total_spent: wallet.total_spent,
-            expiring_soon: expiringCredits.total > 0 ? {
-              total: expiringCredits.total,
-              days_until: expiringCredits.days_until,
-              earliest_date: expiringCredits.earliest_date,
-            } : null,
-          };
-        } else {
-          response.credits = {
-            available: 0,
-            total_purchased: 0,
-            total_spent: 0,
-            expiring_soon: null,
-          };
+        // Only fetch employer-level wallet for regular users (intermediaries already have their wallet set)
+        if (user.role_id !== "intermediary") {
+          if (wallet) {
+            // Get expiry warning days from product settings
+            const warningDays = await getCreditExpiryWarningDays();
+            
+            // Check for credits expiring soon
+            const expiringCredits = await getExpiringCredits(effectiveEmployerId, warningDays);
+            
+            response.credits = {
+              available: wallet.balance,
+              total_purchased: wallet.total_purchased,
+              total_spent: wallet.total_spent,
+              expiring_soon: expiringCredits.total > 0 ? {
+                total: expiringCredits.total,
+                days_until: expiringCredits.days_until,
+                earliest_date: expiringCredits.earliest_date,
+              } : null,
+            };
+          } else {
+            response.credits = {
+              available: 0,
+              total_purchased: 0,
+              total_spent: 0,
+              expiring_soon: null,
+            };
+          }
         }
 
         // Check if employer profile is complete (only requires display_name, sector, logo)
@@ -236,11 +247,17 @@ export async function GET() {
           logo: logoUrl,
         });
         
-        response.profile_complete = profileStatus.complete;
-        response.profile_missing_fields = profileStatus.missingFields;
+        // Only override profile status for non-intermediaries
+        if (user.role_id !== "intermediary") {
+          response.profile_complete = profileStatus.complete;
+          response.profile_missing_fields = profileStatus.missingFields;
+        }
         
         // Onboarding checklist dismissed state (per employer)
-        response.onboarding_dismissed = employer.onboarding_dismissed || false;
+        // For intermediaries, always true (set above), for regular users, check employer record
+        if (user.role_id !== "intermediary") {
+          response.onboarding_dismissed = employer.onboarding_dismissed || false;
+        }
       }
     }
 
@@ -322,16 +339,23 @@ export async function PATCH(request: Request) {
     }
 
     // All other sections require an employer
-    if (!user.employer_id) {
+    // Determine effective employer ID
+    const effectiveEmployerId = user.role_id === "intermediary" 
+      ? user.active_employer 
+      : user.employer_id;
+
+    if (!effectiveEmployerId) {
       return NextResponse.json(
-        { error: "No employer linked to this account" },
+        { error: user.role_id === "intermediary" 
+            ? "Selecteer eerst een werkgever" 
+            : "No employer linked to this account" },
         { status: 400 }
       );
     }
 
     // Handle company data updates (Employers table)
     if (section === "company") {
-      const updatedEmployer = await updateEmployer(user.employer_id, {
+      const updatedEmployer = await updateEmployer(effectiveEmployerId, {
         company_name: data.company_name,
         phone: data.phone,
         kvk: data.kvk,
@@ -342,7 +366,7 @@ export async function PATCH(request: Request) {
       await logEvent({
         event_type: "employer_updated",
         actor_user_id: user.id,
-        employer_id: user.employer_id,
+        employer_id: effectiveEmployerId,
         source: "web",
         ip_address: clientIP,
         payload: {
@@ -364,7 +388,7 @@ export async function PATCH(request: Request) {
 
     // Handle billing data updates (Employers table)
     if (section === "billing") {
-      const updatedEmployer = await updateEmployer(user.employer_id, {
+      const updatedEmployer = await updateEmployer(effectiveEmployerId, {
         "reference-nr": data["reference-nr"],
         invoice_contact_name: data.invoice_contact_name,
         invoice_email: data.invoice_email,
@@ -377,7 +401,7 @@ export async function PATCH(request: Request) {
       await logEvent({
         event_type: "employer_updated",
         actor_user_id: user.id,
-        employer_id: user.employer_id,
+        employer_id: effectiveEmployerId,
         source: "web",
         ip_address: clientIP,
         payload: {
@@ -416,13 +440,13 @@ export async function PATCH(request: Request) {
       if (data.header_image !== undefined) updateData.header_image = data.header_image;
       if (data.gallery !== undefined) updateData.gallery = data.gallery;
 
-      const updatedEmployer = await updateEmployer(user.employer_id, updateData);
+      const updatedEmployer = await updateEmployer(effectiveEmployerId, updateData);
 
       // Log event
       await logEvent({
         event_type: "employer_updated",
         actor_user_id: user.id,
-        employer_id: user.employer_id,
+        employer_id: effectiveEmployerId,
         source: "web",
         ip_address: clientIP,
         payload: {
@@ -447,7 +471,7 @@ export async function PATCH(request: Request) {
 
     // Handle onboarding settings updates (Employers table)
     if (section === "onboarding") {
-      const updatedEmployer = await updateEmployer(user.employer_id, {
+      const updatedEmployer = await updateEmployer(effectiveEmployerId, {
         onboarding_dismissed: data.onboarding_dismissed,
       });
 
@@ -455,7 +479,7 @@ export async function PATCH(request: Request) {
       await logEvent({
         event_type: "employer_updated",
         actor_user_id: user.id,
-        employer_id: user.employer_id,
+        employer_id: effectiveEmployerId,
         source: "web",
         ip_address: clientIP,
         payload: {
@@ -480,7 +504,7 @@ export async function PATCH(request: Request) {
 
       if (action === "create") {
         const newFaq = await createFAQ({
-          employer_id: user.employer_id,
+          employer_id: effectiveEmployerId,
           question: data.question,
           answer: data.answer,
           order: data.order,
@@ -489,7 +513,7 @@ export async function PATCH(request: Request) {
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
-          employer_id: user.employer_id,
+          employer_id: effectiveEmployerId,
           source: "web",
           ip_address: clientIP,
           payload: { section: "faq", action: "create", faq_id: newFaq.id },
@@ -520,7 +544,7 @@ export async function PATCH(request: Request) {
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
-          employer_id: user.employer_id,
+          employer_id: effectiveEmployerId,
           source: "web",
           ip_address: clientIP,
           payload: { section: "faq", action: "update", faq_id: data.id },
@@ -547,7 +571,7 @@ export async function PATCH(request: Request) {
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
-          employer_id: user.employer_id,
+          employer_id: effectiveEmployerId,
           source: "web",
           ip_address: clientIP,
           payload: { section: "faq", action: "delete", faq_id: data.id },
@@ -563,14 +587,14 @@ export async function PATCH(request: Request) {
         }
 
         // Update the employer's faq linked field with the new order
-        await updateEmployer(user.employer_id, {
+        await updateEmployer(effectiveEmployerId, {
           faq: data.faqIds,
         });
 
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
-          employer_id: user.employer_id,
+          employer_id: effectiveEmployerId,
           source: "web",
           ip_address: clientIP,
           payload: { section: "faq", action: "reorder", faq_order: data.faqIds },
@@ -586,7 +610,7 @@ export async function PATCH(request: Request) {
         }
 
         // Get current FAQs from database
-        const currentFaqs = await getFAQByEmployerId(user.employer_id);
+        const currentFaqs = await getFAQByEmployerId(effectiveEmployerId);
         const currentIds = new Set(currentFaqs.map(f => f.id));
         const incomingIds = new Set(
           data.items
@@ -626,7 +650,7 @@ export async function PATCH(request: Request) {
           } else {
             // New item - create
             const created = await createFAQ({
-              employer_id: user.employer_id,
+              employer_id: effectiveEmployerId,
               question: item.question,
               answer: item.answer,
               order: i,
@@ -648,14 +672,14 @@ export async function PATCH(request: Request) {
         }
 
         // Update order on employer record
-        await updateEmployer(user.employer_id, {
+        await updateEmployer(effectiveEmployerId, {
           faq: results.map(r => r.id),
         });
 
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
-          employer_id: user.employer_id,
+          employer_id: effectiveEmployerId,
           source: "web",
           ip_address: clientIP,
           payload: { section: "faq", action: "sync", count: results.length },
