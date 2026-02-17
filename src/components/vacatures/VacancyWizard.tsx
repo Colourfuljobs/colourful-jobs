@@ -496,41 +496,19 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   ) ?? false;
 
   // Determine which upsell product IDs represent the social media post
-  // by comparing included_upsells across packages with and without the cj_social_post feature
+  // Check if the upsell itself has features with cj_social_post action_tag
   const socialPostUpsellIds = useMemo(() => {
-    const withSocial = new Set<string>();
-    const withoutSocial = new Set<string>();
-
-    for (const pkg of packages) {
-      const hasSocial = pkg.populatedFeatures?.some(
-        (f) => f.action_tags?.includes("cj_social_post")
-      );
-      const included = pkg.included_upsells || [];
-      if (hasSocial) {
-        included.forEach((id) => withSocial.add(id));
-      } else {
-        included.forEach((id) => withoutSocial.add(id));
-      }
-    }
-
-    // Social post upsells = in social packages but NOT in non-social packages
-    const socialIds = new Set<string>();
-    for (const id of withSocial) {
-      if (!withoutSocial.has(id)) {
-        socialIds.add(id);
-      }
-    }
-
-    // Map to actual upsell product IDs (included_upsells may contain slugs or record IDs)
     const result = new Set<string>();
     for (const upsell of allUpsellProducts) {
-      if (socialIds.has(upsell.id) || (upsell.slug && socialIds.has(upsell.slug))) {
+      const hasSocialFeature = upsell.populatedFeatures?.some(
+        (f) => f.action_tags?.includes("cj_social_post")
+      );
+      if (hasSocialFeature) {
         result.add(upsell.id);
       }
     }
-
     return result;
-  }, [packages, allUpsellProducts]);
+  }, [allUpsellProducts]);
 
   // Helper to check if a given upsell is the social media post upsell
   const isSocialPostUpsell = useCallback((product: ProductRecord) => {
@@ -1392,8 +1370,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         {/* Mobile: Step indicator below logo row */}
         {!isReadOnly && (
-          <div className="md:hidden relative">
-            <div className="px-4 sm:px-8 pb-3">
+          <div className="md:hidden relative border-t border-[#193DAB]/[0.12]">
+            <div className="px-4 sm:px-8 py-3">
               <StepIndicator
                 currentStep={getDisplayStep(state.currentStep) as WizardStep}
                 completedSteps={getCompletedSteps().map(s => getDisplayStep(s)) as WizardStep[]}
@@ -1474,7 +1452,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         {/* Step 3 sidebar: Colleagues review (read-only with link back to edit, unless in read-only mode) */}
         {state.currentStep === 3 && hasSocialPostFeature && (
-          <div className={`lg:col-span-1 order-first lg:order-none ${!isReadOnly ? "mt-6" : ""}`}>
+          <div className={`hidden lg:block lg:col-span-1 ${!isReadOnly ? "mt-6" : ""}`}>
             {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
               /* State B: Show tagged colleagues */
               <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
@@ -1543,64 +1521,6 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         {/* Cost sidebar - only show in step 4 for NEW vacancies (not for existing ones) */}
         {state.currentStep === 4 && !isExistingVacancy && (
           <div className="lg:col-span-1 space-y-4">
-            {/* Show tagged colleagues if social post is active (via package OR upsell) */}
-            {(hasSocialPostFeature || state.selectedUpsells.some(u => isSocialPostUpsell(u))) && (
-              <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
-                    <Users className="w-5 w-5 text-[#1F2D58]" />
-                  </div>
-                </div>
-                
-                {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
-                  /* Show tagged colleagues */
-                  <>
-                    <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Getagde collega&apos;s</h4>
-                    <p className="text-sm text-[#1F2D58]/70 mb-4">
-                      Deze collega&apos;s worden getagd in de social media post van deze vacature.
-                    </p>
-                    
-                    <div className="space-y-2 mb-4">
-                      {recommendations
-                        .filter(rec => rec.firstName?.trim() || rec.lastName?.trim())
-                        .map((rec, index) => (
-                          <div key={index} className="bg-[#E8EEF2]/50 rounded-lg p-3">
-                            <span className="text-sm font-medium text-[#1F2D58]">
-                              {[rec.firstName?.trim(), rec.lastName?.trim()].filter(Boolean).join(" ")}
-                            </span>
-                          </div>
-                        ))}
-                    </div>
-
-                    <Button 
-                      variant="link" 
-                      className="px-0" 
-                      onClick={() => setShowColleaguesModal(true)}
-                      showArrow={false}
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Wijzigen
-                    </Button>
-                  </>
-                ) : (
-                  /* No colleagues tagged */
-                  <>
-                    <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Geen collega&apos;s getagd</h4>
-                    <p className="text-sm text-[#1F2D58]/70 mb-4">
-                      Je hebt nog geen collega&apos;s getagd voor de social media post. Wil je dit alsnog doen?
-                    </p>
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      onClick={() => setShowColleaguesModal(true)}
-                    >
-                      Collega&apos;s taggen
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-            
             <CostSidebar
               selectedPackage={state.selectedPackage}
               selectedUpsells={state.selectedUpsells}
@@ -1625,8 +1545,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       {!isReadOnly && (
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
         <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
-              <div className="flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex-shrink-0 order-1">
                 {(() => {
                   // Bepaal of de terugknop getoond moet worden
                   const showBackButton = isExistingVacancy
@@ -1657,7 +1577,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
               {/* Center: Package, cost & credit info - alleen bij nieuwe vacatures */}
               {state.selectedPackage && state.currentStep < 4 && !isExistingVacancy && (
-                <div className="hidden sm:flex flex-col items-center text-sm text-[#1F2D58]">
+                <div className="hidden lg:flex flex-col items-center text-sm text-[#1F2D58] order-2">
                   <div className="flex items-center gap-1.5 font-bold">
                     <span>Gekozen pakket: {state.selectedPackage.display_name}</span>
                     <span className="text-[#1F2D58]/30 font-normal">|</span>
@@ -1708,7 +1628,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 </div>
               )}
 
-              <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="flex items-center gap-3 flex-shrink-0 order-3 justify-end">
                 {state.currentStep < 4 ? (
                   <>
                     {/* For existing vacancies at step 3 (preview), show "Wijzigingen opslaan" instead of "Verder" */}

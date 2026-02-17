@@ -111,43 +111,37 @@ export function PackageSelector({
         </div>
       </div>
 
-      {/* Wrapper to ensure badge and cards are connected */}
-      <div className="flex flex-col">
-        {/* "Meest gekozen" badge row - positioned above middle card */}
-        <div className="hidden md:grid grid-cols-3 gap-2">
-          <div />
-          <div className="bg-[#1F2D58]/10 text-center pt-0.5 pb-1.5 rounded-t-[0.75rem]">
-            <span className="text-xs font-medium text-[#1F2D58]">Meest gekozen</span>
-          </div>
-          <div />
-        </div>
-
-        {/* Package cards grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-y-0 md:gap-x-2">
+      {/* Package cards grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-y-0 md:gap-x-2">
         {packages.map((pkg, index) => {
           const isSelected = selectedPackage?.id === pkg.id;
           const isMostChosen = index === mostChosenIndex || (mostChosenIndex === -1 && index === 1);
           const groupedFeatures = groupFeaturesByCategory(pkg.populatedFeatures || []);
 
           return (
-            <div
-              key={pkg.id}
-              className={cn(
-                "relative flex flex-col overflow-hidden transition-all h-full",
-                // Border radius: first = large bottom-left, middle = all small, third = large bottom-right
-                index === 0 && "rounded-t-[0.75rem] rounded-br-[0.75rem] rounded-bl-[2rem]",
-                index === 1 && "md:rounded-t-none rounded-b-[0.75rem]",
-                index === 2 && "rounded-t-[0.75rem] rounded-bl-[0.75rem] rounded-br-[2rem]",
-                index === 1 ? "bg-white" : "bg-white/50",
-index !== 1 && "hover:shadow-md"
-              )}
-            >
-              {/* Mobile only: "Meest gekozen" badge inside card */}
-              {isMostChosen && (
-                <div className="md:hidden bg-[#1F2D58]/10 text-center py-1.5">
+            <div key={pkg.id} className="flex flex-col">
+              {/* "Meest gekozen" badge - sits above the card */}
+              {isMostChosen ? (
+                <div className="bg-[#1F2D58]/10 text-center pt-0.5 pb-1.5 rounded-t-[0.75rem]">
                   <span className="text-xs font-medium text-[#1F2D58]">Meest gekozen</span>
                 </div>
+              ) : (
+                <div className="hidden md:block h-[28px]" />
               )}
+
+              <div
+                className={cn(
+                  "relative flex flex-col overflow-hidden transition-all flex-1",
+                  // Border radius: first = large bottom-left, middle = no top, third = large bottom-right
+                  index === 0 && "rounded-t-[0.75rem] rounded-br-[0.75rem] rounded-bl-[2rem]",
+                  index === 1 && "rounded-b-[0.75rem]",
+                  index === 2 && "rounded-t-[0.75rem] rounded-bl-[0.75rem] rounded-br-[2rem]",
+                  // Remove top radius when badge is above
+                  isMostChosen && "rounded-t-none",
+                  index === 1 ? "bg-white" : "bg-white/50",
+                  index !== 1 && "hover:shadow-md"
+                )}
+              >
               
               {/* Package content */}
               <div className="p-5 flex flex-col flex-1">
@@ -244,10 +238,10 @@ index !== 1 && "hover:shadow-md"
                 </div>
               </div>
 
+              </div>
             </div>
           );
         })}
-        </div>
       </div>
     </div>
   );
