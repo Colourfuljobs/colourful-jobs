@@ -1607,7 +1607,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               includedUpsellProducts={
                 (state.selectedPackage?.included_upsells || [])
                   .map((id) => allUpsellProducts.find((u) => u.id === id))
-                  .filter((u): u is ProductRecord => !!u)
+                  .filter((u): u is ProductWithFeatures => !!u)
               }
               availableCredits={availableCredits}
               showPackageInfo={false}
