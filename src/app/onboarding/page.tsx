@@ -41,6 +41,7 @@ export default function OnboardingPage() {
   const [step1Complete, setStep1Complete] = useState(false);
   const [step2Complete, setStep2Complete] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [verifiedInOtherTab, setVerifiedInOtherTab] = useState(false);
   
   // Step 1 state
   const [loading, setLoading] = useState(false);
@@ -217,16 +218,27 @@ export default function OnboardingPage() {
         return;
       }
       
+      // Detect if this is the original tab that was polling for verification
+      const urlParams = new URLSearchParams(window.location.search);
+      const isJoinCallbackUrl = urlParams.get("join") === "true";
+      const isJoinPending = localStorage.getItem("colourful_join_pending_verification") === "true";
+      const isOriginalTab = emailSent || (isJoinPending && !isJoinCallbackUrl);
+
+      if (isOriginalTab) {
+        setVerifiedInOtherTab(true);
+        clearOnboardingState();
+        localStorage.removeItem("colourful_join_pending_verification");
+        return;
+      }
+
       setEmailVerified(true);
       setStep1Complete(true);
       clearOnboardingState();
 
       // Check if this is a join flow completion
       const storedEmployerId = localStorage.getItem("colourful_join_employer_id");
-      const urlParams = new URLSearchParams(window.location.search);
-      const isJoinCallbackUrl = urlParams.get("join") === "true";
       
-      if ((isJoinCallbackUrl || joinMode) && storedEmployerId && session.user?.email) {
+      if (isJoinCallbackUrl && storedEmployerId && session.user?.email) {
         setJoinCompleting(true);
         localStorage.removeItem("colourful_join_pending_verification");
         
@@ -266,8 +278,8 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Redirect to step 2 on initial load or after cross-tab verification
-      if (step === 1 && !initialRedirectDone) {
+      // Redirect to step 2 on initial load
+      if (step === 1 && !emailSent && !initialRedirectDone) {
         setStep(2);
         setInitialRedirectDone(true);
       }
@@ -308,10 +320,10 @@ export default function OnboardingPage() {
 
   // Poll session to detect cross-tab email verification
   useEffect(() => {
-    if (!emailSent || emailVerified || status === "authenticated") return;
+    if (status === "authenticated") return;
 
+    const isNormalWaiting = emailSent && !emailVerified;
     const isJoinWaiting = joinMode && joinStep === "verification";
-    const isNormalWaiting = !joinMode;
 
     if (!isNormalWaiting && !isJoinWaiting) return;
 
@@ -409,7 +421,7 @@ export default function OnboardingPage() {
             signIn("email", {
               email: contact.email,
               redirect: false,
-              callbackUrl: "/onboarding/verified",
+              callbackUrl: "/onboarding",
             }).catch((signInError) => {
               console.error("Error sending magic link:", signInError);
               toast.error("Fout bij versturen", {
@@ -463,7 +475,7 @@ export default function OnboardingPage() {
       await signIn("email", {
         email: contact.email,
         redirect: false,
-        callbackUrl: "/onboarding/verified",
+        callbackUrl: "/onboarding",
       });
       setEmailSent(true);
       saveOnboardingState(contact, true);
@@ -943,7 +955,7 @@ export default function OnboardingPage() {
             signIn("email", {
               email: emailToUse,
               redirect: false,
-              callbackUrl: "/onboarding/verified?join=true",
+              callbackUrl: "/onboarding?join=true",
             }).catch((signInError) => {
               console.error("Error sending magic link:", signInError);
               toast.error("Fout bij versturen", {
@@ -978,7 +990,7 @@ export default function OnboardingPage() {
       await signIn("email", {
         email: joinEmail,
         redirect: false,
-        callbackUrl: "/onboarding/verified?join=true",
+        callbackUrl: "/onboarding?join=true",
       });
       toast.success("E-mail opnieuw verstuurd", {
         description: "Check je inbox opnieuw.",
@@ -1047,6 +1059,56 @@ export default function OnboardingPage() {
           </div>
           <div className="flex justify-center">
             <Spinner className="size-12 text-[#1F2D58]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (verifiedInOtherTab) {
+    return (
+      <div className="min-h-screen flex">
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <div className="flex justify-center mb-8">
+              <Link href="https://www.colourfuljobs.nl/">
+                <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
+              </Link>
+            </div>
+            <Card className="p-0 overflow-hidden">
+              <CardContent className="p-6 sm:p-8 bg-white">
+                <div className="flex flex-col items-center justify-center py-8 px-6 text-center">
+                  <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-[#DEEEE3] mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-[#41712F]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="max-w-md space-y-3">
+                    <h3 className="text-lg font-semibold text-[#1F2D58]">
+                      E-mail geverifieerd!
+                    </h3>
+                    <p className="p-regular text-slate-600">
+                      Je kunt dit tabblad nu sluiten.<br />
+                      De registratie gaat verder in het andere tabblad.
+                    </p>
+                    <p className="p-small text-slate-500 !mt-6">
+                      Ander tabblad gesloten?{" "}
+                      <button
+                        onClick={() => {
+                          setVerifiedInOtherTab(false);
+                          setEmailVerified(true);
+                          setStep1Complete(true);
+                          setStep(2);
+                        }}
+                        className="underline hover:no-underline"
+                      >
+                        Ga hier verder
+                      </button>
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
