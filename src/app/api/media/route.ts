@@ -13,6 +13,7 @@ import {
   MediaAssetRecord,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
+import { triggerEmployerWebflowSync } from "@/lib/webflow-sync";
 import { getErrorMessage } from "@/lib/utils";
 import { generateAltText } from "@/lib/image-processing";
 import { v2 as cloudinary } from "cloudinary";
@@ -229,7 +230,6 @@ export async function POST(request: NextRequest) {
         display_name: employer?.display_name,
         company_name: employer?.company_name,
         sector: employer?.sector?.[0],
-        location: employer?.location,
       }
     );
 
@@ -250,10 +250,9 @@ export async function POST(request: NextRequest) {
 
     // Update Employer record (only for logo - gallery images are selected via werkgeversprofiel)
     if (type === "logo") {
-      await updateEmployer(employerId, { logo: [mediaAsset.id] });
+      await updateEmployer(employerId, { logo: [mediaAsset.id], needs_webflow_sync: true });
+      triggerEmployerWebflowSync(employerId);
     }
-    // Note: sfeerbeelden are NOT automatically added to employer.gallery
-    // Users select which images appear on their profile via the werkgeversprofiel page
 
     // Log event
     await logEvent({
@@ -356,7 +355,7 @@ export async function PATCH(request: NextRequest) {
 
     if (action === "set_header") {
       // Update employer's header_image
-      await updateEmployer(employerId, { header_image: [assetId] });
+      await updateEmployer(employerId, { header_image: [assetId], needs_webflow_sync: true });
 
       // Log event
       await logEvent({
@@ -371,6 +370,8 @@ export async function PATCH(request: NextRequest) {
         },
       });
 
+      triggerEmployerWebflowSync(employerId);
+
       return NextResponse.json({
         success: true,
         headerImageId: assetId,
@@ -380,7 +381,8 @@ export async function PATCH(request: NextRequest) {
     if (action === "remove_header") {
       // Only remove if this is the current header
       if (employer.header_image?.[0] === assetId) {
-        await updateEmployer(employerId, { header_image: [] });
+        await updateEmployer(employerId, { header_image: [], needs_webflow_sync: true });
+        triggerEmployerWebflowSync(employerId);
       }
 
       return NextResponse.json({
@@ -455,14 +457,20 @@ export async function DELETE(request: NextRequest) {
       }
 
       // Remove from gallery if it was selected for the profile
-      if (employer.gallery?.includes(assetId)) {
-        const newGallery = employer.gallery.filter((id) => id !== assetId);
-        await updateEmployer(employerId, { gallery: newGallery });
+      const wasInGallery = employer.gallery?.includes(assetId);
+      if (wasInGallery) {
+        const newGallery = employer.gallery!.filter((id) => id !== assetId);
+        await updateEmployer(employerId, { gallery: newGallery, needs_webflow_sync: true });
       }
 
       // If this was the header image, also clear that
-      if (employer.header_image?.[0] === assetId) {
-        await updateEmployer(employerId, { header_image: [] });
+      const wasHeader = employer.header_image?.[0] === assetId;
+      if (wasHeader) {
+        await updateEmployer(employerId, { header_image: [], needs_webflow_sync: true });
+      }
+
+      if (wasInGallery || wasHeader) {
+        triggerEmployerWebflowSync(employerId);
       }
     }
 

@@ -21,9 +21,9 @@ const emailSchema = z.string().email();
  */
 export async function POST(request: Request) {
   try {
-    // Rate limiting: 3 join attempts per hour per IP
+    // Rate limiting: 10 join attempts per hour per IP
     const identifier = getIdentifier(request);
-    const rateLimitResult = await checkRateLimit(identifier, onboardingRateLimiter, 3, 3600000);
+    const rateLimitResult = await checkRateLimit(identifier, onboardingRateLimiter, 10, 3600000);
     
     if (!rateLimitResult.success) {
       return NextResponse.json(

@@ -226,7 +226,7 @@ export default function OnboardingPage() {
       const urlParams = new URLSearchParams(window.location.search);
       const isJoinCallbackUrl = urlParams.get("join") === "true";
       
-      if (isJoinCallbackUrl && storedEmployerId && session.user?.email) {
+      if ((isJoinCallbackUrl || joinMode) && storedEmployerId && session.user?.email) {
         setJoinCompleting(true);
         localStorage.removeItem("colourful_join_pending_verification");
         
@@ -266,8 +266,8 @@ export default function OnboardingPage() {
         return;
       }
 
-      // Redirect to step 2 on initial load
-      if (step === 1 && !emailSent && !initialRedirectDone) {
+      // Redirect to step 2 on initial load or after cross-tab verification
+      if (step === 1 && !initialRedirectDone) {
         setStep(2);
         setInitialRedirectDone(true);
       }
@@ -305,6 +305,22 @@ export default function OnboardingPage() {
       setStep(1);
     }
   }, [status, session, emailSent, step, setValue, clearOnboardingState, initialRedirectDone, router, update, isActivating]);
+
+  // Poll session to detect cross-tab email verification
+  useEffect(() => {
+    if (!emailSent || emailVerified || status === "authenticated") return;
+
+    const isJoinWaiting = joinMode && joinStep === "verification";
+    const isNormalWaiting = !joinMode;
+
+    if (!isNormalWaiting && !isJoinWaiting) return;
+
+    const interval = setInterval(() => {
+      update();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [emailSent, emailVerified, status, joinMode, joinStep, update]);
 
   // Handle step navigation click (used for going back from step 2 to step 1)
   const handleStepClick = useCallback((targetStep: Step) => {
@@ -393,7 +409,7 @@ export default function OnboardingPage() {
             signIn("email", {
               email: contact.email,
               redirect: false,
-              callbackUrl: "/onboarding",
+              callbackUrl: "/onboarding/verified",
             }).catch((signInError) => {
               console.error("Error sending magic link:", signInError);
               toast.error("Fout bij versturen", {
@@ -447,7 +463,7 @@ export default function OnboardingPage() {
       await signIn("email", {
         email: contact.email,
         redirect: false,
-        callbackUrl: "/onboarding",
+        callbackUrl: "/onboarding/verified",
       });
       setEmailSent(true);
       saveOnboardingState(contact, true);
@@ -927,7 +943,7 @@ export default function OnboardingPage() {
             signIn("email", {
               email: emailToUse,
               redirect: false,
-              callbackUrl: "/onboarding?join=true",
+              callbackUrl: "/onboarding/verified?join=true",
             }).catch((signInError) => {
               console.error("Error sending magic link:", signInError);
               toast.error("Fout bij versturen", {
@@ -962,7 +978,7 @@ export default function OnboardingPage() {
       await signIn("email", {
         email: joinEmail,
         redirect: false,
-        callbackUrl: "/onboarding?join=true",
+        callbackUrl: "/onboarding/verified?join=true",
       });
       toast.success("E-mail opnieuw verstuurd", {
         description: "Check je inbox opnieuw.",

@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
-import { toast } from "sonner"
 import {
   LayoutDashboard,
   Briefcase,
@@ -90,8 +89,8 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
   const pathname = usePathname()
 
   const handleSignOut = async () => {
-    await signOut({ redirect: true, callbackUrl: "/login" })
-    toast.success("Je bent succesvol uitgelogd")
+    await signOut({ redirect: false })
+    window.location.href = "/login"
   }
 
   return (

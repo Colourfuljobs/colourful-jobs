@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
-import { toast } from "sonner"
 import { Coins, Plus, LogOut, User, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -31,8 +30,8 @@ export function MobileHeader({ user }: MobileHeaderProps) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   
   const handleSignOut = async () => {
-    await signOut({ redirect: true, callbackUrl: "/login" })
-    toast.success("Je bent succesvol uitgelogd")
+    await signOut({ redirect: false })
+    window.location.href = "/login"
   }
 
   const handleCheckoutSuccess = (newBalance: number, purchasedAmount?: number) => {

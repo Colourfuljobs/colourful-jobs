@@ -189,7 +189,7 @@ function mapTransactionToUI(
   let description: string
   switch (transaction.type) {
     case "purchase":
-      description = `Creditpakket ${transaction.credits_amount} credits`
+      description = `Creditpakket ${transaction.total_credits || 0} credits`
       break
     case "spend": {
       const productNamesList = getProductDisplayNames()
@@ -242,7 +242,7 @@ function mapTransactionToUI(
 
   // Calculate credits display value
   // For spend/expiration transactions, credits should be negative in UI
-  let credits = transaction.credits_amount
+  let credits = transaction.total_credits || 0
   if (transaction.type === "spend" || transaction.type === "expiration") {
     credits = -Math.abs(credits) // Ensure it's negative
   } else if (transaction.type === "purchase" || transaction.type === "adjustment") {

@@ -396,6 +396,12 @@ De `bg-white/50` header boven een witte card. Gebruik deze styling consistent:
 - In Airtable moeten Date velden de optie "Include a time field" AAN hebben staan
 - Dit geldt voor alle datumvelden: `created-at`, `processed-at`, `updated-at`, etc.
 
+## Airtable MCP — Alleen lezen
+- De Airtable MCP-integratie is **read-only**: gebruik het ALLEEN om data op te halen (list, search, describe, get)
+- Probeer NOOIT records aan te maken, bij te werken of te verwijderen via de Airtable MCP tools
+- Schrijfacties naar Airtable verlopen via de applicatiecode (`src/lib/airtable.ts`), niet via MCP
+- Als er velden moeten worden toegevoegd of gewijzigd in Airtable, vraag dit aan de gebruiker — doe het niet zelf
+
 ## Event Logging
 - Bij ELKE actie die data wijzigt (create/update/delete), voeg een `logEvent()` call toe
 - Import van: `import { logEvent, getClientIP } from "@/lib/events";`
@@ -436,3 +442,10 @@ De `bg-white/50` header boven een witte card. Gebruik deze styling consistent:
 - Gebruik Nederlandse teksten voor de meldingen
 - Houd titels kort en actiegericht (bijv. "Opgeslagen", "Vacature aangemaakt", "Welkom!")
 - Gebruik GEEN `alert()` - vervang door toast
+
+## n8n Workflows (Airtable → Webflow Sync)
+- Bij werk aan n8n workflows, Webflow sync, of Airtable ↔ Webflow field mappings: raadpleeg ALTIJD eerst `prd-n8n-webflow-sync.md` in de project root
+- Dit PRD bevat: architectuur, alle field mappings (Airtable → Webflow), Webflow collection IDs, workflow definities, AI prompt templates, business rules, en sync volgorde
+- De webhook-functie voor vacatures staat in `src/lib/webflow-sync.ts` (`triggerWebflowSync`)
+- De webhook-functie voor employers staat in `src/lib/webflow-sync.ts` (`triggerEmployerWebflowSync`)
+- Env variabelen: `N8N_WEBFLOW_SYNC_WEBHOOK_URL` (vacatures), `N8N_EMPLOYER_WEBFLOW_SYNC_WEBHOOK_URL` (employers)

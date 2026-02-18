@@ -5,7 +5,6 @@ export interface CompanyData {
   display_name?: string;
   company_name?: string;
   sector?: string;
-  location?: string;
 }
 
 /**
@@ -28,13 +27,7 @@ export function generateAltText(
     description = `${companyData.sector} werkplek`;
   }
 
-  let altText = `${description} bij ${companyName}`;
-  
-  if (companyData.location) {
-    altText += ` in ${companyData.location}`;
-  }
-
-  return altText;
+  return `${description} bij ${companyName}`;
 }
 
 /**

@@ -12,9 +12,9 @@ const emailSchema = z.string().email("Ongeldig e-mailadres. Controleer of je e-m
 
 export async function POST(request: Request) {
   try {
-    // Rate limiting: 3 account creations per hour per IP
+    // Rate limiting: 10 account creations per hour per IP
     const identifier = getIdentifier(request);
-    const rateLimitResult = await checkRateLimit(identifier, onboardingRateLimiter, 3, 3600000);
+    const rateLimitResult = await checkRateLimit(identifier, onboardingRateLimiter, 10, 3600000);
     
     if (!rateLimitResult.success) {
       return NextResponse.json(
@@ -62,7 +62,6 @@ export async function POST(request: Request) {
           await updateUser(existingUser.id, {
             first_name: first_name || existingUser.first_name,
             last_name: last_name || existingUser.last_name,
-            role: role || existingUser.role,
           });
         }
         
@@ -97,7 +96,6 @@ export async function POST(request: Request) {
         status: "pending_onboarding",
         first_name,
         last_name,
-        role,
       });
       userId = user.id;
 
@@ -143,7 +141,6 @@ export async function POST(request: Request) {
         status: "pending_onboarding",
         first_name,
         last_name,
-        role,
       });
       userId = user.id;
 
@@ -222,11 +219,9 @@ export async function PATCH(request: Request) {
     // Check if this is a user update (has first_name, last_name, or role - these are user-only fields)
     // Note: status alone is not enough to determine user vs employer update
     if (body.first_name !== undefined || body.last_name !== undefined || body.role !== undefined) {
-      // Update user
       const updatedUser = await updateUser(user.id, {
         first_name: body.first_name,
         last_name: body.last_name,
-        role: body.role,
         status: body.status,
       });
 
@@ -410,7 +405,6 @@ export async function GET(request: Request) {
       return NextResponse.json({
         first_name: user.first_name || "",
         last_name: user.last_name || "",
-        role: user.role || "",
         email: user.email,
       });
     } catch (error: unknown) {

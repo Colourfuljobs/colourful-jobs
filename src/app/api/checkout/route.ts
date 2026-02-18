@@ -115,8 +115,8 @@ export async function POST(request: Request) {
       wallet_id: wallet.id,
       user_id: user.id,
       product_id: product.id,
-      credits_amount: product.credits,
-      money_amount: product.price,
+      total_credits: product.credits,
+      total_cost: product.price,
       context,
       invoice_details_snapshot: invoiceDetailsSnapshot,
       validity_months: product.validity_months, // From product config

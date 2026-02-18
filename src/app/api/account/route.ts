@@ -17,6 +17,7 @@ import {
   getCreditExpiryWarningDays,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
+import { triggerEmployerWebflowSync } from "@/lib/webflow-sync";
 import { getErrorMessage, isProfileComplete } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -52,7 +53,6 @@ export async function GET() {
         first_name: user.first_name || "",
         last_name: user.last_name || "",
         email: user.email,
-        role: user.role || "",
       },
       role_id: user.role_id || "employer", // Default to employer for existing users
       // Default profile status (will be overwritten if employer exists)
@@ -311,7 +311,6 @@ export async function PATCH(request: Request) {
       const updatedUser = await updateUser(user.id, {
         first_name: data.first_name,
         last_name: data.last_name,
-        role: data.role,
       });
 
       // Log event
@@ -333,7 +332,6 @@ export async function PATCH(request: Request) {
           first_name: updatedUser.first_name || "",
           last_name: updatedUser.last_name || "",
           email: updatedUser.email,
-          role: updatedUser.role || "",
         },
       });
     }
@@ -440,6 +438,7 @@ export async function PATCH(request: Request) {
       if (data.header_image !== undefined) updateData.header_image = data.header_image;
       if (data.gallery !== undefined) updateData.gallery = data.gallery;
 
+      updateData.needs_webflow_sync = true;
       const updatedEmployer = await updateEmployer(effectiveEmployerId, updateData);
 
       // Log event
@@ -454,6 +453,8 @@ export async function PATCH(request: Request) {
           updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
         },
       });
+
+      triggerEmployerWebflowSync(effectiveEmployerId);
 
       return NextResponse.json({
         success: true,
@@ -510,6 +511,8 @@ export async function PATCH(request: Request) {
           order: data.order,
         });
 
+        await updateEmployer(effectiveEmployerId, { needs_webflow_sync: true });
+
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
@@ -518,6 +521,8 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "create", faq_id: newFaq.id },
         });
+
+        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({
           success: true,
@@ -541,6 +546,8 @@ export async function PATCH(request: Request) {
           order: data.order,
         });
 
+        await updateEmployer(effectiveEmployerId, { needs_webflow_sync: true });
+
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
@@ -549,6 +556,8 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "update", faq_id: data.id },
         });
+
+        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({
           success: true,
@@ -568,6 +577,8 @@ export async function PATCH(request: Request) {
 
         await deleteFAQ(data.id);
 
+        await updateEmployer(effectiveEmployerId, { needs_webflow_sync: true });
+
         await logEvent({
           event_type: "employer_updated",
           actor_user_id: user.id,
@@ -576,6 +587,8 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "delete", faq_id: data.id },
         });
+
+        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({ success: true });
       }
@@ -589,6 +602,7 @@ export async function PATCH(request: Request) {
         // Update the employer's faq linked field with the new order
         await updateEmployer(effectiveEmployerId, {
           faq: data.faqIds,
+          needs_webflow_sync: true,
         });
 
         await logEvent({
@@ -599,6 +613,8 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "reorder", faq_order: data.faqIds },
         });
+
+        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({ success: true });
       }
@@ -674,6 +690,7 @@ export async function PATCH(request: Request) {
         // Update order on employer record
         await updateEmployer(effectiveEmployerId, {
           faq: results.map(r => r.id),
+          needs_webflow_sync: true,
         });
 
         await logEvent({
@@ -684,6 +701,8 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "sync", count: results.length },
         });
+
+        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({ success: true, data: results });
       }

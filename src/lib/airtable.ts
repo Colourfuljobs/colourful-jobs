@@ -29,7 +29,7 @@ export const userRecordSchema = z.object({
   status: z.enum(["pending_onboarding", "active", "invited", "deleted"]).default("pending_onboarding"),
   first_name: z.string().optional(),
   last_name: z.string().optional(),
-  role: z.string().optional(),
+  role: z.string().optional(), // Linked record ID from Roles table
   // Intermediary role fields
   role_id: z.string().nullable().optional(), // Lookup from role → Roles.id
   managed_employers: z.array(z.string()).optional(), // Array of employer IDs for intermediaries
@@ -54,7 +54,6 @@ export const employerRecordSchema = z.object({
   "invoice_postal-code": z.string().optional(),
   invoice_city: z.string().optional(),
   sector: z.array(z.string()).optional(), // Linked record to Sectors table
-  location: z.string().optional(),
   short_description: z.string().optional(),
   logo: z.array(z.string()).optional(), // Linked record to Media Assets
   header_image: z.array(z.string()).optional(), // Linked record to Media Assets
@@ -64,6 +63,7 @@ export const employerRecordSchema = z.object({
   status: z.enum(["draft", "active"]).default("draft"),
   role: z.array(z.string()).optional(), // Linked record to Roles table
   onboarding_dismissed: z.boolean().optional(), // Whether the onboarding checklist has been dismissed
+  needs_webflow_sync: z.boolean().default(false),
 });
 
 export const mediaAssetRecordSchema = z.object({
@@ -119,14 +119,10 @@ export const transactionRecordSchema = z.object({
   reference_type: z.enum(["vacancy", "order", "admin", "system"]).nullable().optional(),
   context: z.enum(["dashboard", "vacancy", "boost", "renew", "transactions", "included"]).nullable().optional(),
   status: z.enum(["paid", "failed", "refunded", "open"]),
-  // Legacy field for purchases - total price in euros
-  money_amount: z.number().nullable().optional(),
-  // New spend transaction fields
   total_cost: z.number().nullable().optional(), // Total price in euros
   total_credits: z.number().int().nullable().optional(), // Total credits the vacancy costs
   credits_shortage: z.number().int().nullable().optional(), // Credits short (0 if enough)
   credits_invoiced: z.number().nullable().optional(), // Euro amount being invoiced for shortage
-  credits_amount: z.number().int(), // For purchases: credits purchased, for legacy spend: credits deducted
   vacancy_name: z.string().nullable().optional(), // Lookup field from Vacancies
   invoice: z.array(airtableAttachmentSchema).nullable().optional(), // Attachment field
   invoice_details_snapshot: z.string().nullable().optional(), // JSON string with invoice details at time of purchase
@@ -154,18 +150,12 @@ export const productRecordSchema = z.object({
   target_roles: z.array(z.string()).optional(), // Linked records to Roles - empty = visible for all roles
   availability: z.array(z.enum(["add-vacancy", "boost-option"])).optional().default([]), // Multiple select: where this product is available
   validity_months: z.number().int().nullable().optional(), // Months until credits expire (for credit_bundle type)
-  credit_expiry_warning_days: z.number().int().nullable().optional(), // Days before expiry to show warning (for credit_bundle type)
+  credits_expiry_warning_days: z.number().int().nullable().optional(), // Days before expiry to show warning (for credit_bundle type)
   billing_cycle: z.enum(["one_time", "yearly"]).nullable().optional(), // Billing cycle for credit bundles
   repeat_mode: z.enum(["once", "unlimited", "renewable", "until_max"]).nullable().optional(), // Controls repeat purchase behavior per vacancy
   duration_days: z.number().int().nullable().optional(), // Base duration in days: for vacancy_package = online duration, for upsell with repeat_mode=renewable = effect duration
   max_value: z.number().int().nullable().optional(), // Only for repeat_mode=until_max: maximum cumulative value (e.g. 365 days)
 });
-
-export const featurePackageCategoryEnum = z.enum([
-  "always_included",
-  "extra_boost",
-  "spotlight",
-]);
 
 export const featureActionTagEnum = z.enum([
   "cj_daily_alert",
@@ -333,7 +323,6 @@ export type MediaAssetRecord = z.infer<typeof mediaAssetRecordSchema>;
 export type FAQRecord = z.infer<typeof faqRecordSchema>;
 export type ProductRecord = z.infer<typeof productRecordSchema>;
 export type FeatureRecord = z.infer<typeof featureRecordSchema>;
-export type FeaturePackageCategory = z.infer<typeof featurePackageCategoryEnum>;
 export type VacancyRecord = z.infer<typeof vacancyRecordSchema>;
 export type VacancyStatus = z.infer<typeof vacancyStatusEnum>;
 export type VacancyInputType = z.infer<typeof vacancyInputTypeEnum>;
@@ -412,7 +401,7 @@ function extractUserFields(fields: Record<string, unknown>) {
   const managed_employers = Array.isArray(fields.managed_employers)
     ? fields.managed_employers
     : [];
-  // role is a Link field → returns array, extract first value
+  // role is a Link field → returns array, extract first value (record ID)
   const role = Array.isArray(fields.role)
     ? fields.role[0] || undefined
     : fields.role || undefined;
@@ -420,7 +409,6 @@ function extractUserFields(fields: Record<string, unknown>) {
   const role_id = Array.isArray(fields.role_id)
     ? fields.role_id[0] || null
     : fields.role_id || null;
-
   return { employer_id, invited_by, active_employer, managed_employers, role, role_id };
 }
 
@@ -457,7 +445,6 @@ export async function createUser(fields: {
   status?: UserRecord["status"];
   first_name?: string;
   last_name?: string;
-  role?: string;
   // Invitation fields
   invite_token?: string | null;
   invite_expires?: string | null;
@@ -480,14 +467,10 @@ export async function createUser(fields: {
 
   if (fields.first_name) airtableFields.first_name = fields.first_name;
   if (fields.last_name) airtableFields.last_name = fields.last_name;
-  if (fields.role) {
-    airtableFields.role = fields.role;
-  } else {
-    // Automatically assign employer role if no role is provided (regular onboarding)
-    const employerRoleId = await getEmployerRoleId();
-    if (employerRoleId) {
-      airtableFields.role = [employerRoleId];
-    }
+  // Always assign the employer role (linked record) — never a free-text string
+  const employerRoleId = await getEmployerRoleId();
+  if (employerRoleId) {
+    airtableFields.role = [employerRoleId];
   }
 
   // Invitation fields
@@ -551,7 +534,6 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
   if (fields["invoice_postal-code"] !== undefined) airtableFields["invoice_postal-code"] = fields["invoice_postal-code"];
   if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
-  if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
   // Linked records to Media Assets (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
@@ -606,7 +588,6 @@ export async function updateEmployer(
   if (fields["invoice_postal-code"] !== undefined) airtableFields["invoice_postal-code"] = fields["invoice_postal-code"];
   if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
-  if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
   // Linked records (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
@@ -616,6 +597,7 @@ export async function updateEmployer(
   if (fields.video_url !== undefined) airtableFields.video_url = fields.video_url;
   if (fields.status !== undefined) airtableFields.status = fields.status;
   if (fields.onboarding_dismissed !== undefined) airtableFields.onboarding_dismissed = fields.onboarding_dismissed;
+  if (fields.needs_webflow_sync !== undefined) airtableFields.needs_webflow_sync = fields.needs_webflow_sync;
 
   const record = await base(EMPLOYERS_TABLE).update(id, airtableFields);
 
@@ -641,7 +623,14 @@ export async function updateUser(
   if (fields.last_name !== undefined) airtableFields.last_name = fields.last_name;
   if (fields.email !== undefined) airtableFields.email = fields.email;
   if (fields.status !== undefined) airtableFields.status = fields.status;
-  if (fields.role !== undefined) airtableFields.role = fields.role;
+  if (fields.role !== undefined) {
+    // role must be an array of record IDs (linked record to Roles table)
+    if (Array.isArray(fields.role)) {
+      airtableFields.role = fields.role;
+    } else if (typeof fields.role === "string" && fields.role.startsWith("rec")) {
+      airtableFields.role = [fields.role];
+    }
+  }
   // Support linking user to existing employer (for join flow)
   if (fields.employer_id !== undefined) {
     // Airtable Link fields require an array of record IDs
@@ -1120,13 +1109,10 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
         reference_type: fields.reference_type || null,
         context: (fields.context as string) || null,
         status: fields.status,
-        money_amount: fields.money_amount || null,
         total_cost: fields.total_cost || null,
         total_credits: fields.total_credits || null,
         credits_shortage: fields.credits_shortage || null,
         credits_invoiced: fields.credits_invoiced || null,
-        // For spend transactions use total_credits, for purchases use credits_amount (legacy)
-        credits_amount: fields.total_credits || fields.credits_amount || 0,
         vacancy_name,
         invoice: fields.invoice || null,
         invoice_details_snapshot: (fields.invoice_details_snapshot as string) || null,
@@ -1192,12 +1178,10 @@ export async function getTransactionsByVacancyId(vacancyId: string): Promise<Tra
         type: fields.type,
         reference_type: fields.reference_type || null,
         status: fields.status,
-        money_amount: fields.money_amount || null,
         total_cost: fields.total_cost || null,
         total_credits: fields.total_credits || null,
         credits_shortage: fields.credits_shortage || null,
         credits_invoiced: fields.credits_invoiced || null,
-        credits_amount: fields.total_credits || fields.credits_amount || 0,
         vacancy_name,
         invoice: fields.invoice || null,
         invoice_details_snapshot: (fields.invoice_details_snapshot as string) || null,
@@ -1770,7 +1754,7 @@ export async function getActiveProductsByType(
         target_roles,
         availability,
         validity_months: fields.validity_months || null,
-        credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
+        credits_expiry_warning_days: fields.credits_expiry_warning_days || null,
         billing_cycle: fields.billing_cycle || null,
         repeat_mode: fields.repeat_mode || null,
         duration_days: fields.duration_days || null,
@@ -1840,7 +1824,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       target_roles,
       availability,
       validity_months: fields.validity_months || null,
-      credit_expiry_warning_days: fields.credit_expiry_warning_days || null,
+      credits_expiry_warning_days: fields.credits_expiry_warning_days || null,
       billing_cycle: fields.billing_cycle || null,
       repeat_mode: fields.repeat_mode || null,
       duration_days: fields.duration_days || null,
@@ -1998,8 +1982,8 @@ export async function createPurchaseTransaction(fields: {
   wallet_id: string;
   user_id: string;
   product_id: string;
-  credits_amount: number;
-  money_amount: number;
+  total_credits: number;
+  total_cost: number;
   context: TransactionRecord["context"];
   invoice_details_snapshot: string; // JSON string
   validity_months?: number | null; // Months until credits expire (from product)
@@ -2021,15 +2005,15 @@ export async function createPurchaseTransaction(fields: {
     product_id: [fields.product_id], // Linked record to Products - requires array
     type: "purchase",
     status: "open",
-    total_credits: fields.credits_amount, // Use total_credits field (credits_amount doesn't exist in Airtable)
-    total_cost: fields.money_amount, // Use total_cost field (money_amount doesn't exist in Airtable)
+    total_credits: fields.total_credits,
+    total_cost: fields.total_cost,
     context: fields.context,
     invoice_details_snapshot: fields.invoice_details_snapshot,
     reference_type: "order",
     "created-at": createdAt.toISOString(),
     // Credit expiration fields
     expires_at: expiresAt.toISOString(),
-    remaining_credits: fields.credits_amount, // Start with full amount
+    remaining_credits: fields.total_credits, // Start with full amount
   };
 
   try {
@@ -2063,16 +2047,14 @@ export async function createPurchaseTransaction(fields: {
       reference_type: recordFields.reference_type || null,
       context: (recordFields.context as string) || null,
       status: recordFields.status,
-      money_amount: recordFields.total_cost || null, // Read from total_cost field
       total_cost: recordFields.total_cost || null,
       total_credits: recordFields.total_credits || null,
       credits_shortage: null,
       credits_invoiced: null,
-      credits_amount: recordFields.total_credits || 0, // Read from total_credits field
       vacancy_name: null,
       invoice: recordFields.invoice || null,
       invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
-      invoice_trigger: null, // Purchase transactions don't need invoice trigger
+      invoice_trigger: null,
       expires_at: (recordFields.expires_at as string) || null,
       remaining_credits: (recordFields.remaining_credits as number) || null,
       "created-at": recordFields["created-at"] as string | undefined,
@@ -2686,12 +2668,10 @@ export async function createSpendTransaction(fields: {
       reference_type: recordFields.reference_type || null,
       context: (recordFields.context as string) || null,
       status: recordFields.status,
-      money_amount: null,
       total_cost: recordFields.total_cost || null,
       total_credits: recordFields.total_credits || null,
       credits_shortage: recordFields.credits_shortage || null,
       credits_invoiced: recordFields.credits_invoiced || null,
-      credits_amount: recordFields.total_credits || 0, // Use total_credits as credits_amount for schema compatibility
       vacancy_name,
       invoice: null,
       invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
@@ -2705,20 +2685,17 @@ export async function createSpendTransaction(fields: {
 }
 
 /**
- * @deprecated Use createSpendTransaction with money_amount and invoice_details_snapshot instead.
+ * @deprecated Use createSpendTransaction with total_cost and invoice_details_snapshot instead.
  * This function creates a separate invoice transaction, but the new approach combines
  * spend and invoice into a single transaction for cleaner data.
- * 
- * Create an invoice transaction for vacancy submission when credits are insufficient
- * This transaction will trigger an invoice to be sent when the vacancy is published
  */
 export async function createInvoiceTransaction(fields: {
   employer_id: string;
   wallet_id: string;
   vacancy_id: string;
-  credits_amount: number;
-  money_amount: number;
-  product_ids: string[]; // Package ID + upsell IDs
+  total_credits: number;
+  total_cost: number;
+  product_ids: string[];
   invoice_details_snapshot: string;
   context?: TransactionRecord["context"];
 }): Promise<TransactionRecord> {
@@ -2730,11 +2707,11 @@ export async function createInvoiceTransaction(fields: {
     employer: [fields.employer_id],
     wallet: [fields.wallet_id],
     vacancy: [fields.vacancy_id],
-    product_id: fields.product_ids, // Linked record to Products
+    product_id: fields.product_ids,
     type: "spend",
-    status: "open", // Open = not yet paid, invoice needs to be sent
-    credits_amount: fields.credits_amount,
-    money_amount: fields.money_amount,
+    status: "open",
+    total_credits: fields.total_credits,
+    total_cost: fields.total_cost,
     reference_type: "vacancy",
     context: fields.context || "vacancy",
     invoice_details_snapshot: fields.invoice_details_snapshot,
@@ -2745,7 +2722,6 @@ export async function createInvoiceTransaction(fields: {
   try {
     const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
     
-    // Update the record to set the id field with the record ID
     await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
 
     const recordFields = record.fields;
@@ -2758,7 +2734,6 @@ export async function createInvoiceTransaction(fields: {
     const vacancy_id = Array.isArray(recordFields.vacancy)
       ? recordFields.vacancy[0] || null
       : recordFields.vacancy || null;
-    // vacancy_name is a lookup field, so it comes back as an array
     const vacancy_name = Array.isArray(recordFields.vacancy_name)
       ? recordFields.vacancy_name[0] || null
       : recordFields.vacancy_name || null;
@@ -2774,12 +2749,10 @@ export async function createInvoiceTransaction(fields: {
       reference_type: recordFields.reference_type || null,
       context: (recordFields.context as string) || null,
       status: recordFields.status,
-      money_amount: recordFields.money_amount || null,
-      total_cost: null,
-      total_credits: recordFields.credits_amount || null,
-      credits_shortage: recordFields.credits_amount || null,
-      credits_invoiced: recordFields.credits_amount || null,
-      credits_amount: recordFields.credits_amount || 0,
+      total_cost: recordFields.total_cost || null,
+      total_credits: recordFields.total_credits || null,
+      credits_shortage: recordFields.total_credits || null,
+      credits_invoiced: recordFields.total_credits || null,
       vacancy_name,
       invoice: null,
       invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
@@ -2981,7 +2954,7 @@ export async function getExpiringCredits(
 
 /**
  * Get the credit expiry warning days setting
- * Returns the first credit_expiry_warning_days found from active credit bundles
+ * Returns the first credits_expiry_warning_days found from active credit bundles
  * Falls back to 30 days if not configured
  */
 export async function getCreditExpiryWarningDays(): Promise<number> {
@@ -2992,10 +2965,10 @@ export async function getCreditExpiryWarningDays(): Promise<number> {
   try {
     const products = await getActiveProductsByType("credit_bundle");
     
-    // Find the first product with credit_expiry_warning_days set
+    // Find the first product with credits_expiry_warning_days set
     for (const product of products) {
-      if (product.credit_expiry_warning_days && product.credit_expiry_warning_days > 0) {
-        return product.credit_expiry_warning_days;
+      if (product.credits_expiry_warning_days && product.credits_expiry_warning_days > 0) {
+        return product.credits_expiry_warning_days;
       }
     }
     

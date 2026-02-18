@@ -31,11 +31,11 @@ export const loginRateLimiter = redis
     })
   : null;
 
-// Onboarding/account creation: 3 per hour per IP
+// Onboarding/account creation: 10 per hour per IP
 export const onboardingRateLimiter = redis
   ? new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(3, "1 h"),
+      limiter: Ratelimit.slidingWindow(10, "1 h"),
       prefix: "ratelimit:onboarding",
       analytics: true,
     })
