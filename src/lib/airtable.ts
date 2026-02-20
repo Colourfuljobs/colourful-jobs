@@ -54,6 +54,7 @@ export const employerRecordSchema = z.object({
   "invoice_postal-code": z.string().optional(),
   invoice_city: z.string().optional(),
   sector: z.array(z.string()).optional(), // Linked record to Sectors table
+  location: z.string().optional(),
   short_description: z.string().optional(),
   logo: z.array(z.string()).optional(), // Linked record to Media Assets
   header_image: z.array(z.string()).optional(), // Linked record to Media Assets
