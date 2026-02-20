@@ -16,7 +16,7 @@ export function WeDoItForYouBanner({ product, onSelect, hasEnoughCredits = false
 
   const creditInfo = (
     <p className="text-sm font-medium text-[#1F2D58] mb-4">
-      +{product.credits} credits
+      {product.credits} credits
       {!hasEnoughCredits && (
         <span className="text-[#1F2D58]/60"> (€{product.price.toFixed(2).replace(".", ",")})</span>
       )}

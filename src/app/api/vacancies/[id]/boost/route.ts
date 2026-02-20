@@ -191,6 +191,8 @@ export async function POST(
       display_name: string;
       credits: number;
       price: number;
+      linked_tag?: string | null;
+      duration_days?: number | null;
     }[] = [];
 
     for (const upsellId of upsellsToProcess) {
@@ -219,6 +221,8 @@ export async function POST(
         display_name: upsell.display_name,
         credits: upsell.credits,
         price: upsell.price,
+        linked_tag: upsell.linked_tag,
+        duration_days: upsell.duration_days,
       });
     }
 
@@ -262,6 +266,16 @@ export async function POST(
       console.log("[Boost] FIFO spend result:", fifoResult);
     }
 
+    // Calculate expires_at: earliest expiry among upsells with duration_days + linked_tag
+    const boostNow = new Date();
+    const boostMinDays = validUpsells
+      .filter((u) => u.duration_days && u.linked_tag)
+      .map((u) => u.duration_days!)
+      .sort((a, b) => a - b)[0];
+    const boostExpiresAt = boostMinDays
+      ? new Date(boostNow.getTime() + boostMinDays * 24 * 60 * 60 * 1000).toISOString()
+      : undefined;
+
     // Create spend transaction with context "boost"
     if (totalCredits > 0) {
       await createSpendTransaction({
@@ -275,8 +289,21 @@ export async function POST(
         invoice_amount: 0,
         product_ids: upsellsToProcess,
         context: "boost",
+        ...(boostExpiresAt ? { expires_at: boostExpiresAt } : {}),
       });
     }
+
+    // Collect tags from boost upsells that have a linked_tag
+    const existingTagIds = vacancy.tag_ids || [];
+    const updatedTagIds = new Set(existingTagIds);
+
+    for (const upsell of validUpsells) {
+      if (upsell.linked_tag && !updatedTagIds.has(upsell.linked_tag)) {
+        updatedTagIds.add(upsell.linked_tag);
+      }
+    }
+
+    const finalTagIds = Array.from(updatedTagIds);
 
     // Build vacancy update object
     const vacancyUpdate: Record<string, unknown> = {};
@@ -305,6 +332,9 @@ export async function POST(
       vacancyUpdate["last-published-at"] = new Date().toISOString();
       statusChanged = true;
     }
+
+    // Assign tags from upsells with a linked_tag
+    vacancyUpdate.tag_ids = finalTagIds;
 
     // Mark for Webflow sync
     vacancyUpdate.needs_webflow_sync = true;

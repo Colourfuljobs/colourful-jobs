@@ -361,10 +361,7 @@ export function AirtableAdapter(): Adapter {
         }
         
         const record = await getBase()(VERIFICATION_TOKENS_TABLE).create(recordFields);
-        
-        // Update the record to set the id field to the Airtable record ID
-        await getBase()(VERIFICATION_TOKENS_TABLE).update(record.id, { id: record.id });
-        
+
         const expiresValue = record.fields.expires;
         const expiresDate = expiresValue instanceof Date 
           ? expiresValue 

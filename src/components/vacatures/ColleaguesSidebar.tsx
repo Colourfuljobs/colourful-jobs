@@ -3,9 +3,8 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Check, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 
 interface Recommendation {
   firstName: string;
@@ -201,22 +200,15 @@ export function ColleaguesSidebar({
     <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="w-10 h-10 rounded-full bg-[#193DAB]/[0.12] flex items-center justify-center flex-shrink-0">
-          <Users className="w-5 h-5 text-[#1F2D58]" />
+          <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="12" fill="#1F2D58"/>
+            <path fill="white" d="M7.2 9.6h2.4v7.8H7.2V9.6zm1.2-3.8a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8zm3.1 3.8h2.3v1.07h.03c.32-.6 1.1-1.23 2.27-1.23 2.43 0 2.87 1.6 2.87 3.67v4.29h-2.4v-3.8c0-.91-.02-2.08-1.27-2.08-1.27 0-1.46.99-1.46 2.01v3.87H11.5V9.6z"/>
+          </svg>
         </div>
-        {packageName && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="cursor-help">
-                <Badge variant="package">Extra boost</Badge>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>Extra bij vacaturepakket {packageName}</TooltipContent>
-          </Tooltip>
-        )}
       </div>
       <h4 className="text-lg font-bold text-[#1F2D58] mb-1">Vergroot het bereik van je social post</h4>
       <p className="text-sm text-[#1F2D58]/70 mb-4">
-        We delen je vacature op onze LinkedIn en Instagram. Tag collega&apos;s om het bereik te vergroten.
+        We delen je vacature op onze LinkedIn pagina. Tag collega&apos;s om het bereik te vergroten.
       </p>
 
       <div className="space-y-3">

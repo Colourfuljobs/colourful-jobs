@@ -6,7 +6,8 @@ export function StepIndicator({
   currentStep,
   completedSteps,
   onStepClick,
-  steps,  // NIEUW: optionele custom stappen
+  steps,
+  maxReachedStep,
 }: StepIndicatorProps) {
   // Gebruik meegegeven stappen of fallback naar default
   const wizardSteps = steps || WIZARD_STEPS_NEW;
@@ -16,12 +17,11 @@ export function StepIndicator({
 
   const isStepClickable = (step: WizardStep): boolean => {
     if (!onStepClick) return false;
-    // Can always go back to completed steps
+    // When maxReachedStep is provided, only allow navigation up to that step
+    if (maxReachedStep !== undefined) return step <= maxReachedStep;
+    // Fallback (when maxReachedStep not provided): completed steps or current step
     if (completedSteps.includes(step)) return true;
-    // Can go to current step
     if (step === currentStep) return true;
-    // Can go to next step if current is completed
-    if (step === currentStep + 1 && completedSteps.includes(currentStep as WizardStep)) return true;
     return false;
   };
 
@@ -43,12 +43,14 @@ export function StepIndicator({
                   onClick={() => clickable && onStepClick?.(step.number)}
                   disabled={!clickable}
                   className={`flex items-center gap-2 ${
-                    clickable ? "cursor-pointer" : "cursor-default"
+                    clickable ? "cursor-pointer" : "cursor-not-allowed"
                   }`}
                 >
-                  {/* Step number badge */}
+                  {/* Step number / icon badge */}
                   <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-[13px] font-medium transition-all duration-200 pb-[3px] ${
+                    className={`flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200 ${
+                      step.icon ? "" : "text-[13px] font-medium pb-[3px]"
+                    } ${
                       isActive
                         ? "bg-[#39ADE5] text-white"
                         : isPast || isCompleted
@@ -56,7 +58,11 @@ export function StepIndicator({
                         : "bg-[#1F2D58]/[0.12] text-[#1F2D58]"
                     }`}
                   >
-                    {step.number}
+                    {step.icon ? (
+                      <step.icon className="h-3.5 w-3.5" />
+                    ) : (
+                      step.number
+                    )}
                   </span>
 
                   {/* Step label - hidden on mobile for non-active steps */}

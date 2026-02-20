@@ -289,7 +289,7 @@ export function SubmitStep({
                         {upsell.display_name}
                       </span>
                       <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-                        +{upsell.credits} credits
+                        {upsell.credits} credits
                       </span>
                     </div>
                     

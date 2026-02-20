@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
       display_name: employer?.display_name || companyData.display_name,
       company_name: employer?.company_name || companyData.company_name,
       sector: employer?.sector?.[0] || companyData.sector,
+      location: employer?.location ?? undefined,
     });
 
     // If replacing existing media, soft delete the old one
@@ -176,7 +177,6 @@ export async function POST(request: NextRequest) {
       file: [{ url: uploadResult.secure_url }],
       alt_text: altText,
       file_size: Math.round(uploadResult.bytes / 1024), // Convert to KB
-      show_on_company_page: false,
     });
 
     // Update Employer with linked record to Media Asset

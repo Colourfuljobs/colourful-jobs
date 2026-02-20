@@ -96,7 +96,7 @@ export function CostSidebar({
                     {upsell.display_name}
                   </span>
                   <Badge variant="success" className="shrink-0">
-                    +{upsell.credits}
+                    {upsell.credits}
                   </Badge>
                 </div>
               ))}

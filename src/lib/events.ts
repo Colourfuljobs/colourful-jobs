@@ -150,9 +150,6 @@ export async function logEvent(params: LogEventParams): Promise<EventRecord | nu
   try {
     const record = await base(EVENTS_TABLE).create(airtableFields);
 
-    // Update the record to set the id field to the Airtable record ID
-    await base(EVENTS_TABLE).update(record.id, { id: record.id });
-
     return {
       id: record.id,
       event_type: params.event_type,

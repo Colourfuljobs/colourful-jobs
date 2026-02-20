@@ -181,7 +181,14 @@ export function BoostModal({
             if (tx?.["created-at"]) {
               const expiresAt = new Date(tx["created-at"]);
               expiresAt.setDate(expiresAt.getDate() + product.duration_days);
-              expiryLabel = `Tot ${expiresAt.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
+
+              if (product.duration_type === "cooldown") {
+                const renewableFrom = new Date(expiresAt);
+                renewableFrom.setDate(renewableFrom.getDate() + 1);
+                expiryLabel = `Opnieuw vanaf ${renewableFrom.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
+              } else {
+                expiryLabel = `Tot ${expiresAt.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
+              }
             }
           }
 
@@ -218,7 +225,14 @@ export function BoostModal({
             if (tx?.["created-at"]) {
               const expiresAt = new Date(tx["created-at"]);
               expiresAt.setDate(expiresAt.getDate() + product.duration_days);
-              expiryLabel = `Tot ${expiresAt.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
+
+              if (product.duration_type === "cooldown") {
+                const renewableFrom = new Date(expiresAt);
+                renewableFrom.setDate(renewableFrom.getDate() + 1);
+                expiryLabel = `Opnieuw vanaf ${renewableFrom.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
+              } else {
+                expiryLabel = `Tot ${expiresAt.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
+              }
             }
           }
 
@@ -544,7 +558,7 @@ export function BoostModal({
                                 {upsell.display_name}
                               </span>
                               <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-                                +{upsell.credits} credits
+                                {upsell.credits} credits
                               </span>
                             </div>
                             {upsell.description && (

@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+import { Pencil, Eye } from "lucide-react";
 import type { VacancyRecord, VacancyInputType, ProductRecord, LookupRecord, FeatureRecord } from "@/lib/airtable";
 
 // Extended product with populated features (from API)
@@ -11,6 +13,7 @@ export interface WizardStepConfig {
   number: WizardStep;
   label: string;
   shortLabel: string;
+  icon?: LucideIcon;
 }
 
 export const WIZARD_STEPS_NEW: WizardStepConfig[] = [
@@ -21,8 +24,8 @@ export const WIZARD_STEPS_NEW: WizardStepConfig[] = [
 ];
 
 export const WIZARD_STEPS_EDIT: WizardStepConfig[] = [
-  { number: 1, label: "Aanpassen", shortLabel: "Aanpassen" },
-  { number: 2, label: "Voorbeeld", shortLabel: "Voorbeeld" },
+  { number: 1, label: "Aanpassen", shortLabel: "Aanpassen", icon: Pencil },
+  { number: 2, label: "Voorbeeld", shortLabel: "Voorbeeld", icon: Eye },
 ];
 
 // Backward compatibility
@@ -43,6 +46,7 @@ export interface StepIndicatorProps {
   completedSteps: WizardStep[];
   onStepClick?: (step: WizardStep) => void;
   steps?: WizardStepConfig[];  // Optional custom steps for edit mode
+  maxReachedStep?: WizardStep;  // Highest step ever visited; unlocks free navigation up to this step
 }
 
 export interface CostSidebarProps {

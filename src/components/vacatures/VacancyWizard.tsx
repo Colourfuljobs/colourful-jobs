@@ -66,6 +66,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   // Track if this is an existing (already submitted) vacancy
   const [isExistingVacancy, setIsExistingVacancy] = useState(false);
 
+  // Track the highest step ever reached in this session for free stepper navigation
+  const [maxStepReached, setMaxStepReached] = useState<WizardStep>((initialStep || 1) as WizardStep);
+
   // Step mapping for edit mode vs new mode
   // Bepaal welke stappen de stepper toont
   const displaySteps: WizardStepConfig[] = isExistingVacancy
@@ -372,6 +375,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               currentStep: stepToUse as WizardStep,
               selectedUpsells: restoredUpsells,
             }));
+            // For existing vacancies all steps are already filled, so unlock full navigation
+            setMaxStepReached(isExisting ? 3 : stepToUse as WizardStep);
             
             // Initialize recommendations from vacancy data
             if (vacancy.recommendations) {
@@ -707,6 +712,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           currentStep: (prev.currentStep + 1) as WizardStep,
           isDirty: false, // Reset dirty state when entering step 2
         }));
+        setMaxStepReached((prev) => Math.max(prev, 2) as WizardStep);
         toast.success("Concept vacature aangemaakt");
         
         // Scroll to top of page
@@ -745,11 +751,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       }
     }
 
-    // Just navigate to next step
+    // Navigate to next step and track highest reached
+    const nextStep = Math.min(state.currentStep + 1, 4) as WizardStep;
     setState((prev) => ({
       ...prev,
-      currentStep: Math.min(prev.currentStep + 1, 4) as WizardStep,
+      currentStep: nextStep,
     }));
+    setMaxStepReached((prev) => Math.max(prev, nextStep) as WizardStep);
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -778,19 +786,33 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   }, [state.currentStep, isExistingVacancy, cleanupEmptyRecommendations, isReadOnly]);
 
   // Handle step click in indicator
-  const handleStepClick = useCallback((step: WizardStep) => {
+  const handleStepClick = useCallback(async (step: WizardStep) => {
     // Block navigation in read-only mode
     if (isReadOnly) return;
 
     // Bij edit-mode, blokkeer stap 1
     if (isExistingVacancy && step < 2) return;
     
-    const completedSteps = getCompletedSteps();
-    
-    // Can go to step if it's completed or is the next step after current
-    if (completedSteps.includes(step) || step <= state.currentStep) {
-      // Clean up empty colleague entries when leaving step 2
-      if (state.currentStep === 2 && step !== 2) {
+    // Allow navigation to any step that has been reached in this session
+    if (step <= maxStepReached) {
+      // Validate when navigating forward from step 2 (same check as the "Verder" button)
+      if (step > state.currentStep && state.currentStep === 2) {
+        cleanupEmptyRecommendations();
+        const validation = validateVacancy();
+        if (!validation.valid) {
+          setValidationErrors(validation.errors);
+          const errorCount = Object.keys(validation.errors).length;
+          toast.error("Vul de verplichte velden in", {
+            description: `${errorCount} ${errorCount === 1 ? "veld is" : "velden zijn"} niet correct ingevuld`,
+          });
+          return;
+        }
+        setValidationErrors({});
+        if (state.isDirty) {
+          await saveVacancy();
+        }
+      } else if (state.currentStep === 2 && step !== 2) {
+        // Clean up empty colleague entries when leaving step 2 going backwards
         cleanupEmptyRecommendations();
       }
       
@@ -799,7 +821,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       // Scroll to top of page
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [state.currentStep, isExistingVacancy, getCompletedSteps, cleanupEmptyRecommendations, isReadOnly]);
+  }, [maxStepReached, state.currentStep, state.isDirty, isExistingVacancy, validateVacancy, saveVacancy, cleanupEmptyRecommendations, isReadOnly]);
 
   // Handle credits purchase success
   const handleCreditsSuccess = useCallback(async (_newBalance: number, _purchasedAmount?: number) => {
@@ -1323,16 +1345,22 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               <div className="w-full">
                 <StepIndicator
                   currentStep={getDisplayStep(state.currentStep) as WizardStep}
-                  completedSteps={getCompletedSteps().map(s => getDisplayStep(s)) as WizardStep[]}
+                  completedSteps={
+                    ([1, 2, 3, 4] as WizardStep[])
+                      .filter((s) => s <= maxStepReached)
+                      .map((s) => getDisplayStep(s as WizardStep))
+                      .filter((s, i, arr) => arr.indexOf(s) === i) as WizardStep[]
+                  }
                   steps={displaySteps}
                   onStepClick={(displayStep) => handleStepClick(getInternalStep(displayStep))}
+                  maxReachedStep={getDisplayStep(maxStepReached) as WizardStep}
                 />
               </div>
               {/* Progress bar at bottom, edge-to-edge */}
               <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-transparent">
                 <div
                   className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
-                  style={{ width: `${(getDisplayStep(state.currentStep) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
+                  style={{ width: `${(getDisplayStep(maxStepReached) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
                 />
               </div>
             </div>
@@ -1342,7 +1370,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           <div className={`flex-1 ${isReadOnly ? "" : "md:hidden"}`} />
 
           {/* Right: Close + save status with left border */}
-          <div className="flex flex-col items-end justify-center border-l border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6">
+          <div className="flex flex-col items-end justify-center border-l border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6 min-w-[132px] sm:min-w-[160px]">
             <Button
               variant="link"
               onClick={handleBack}
@@ -1374,16 +1402,22 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             <div className="px-4 sm:px-8 py-3">
               <StepIndicator
                 currentStep={getDisplayStep(state.currentStep) as WizardStep}
-                completedSteps={getCompletedSteps().map(s => getDisplayStep(s)) as WizardStep[]}
+                completedSteps={
+                  ([1, 2, 3, 4] as WizardStep[])
+                    .filter((s) => s <= maxStepReached)
+                    .map((s) => getDisplayStep(s as WizardStep))
+                    .filter((s, i, arr) => arr.indexOf(s) === i) as WizardStep[]
+                }
                 steps={displaySteps}
                 onStepClick={(displayStep) => handleStepClick(getInternalStep(displayStep))}
+                maxReachedStep={getDisplayStep(maxStepReached) as WizardStep}
               />
             </div>
             {/* Progress bar at bottom, edge-to-edge */}
             <div className="h-[3px] bg-transparent">
               <div
                 className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
-                style={{ width: `${(getDisplayStep(state.currentStep) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
+                style={{ width: `${(getDisplayStep(maxStepReached) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
               />
             </div>
           </div>
@@ -1432,7 +1466,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   <div>
                     <h4 className="text-lg font-bold text-[#1F2D58]">{weDoItForYouProduct.display_name}</h4>
                     <p className="text-xs text-[#1F2D58]/60">
-                      +{weDoItForYouProduct.credits} credits{(() => {
+                      {weDoItForYouProduct.credits} credits{(() => {
                         const pkgCredits = state.selectedPackage?.credits || 0;
                         const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
                         const totalCredits = pkgCredits + upsellCreds;
@@ -1612,7 +1646,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   </div>
                   {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
                     <span className="text-[#1F2D58]/60 text-xs">
-                      We do it for you (+{weDoItForYouProduct.credits} credits{(() => {
+                      We do it for you ({weDoItForYouProduct.credits} credits{(() => {
                         const pkgCredits = state.selectedPackage?.credits || 0;
                         const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
                         const totalCredits = pkgCredits + upsellCreds;

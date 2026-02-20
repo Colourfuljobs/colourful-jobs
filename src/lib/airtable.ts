@@ -73,7 +73,6 @@ export const mediaAssetRecordSchema = z.object({
   file: z.array(z.any()).optional(), // Airtable attachment
   alt_text: z.union([z.string(), z.any()]).optional(), // Can be string or lookup field
   file_size: z.number().optional(),
-  show_on_company_page: z.boolean().default(false),
   is_deleted: z.boolean().default(false),
   "created-at": z.string().optional(),
 });
@@ -154,7 +153,9 @@ export const productRecordSchema = z.object({
   billing_cycle: z.enum(["one_time", "yearly"]).nullable().optional(), // Billing cycle for credit bundles
   repeat_mode: z.enum(["once", "unlimited", "renewable", "until_max"]).nullable().optional(), // Controls repeat purchase behavior per vacancy
   duration_days: z.number().int().nullable().optional(), // Base duration in days: for vacancy_package = online duration, for upsell with repeat_mode=renewable = effect duration
+  duration_type: z.enum(["active_period", "cooldown"]).nullable().optional(), // How duration_days is interpreted for renewable upsells: active_period = effect is active for X days, cooldown = must wait X days before reordering
   max_value: z.number().int().nullable().optional(), // Only for repeat_mode=until_max: maximum cumulative value (e.g. 365 days)
+  linked_tag: z.string().nullable().optional(), // Linked record to Tags table — tag to assign to vacancy when this product is active
 });
 
 export const featureActionTagEnum = z.enum([
@@ -213,12 +214,22 @@ const appToAirtableStatusMap: Record<string, string> = {
 function mapVacancyStatusFromAirtable(status: string | undefined): string {
   if (!status) return "concept";
   const normalizedStatus = status.toLowerCase().replace(/[\s-]/g, "_");
-  return airtableToAppStatusMap[normalizedStatus] || airtableToAppStatusMap[status.toLowerCase()] || "concept";
+  const mapped = airtableToAppStatusMap[normalizedStatus] || airtableToAppStatusMap[status.toLowerCase()];
+  if (!mapped) {
+    console.warn(`[mapVacancyStatusFromAirtable] Unknown Airtable status "${status}", falling back to "concept"`);
+    return "concept";
+  }
+  return mapped;
 }
 
 function mapVacancyStatusToAirtable(status: string | undefined): string {
   if (!status) return "concept";
-  return appToAirtableStatusMap[status] || status;
+  const mapped = appToAirtableStatusMap[status];
+  if (!mapped) {
+    console.error(`[mapVacancyStatusToAirtable] Invalid vacancy status rejected: "${status}"`);
+    throw new Error(`Invalid vacancy status: ${status}`);
+  }
+  return mapped;
 }
 
 export const vacancyInputTypeEnum = z.enum(["self_service", "we_do_it_for_you"]);
@@ -249,6 +260,7 @@ export const vacancyRecordSchema = z.object({
   // Package & upsells
   package_id: z.string().nullable().optional(), // Linked to Products
   selected_upsells: z.array(z.string()).optional(), // Linked to Products (multiple)
+  tag_ids: z.array(z.string()).optional(), // Linked records to Tags table
   
   // Application
   apply_url: z.string().nullable().optional(),
@@ -484,9 +496,6 @@ export async function createUser(fields: {
   try {
     const record = await base(USERS_TABLE).create(airtableFields);
 
-    // Update the record to set the id field to the Airtable record ID
-    await base(USERS_TABLE).update(record.id, { id: record.id });
-
     const resultFields = record.fields;
     const extracted = extractUserFields(resultFields as Record<string, unknown>);
 
@@ -543,9 +552,6 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
 
   try {
     const record = await base(EMPLOYERS_TABLE).create(airtableFields);
-
-    // Update the record to set the employer_id field to the Airtable record ID
-    await base(EMPLOYERS_TABLE).update(record.id, { employer_id: record.id });
 
     return employerRecordSchema.parse({
       id: record.id,
@@ -762,9 +768,6 @@ export async function createWallet(employerId: string): Promise<WalletRecord> {
 
   try {
     const record = await base(WALLETS_TABLE).create(airtableFields);
-
-    // Update the record to set the id field to the Airtable record ID
-    await base(WALLETS_TABLE).update(record.id, { id: record.id });
 
     const fields = record.fields;
     // Extract linked record ID from array
@@ -1235,7 +1238,6 @@ export async function getMediaAssetById(id: string): Promise<MediaAssetRecord | 
       file: fields.file || [],
       alt_text,
       file_size: fields.file_size || 0,
-      show_on_company_page: fields.show_on_company_page || false,
       is_deleted: fields.is_deleted || false,
       "created-at": fields["created-at"] as string | undefined,
     });
@@ -1328,7 +1330,6 @@ export async function getMediaAssetsByEmployerId(
         file: fields.file || [],
         alt_text,
         file_size: fields.file_size || 0,
-        show_on_company_page: fields.show_on_company_page || false,
         is_deleted: fields.is_deleted || false,
         "created-at": fields["created-at"] as string | undefined,
       });
@@ -1348,7 +1349,6 @@ export async function createMediaAsset(fields: {
   file?: any[];
   alt_text?: string;
   file_size?: number;
-  show_on_company_page?: boolean;
 }): Promise<MediaAssetRecord> {
   if (!baseId || !apiKey) {
     throw new Error("Airtable not configured");
@@ -1367,7 +1367,6 @@ export async function createMediaAsset(fields: {
     airtableFields.alt_text = fields.alt_text.trim();
   }
   if (fields.file_size !== undefined) airtableFields.file_size = fields.file_size;
-  if (fields.show_on_company_page !== undefined) airtableFields.show_on_company_page = fields.show_on_company_page;
 
   try {
     const record = await base(MEDIA_ASSETS_TABLE).create(airtableFields);
@@ -1384,7 +1383,6 @@ export async function createMediaAsset(fields: {
       file: recordFields.file || [],
       alt_text: recordFields.alt_text || "",
       file_size: recordFields.file_size || 0,
-      show_on_company_page: recordFields.show_on_company_page || false,
       is_deleted: recordFields.is_deleted || false,
       "created-at": recordFields["created-at"] as string | undefined,
     });
@@ -1411,7 +1409,6 @@ export async function updateMediaAsset(
   if (fields.file !== undefined) airtableFields.file = fields.file;
   if (fields.alt_text !== undefined) airtableFields.alt_text = fields.alt_text;
   if (fields.file_size !== undefined) airtableFields.file_size = fields.file_size;
-  if (fields.show_on_company_page !== undefined) airtableFields.show_on_company_page = fields.show_on_company_page;
   if (fields.is_deleted !== undefined) airtableFields.is_deleted = fields.is_deleted;
 
   const record = await base(MEDIA_ASSETS_TABLE).update(id, airtableFields);
@@ -1425,13 +1422,12 @@ export async function updateMediaAsset(
     id: record.id,
     employer_id,
     type: recordFields.type,
-    file: recordFields.file || [],
-    alt_text: recordFields.alt_text || "",
-    file_size: recordFields.file_size || 0,
-    show_on_company_page: recordFields.show_on_company_page || false,
-    is_deleted: recordFields.is_deleted || false,
-    "created-at": recordFields["created-at"] as string | undefined,
-  });
+      file: recordFields.file || [],
+      alt_text: recordFields.alt_text || "",
+      file_size: recordFields.file_size || 0,
+      is_deleted: recordFields.is_deleted || false,
+      "created-at": recordFields["created-at"] as string | undefined,
+    });
 }
 
 /**
@@ -1734,6 +1730,7 @@ export async function getActiveProductsByType(
       const features = Array.isArray(fields.features) ? fields.features : [];
       const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
       const target_roles = Array.isArray(fields.target_roles) ? fields.target_roles : [];
+      const linked_tag = Array.isArray(fields.linked_tag) ? fields.linked_tag[0] || null : null;
 
       const availability = Array.isArray(fields.availability) ? fields.availability : [];
 
@@ -1758,7 +1755,9 @@ export async function getActiveProductsByType(
         billing_cycle: fields.billing_cycle || null,
         repeat_mode: fields.repeat_mode || null,
         duration_days: fields.duration_days || null,
+        duration_type: fields.duration_type || null,
         max_value: fields.max_value || null,
+        linked_tag,
       });
     });
   } catch (error: unknown) {
@@ -1804,6 +1803,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
     const features = Array.isArray(fields.features) ? fields.features : [];
     const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
     const target_roles = Array.isArray(fields.target_roles) ? fields.target_roles : [];
+    const linked_tag = Array.isArray(fields.linked_tag) ? fields.linked_tag[0] || null : null;
 
     const availability = Array.isArray(fields.availability) ? fields.availability : [];
 
@@ -1828,7 +1828,9 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       billing_cycle: fields.billing_cycle || null,
       repeat_mode: fields.repeat_mode || null,
       duration_days: fields.duration_days || null,
+      duration_type: fields.duration_type || null,
       max_value: fields.max_value || null,
+      linked_tag,
     });
   } catch (error: unknown) {
     console.error("Error getting product by ID:", getErrorMessage(error));
@@ -2018,9 +2020,6 @@ export async function createPurchaseTransaction(fields: {
 
   try {
     const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
-    
-    // Update the record to set the id field with the record ID
-    await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
 
     const recordFields = record.fields;
     const employer_id = Array.isArray(recordFields.employer)
@@ -2103,6 +2102,7 @@ function parseVacancyFields(record: any): VacancyRecord {
   const selected_upsells = Array.isArray(fields.selected_upsells) 
     ? fields.selected_upsells 
     : [];
+  const tag_ids = Array.isArray(fields.tags) ? fields.tags : [];
   const header_image = Array.isArray(fields.header_image) 
     ? fields.header_image[0] || null 
     : null;
@@ -2166,6 +2166,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     sector_id,
     package_id,
     selected_upsells,
+    tag_ids,
     apply_url: fields.apply_url || "",
     application_email: fields.application_email || "",
     show_apply_form: fields.show_apply_form || false,
@@ -2282,13 +2283,8 @@ export async function createVacancy(fields: {
 
   try {
     const record = await base(VACANCIES_TABLE).create(airtableFields);
-    
-    // Update the record to set the id field to the Record ID
-    const updatedRecord = await base(VACANCIES_TABLE).update(record.id, {
-      id: record.id,
-    });
-    
-    return parseVacancyFields(updatedRecord);
+
+    return parseVacancyFields(record);
   } catch (error: unknown) {
     console.error("Error creating vacancy:", getErrorMessage(error));
     throw new Error(`Failed to create vacancy: ${getErrorMessage(error)}`);
@@ -2347,6 +2343,9 @@ export async function updateVacancy(
   }
   if (fields.selected_upsells !== undefined) {
     airtableFields.selected_upsells = fields.selected_upsells || [];
+  }
+  if (fields.tag_ids !== undefined) {
+    airtableFields.tags = fields.tag_ids || [];
   }
   
   // Application
@@ -2598,6 +2597,9 @@ export async function createSpendTransaction(fields: {
   invoice_amount: number; // Euro amount to be invoiced (0 if enough credits)
   product_ids: string[]; // Package ID + upsell IDs
   context?: TransactionRecord["context"];
+  // Optional: when the product effects of this transaction expire (created_at + product.duration_days)
+  // Set when any product in this transaction has duration_days + linked_tag, so n8n can remove the tag on expiry
+  expires_at?: string;
   // Optional invoice fields for partial payment (when credits are insufficient)
   invoice_details_snapshot?: string;
   invoice_trigger?: "on_vacancy_publish";
@@ -2625,6 +2627,7 @@ export async function createSpendTransaction(fields: {
     reference_type: "vacancy",
     context: fields.context || "vacancy",
     "created-at": new Date().toISOString(),
+    ...(fields.expires_at ? { expires_at: fields.expires_at } : {}),
   };
 
   // Add invoice fields if partial payment (credits insufficient)
@@ -2635,9 +2638,6 @@ export async function createSpendTransaction(fields: {
 
   try {
     const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
-    
-    // Update the record to set the id field with the record ID
-    await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
 
     const recordFields = record.fields;
     const employer_id = Array.isArray(recordFields.employer)
@@ -2676,6 +2676,7 @@ export async function createSpendTransaction(fields: {
       invoice: null,
       invoice_details_snapshot: (recordFields.invoice_details_snapshot as string) || null,
       invoice_trigger: (recordFields.invoice_trigger as "on_vacancy_publish") || null,
+      expires_at: (recordFields.expires_at as string) || null,
       "created-at": recordFields["created-at"] as string | undefined,
     });
   } catch (error: unknown) {
@@ -2721,8 +2722,6 @@ export async function createInvoiceTransaction(fields: {
 
   try {
     const record = await base(TRANSACTIONS_TABLE).create(airtableFields);
-    
-    await base(TRANSACTIONS_TABLE).update(record.id, { id: record.id });
 
     const recordFields = record.fields;
     const employer_id = Array.isArray(recordFields.employer)

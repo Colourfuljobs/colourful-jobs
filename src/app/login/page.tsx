@@ -284,7 +284,7 @@ export default function LoginPage() {
                       </Label>
                     </div>
                     {emailError && (
-                      <p className="text-sm text-red-500">
+                      <p className="text-sm text-red-500 mt-1 px-2">
                         {emailError.includes("bestaat") ? (
                           <>
                             {emailError}{" "}

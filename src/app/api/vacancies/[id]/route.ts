@@ -7,6 +7,7 @@ import {
   updateVacancy,
   getTransactionsByVacancyId,
   VacancyRecord,
+  vacancyStatusEnum,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent } from "@/lib/events";
@@ -171,6 +172,18 @@ export async function PATCH(
     // Remove empty date fields (Airtable doesn't accept empty strings for date fields)
     if (updates.closing_date === '' || updates.closing_date === null) {
       delete updates.closing_date;
+    }
+
+    // Validate status against allowed values if provided
+    if (updates.status !== undefined) {
+      const parseResult = vacancyStatusEnum.safeParse(updates.status);
+      if (!parseResult.success) {
+        console.error(`[PATCH /api/vacancies/${id}] Invalid status rejected: "${updates.status}"`);
+        return NextResponse.json(
+          { error: `Ongeldige status: ${updates.status}` },
+          { status: 400 }
+        );
+      }
     }
 
     // Update vacancy

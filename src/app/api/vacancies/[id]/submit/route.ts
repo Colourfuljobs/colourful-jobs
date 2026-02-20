@@ -119,10 +119,12 @@ export async function POST(
     let totalPrice = packageProduct.price;
     const upsellIds = vacancy.selected_upsells || [];
     let hasVandaagOnline = false;
+    const fetchedUpsells: NonNullable<Awaited<ReturnType<typeof getProductById>>>[] = [];
     
     for (const upsellId of upsellIds) {
       const upsell = await getProductById(upsellId);
       if (upsell) {
+        fetchedUpsells.push(upsell);
         totalCredits += upsell.credits;
         totalPrice += upsell.price;
         if (upsell.slug === "prod_upsell_same_day") {
@@ -200,6 +202,17 @@ export async function POST(
       console.log("[Submit] FIFO spend result:", fifoResult);
     }
 
+    // Calculate expires_at for the main transaction: earliest expiry among products
+    // that have both duration_days and a linked_tag (these are the timed tag effects)
+    const now = new Date();
+    const mainExpiresAt = [packageProduct, ...fetchedUpsells]
+      .filter((p) => p.duration_days && p.linked_tag)
+      .map((p) => p.duration_days!)
+      .sort((a, b) => a - b)[0];
+    const mainTransactionExpiresAt = mainExpiresAt
+      ? new Date(now.getTime() + mainExpiresAt * 24 * 60 * 60 * 1000).toISOString()
+      : undefined;
+
     // Create a single spend transaction (with optional invoice details for partial payment)
     await createSpendTransaction({
       employer_id: vacancy.employer_id,
@@ -212,6 +225,7 @@ export async function POST(
       invoice_amount: invoiceAmount, // Euro amount to be invoiced
       product_ids: allProductIds,
       context: "vacancy",
+      ...(mainTransactionExpiresAt ? { expires_at: mainTransactionExpiresAt } : {}),
       // Include invoice details if there's a shortage
       ...(shortage > 0 && invoiceDetails ? {
         invoice_details_snapshot: JSON.stringify(invoiceDetails),
@@ -222,9 +236,16 @@ export async function POST(
     // Create €0 "included" transactions for each upsell included in the package
     // These enable the repeat_mode engine to track when included upsell effects expire
     const includedUpsellIds = packageProduct.included_upsells || [];
+    const fetchedIncludedUpsells: NonNullable<Awaited<ReturnType<typeof getProductById>>>[] = [];
     if (includedUpsellIds.length > 0) {
       console.log("[Submit] Creating included upsell transactions:", includedUpsellIds.length);
       for (const includedUpsellId of includedUpsellIds) {
+        const includedUpsell = await getProductById(includedUpsellId);
+        if (includedUpsell) fetchedIncludedUpsells.push(includedUpsell);
+        const includedExpiresAt =
+          includedUpsell?.duration_days && includedUpsell?.linked_tag
+            ? new Date(now.getTime() + includedUpsell.duration_days * 24 * 60 * 60 * 1000).toISOString()
+            : undefined;
         await createSpendTransaction({
           employer_id: vacancy.employer_id,
           wallet_id: wallet.id,
@@ -236,9 +257,28 @@ export async function POST(
           invoice_amount: 0,
           product_ids: [includedUpsellId],
           context: "included",
+          ...(includedExpiresAt ? { expires_at: includedExpiresAt } : {}),
         });
       }
     }
+
+    // Collect tags from upsells that have a linked_tag (selected + included in package)
+    const existingTagIds = vacancy.tag_ids || [];
+    const newTagIds = new Set(existingTagIds);
+
+    for (const upsell of fetchedUpsells) {
+      if (upsell.linked_tag && !newTagIds.has(upsell.linked_tag)) {
+        newTagIds.add(upsell.linked_tag);
+      }
+    }
+
+    for (const includedUpsell of fetchedIncludedUpsells) {
+      if (includedUpsell.linked_tag && !newTagIds.has(includedUpsell.linked_tag)) {
+        newTagIds.add(includedUpsell.linked_tag);
+      }
+    }
+
+    const finalTagIds = Array.from(newTagIds);
 
     // Update vacancy status (and set high_priority if "Vandaag online" upsell is selected)
     // Strip DIY-only fields when submitting as "We do it for you"
@@ -248,6 +288,8 @@ export async function POST(
       status: "wacht_op_goedkeuring",
       "submitted-at": new Date().toISOString(),
       ...(hasVandaagOnline ? { high_priority: true } : {}),
+      tag_ids: finalTagIds,
+      needs_webflow_sync: true,
       // Strip DIY-only fields for "We do it for you" submissions
       // Use null for all fields to safely clear both text and select fields in Airtable
       ...(vacancy.input_type === "we_do_it_for_you" ? {

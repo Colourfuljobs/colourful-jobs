@@ -5,29 +5,55 @@ export interface CompanyData {
   display_name?: string;
   company_name?: string;
   sector?: string;
+  location?: string;
+}
+
+export interface ContactData {
+  name?: string;
+  role?: string;
 }
 
 /**
  * Generate alt text for images following WCAG best practices
  */
 export function generateAltText(
-  type: "logo" | "header",
-  companyData: CompanyData
+  type: "logo" | "header" | "sfeerbeeld" | "contact",
+  companyData: CompanyData,
+  contactData?: ContactData
 ): string {
   const companyName = companyData.display_name || companyData.company_name || "";
+  const sector = companyData.sector;
+  const location = companyData.location;
 
-  if (type === "logo") {
-    // Best practice: logo alt text is just the company name
-    return companyName;
+  switch (type) {
+    case "logo":
+      return `Logo van ${companyName}`;
+
+    case "header": {
+      const parts = [`Headerafbeelding van ${companyName}`];
+      if (sector) parts.push(sector);
+      if (location) parts.push(location);
+      return parts.join(" — ");
+    }
+
+    case "sfeerbeeld": {
+      if (sector && location) return `Werksfeer bij ${companyName} — ${sector} in ${location}`;
+      if (sector) return `Werksfeer bij ${companyName} — ${sector}`;
+      if (location) return `Werksfeer bij ${companyName} in ${location}`;
+      return `Werksfeer bij ${companyName}`;
+    }
+
+    case "contact": {
+      const name = contactData?.name || "";
+      const role = contactData?.role || "";
+      if (name && role) return `${name}, ${role} bij ${companyName}`;
+      if (name) return `${name} bij ${companyName}`;
+      return `Contactpersoon bij ${companyName}`;
+    }
+
+    default:
+      return companyName;
   }
-
-  // Header: contextuele beschrijving
-  let description = "Werkplek";
-  if (companyData.sector) {
-    description = `${companyData.sector} werkplek`;
-  }
-
-  return `${description} bij ${companyName}`;
 }
 
 /**

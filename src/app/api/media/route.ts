@@ -225,11 +225,12 @@ export async function POST(request: NextRequest) {
 
     // Generate alt text
     const altText = generateAltText(
-      type === "logo" ? "logo" : "header",
+      type as "logo" | "header" | "sfeerbeeld",
       {
         display_name: employer?.display_name,
         company_name: employer?.company_name,
         sector: employer?.sector?.[0],
+        location: employer?.location ?? undefined,
       }
     );
 
@@ -245,7 +246,6 @@ export async function POST(request: NextRequest) {
       file: [{ url: cloudinaryResult.secure_url }],
       alt_text: altText,
       file_size: Math.round(cloudinaryResult.bytes / 1024), // Convert to KB
-      show_on_company_page: false,
     });
 
     // Update Employer record (only for logo - gallery images are selected via werkgeversprofiel)

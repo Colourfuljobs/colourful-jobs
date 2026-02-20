@@ -76,7 +76,7 @@ export function ExtensionCard({
           )}
         </span>
         <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-          +{extensionUpsell.credits} credits
+          {extensionUpsell.credits} credits
         </span>
       </div>
 
