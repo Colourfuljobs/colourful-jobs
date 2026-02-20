@@ -8,6 +8,9 @@ import {
   ChevronDown,
   Download,
   FileText,
+  Wallet,
+  TrendingDown,
+  ShoppingCart,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -57,6 +60,7 @@ interface UITransaction {
   credits: number // positief = credit, negatief = debit
   invoiceStatus?: UIInvoiceStatus
   invoiceUrl?: string // alleen bij purchase
+  expiresAt?: Date // alleen bij purchase (creditpakketten)
 }
 
 interface CreditsOverview {
@@ -66,29 +70,24 @@ interface CreditsOverview {
 }
 
 // Type configuration (for the Type column — maps 1-on-1 from Airtable type)
+// Note: These are displayed as plain text, not badges
 const typeConfig: Record<UITransactionType, {
   label: string
-  variant: "success" | "info" | "warning" | "muted" | "destructive" | "error"
 }> = {
   purchase: {
     label: "Aankoop",
-    variant: "success",
   },
   spend: {
-    label: "Uitgave",
-    variant: "error",
+    label: "Besteed",
   },
   refund: {
     label: "Terugbetaling",
-    variant: "destructive",
   },
   adjustment: {
     label: "Aanpassing",
-    variant: "muted",
   },
   expiration: {
     label: "Verlopen",
-    variant: "muted",
   },
 }
 
@@ -116,25 +115,21 @@ const categoryConfig: Record<NonNullable<UITransactionCategory>, {
 }
 
 // Invoice status configuration
+// Note: These are displayed as plain text, not badges
 const invoiceStatusConfig: Record<UIInvoiceStatus, {
   label: string
-  variant: "info" | "success" | "warning" | "destructive"
 }> = {
   open: {
     label: "Open",
-    variant: "info",
   },
   betaald: {
     label: "Betaald",
-    variant: "success",
   },
   mislukt: {
     label: "Mislukt",
-    variant: "destructive",
   },
   terugbetaald: {
     label: "Terugbetaald",
-    variant: "warning",
   },
 }
 
@@ -252,6 +247,11 @@ function mapTransactionToUI(
     // Keep the original sign from the database
   }
 
+  // Parse expires_at for purchase transactions (credit packages)
+  const expiresAt = transaction.type === "purchase" && transaction.expires_at
+    ? new Date(transaction.expires_at)
+    : undefined
+
   return {
     id: transaction.id,
     date: transaction["created-at"] ? new Date(transaction["created-at"]) : new Date(),
@@ -261,6 +261,7 @@ function mapTransactionToUI(
     credits,
     invoiceStatus,
     invoiceUrl,
+    expiresAt,
   }
 }
 
@@ -479,52 +480,57 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div>
-              {/* Available credits - prominent */}
-              <div className="space-y-2">
-                <p className="text-4xl font-bold text-[#1F2D58]">
-                  {credits.available} <span className="text-base font-normal text-[#1F2D58]/70">beschikbare credits</span>
-                </p>
-                
-                {/* Credit expiry warning */}
-                {contextCredits.expiring_soon && contextCredits.expiring_soon.total > 0 && (
-                  <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2">
-                    <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                      <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
-                    </div>
-                    <span className="flex-1 pt-0.5">
-                      Let op: over {contextCredits.expiring_soon.days_until} {contextCredits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
-                      <strong>{contextCredits.expiring_soon.total} credits</strong>. Gebruik ze snel!
-                    </span>
-                    <div className="pt-0.5">
-                      <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
-                    </div>
+              {/* Credit stats grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Available - green */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#DEEEE3]">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <Wallet className="h-5 w-5 text-[#41712F]" />
                   </div>
-                )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.available}</p>
+                    <p className="text-sm text-[#1F2D58]/70">beschikbaar</p>
+                  </div>
+                </div>
+
+                {/* Used - red */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#F4DCDC]">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <TrendingDown className="h-5 w-5 text-[#BC0000]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.total_spent}</p>
+                    <p className="text-sm text-[#1F2D58]/70">gebruikt</p>
+                  </div>
+                </div>
+
+                {/* Purchased - blue */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#193DAB]/[0.08]">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <ShoppingCart className="h-5 w-5 text-[#193DAB]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.total_purchased}</p>
+                    <p className="text-sm text-[#1F2D58]/70">aangeschaft</p>
+                  </div>
+                </div>
               </div>
 
-              {/* Progress bar and stats */}
-              <div className="mt-6 space-y-3">
-                {/* Progress bar */}
-                <div className="h-3 w-full bg-[#E8EEF2] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-slate-400 rounded-full transition-all duration-500"
-                    style={{ 
-                      width: credits.total_purchased > 0 
-                        ? `${(credits.total_spent / credits.total_purchased) * 100}%` 
-                        : "0%" 
-                    }}
-                  />
-                </div>
-                {/* Labels */}
-                <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                  <span className="font-medium text-[#1F2D58]">
-                    {credits.total_spent} <span className="font-normal text-[#1F2D58]/70">gebruikt</span>
+              {/* Credit expiry warning */}
+              {contextCredits.expiring_soon && contextCredits.expiring_soon.total > 0 && (
+                <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2 mt-4">
+                  <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
+                  </div>
+                  <span className="flex-1 pt-0.5">
+                    Let op: over {contextCredits.expiring_soon.days_until} {contextCredits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
+                    <strong>{contextCredits.expiring_soon.total} credits</strong>. Gebruik ze snel!
                   </span>
-                  <span className="font-medium text-[#1F2D58]">
-                    {credits.available} <span className="font-normal text-[#1F2D58]/70">beschikbaar</span>
-                  </span>
+                  <div className="pt-0.5">
+                    <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Buy credits button */}
               <div className="mt-6">
@@ -575,7 +581,7 @@ export default function OrdersPage() {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button showArrow={false} onClick={() => setCheckoutModalOpen(true)}>
+                <Button variant="secondary" showArrow={false} onClick={() => setCheckoutModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Koop credits
                 </Button>
@@ -641,10 +647,10 @@ export default function OrdersPage() {
             <Table className="bg-white">
               <TableHeader>
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Datum</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Type</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Categorie</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Categorie</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Omschrijving</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Datum</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Type</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]">Factuur</TableHead>
@@ -662,20 +668,8 @@ export default function OrdersPage() {
 
                   return (
                     <TableRow key={transaction.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
-                      {/* Date */}
-                      <TableCell className="text-[#1F2D58] font-bold whitespace-nowrap">
-                        {formatDate(transaction.date)}
-                      </TableCell>
-
-                      {/* Type badge */}
+                      {/* Category badge */}
                       <TableCell>
-                        <Badge variant={tConfig.variant}>
-                          {tConfig.label}
-                        </Badge>
-                      </TableCell>
-
-                      {/* Category badge - hidden on mobile */}
-                      <TableCell className="hidden sm:table-cell">
                         {catConfig && (
                           <Badge variant={catConfig.variant}>
                             {catConfig.label}
@@ -686,6 +680,25 @@ export default function OrdersPage() {
                       {/* Description - hidden on mobile */}
                       <TableCell className="text-[#1F2D58] hidden sm:table-cell">
                         {transaction.description}
+                        {transaction.expiresAt && (
+                          <span className="text-[#1F2D58]/60">
+                            {" "}(geldig t/m {transaction.expiresAt.toLocaleDateString("nl-NL", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })})
+                          </span>
+                        )}
+                      </TableCell>
+
+                      {/* Date */}
+                      <TableCell className="text-[#1F2D58] whitespace-nowrap">
+                        {formatDate(transaction.date)}
+                      </TableCell>
+
+                      {/* Type - plain text, hidden on mobile */}
+                      <TableCell className="hidden sm:table-cell text-[#1F2D58]/60">
+                        {tConfig.label}
                       </TableCell>
 
                       {/* Credits - green for positive, default for negative */}
@@ -695,13 +708,9 @@ export default function OrdersPage() {
                         {transaction.credits > 0 ? "+" : ""}{transaction.credits}
                       </TableCell>
 
-                      {/* Invoice status - hidden on mobile */}
-                      <TableCell className="hidden sm:table-cell">
-                        {statusConfig && (
-                          <Badge variant={statusConfig.variant}>
-                            {statusConfig.label}
-                          </Badge>
-                        )}
+                      {/* Invoice status - plain text, hidden on mobile */}
+                      <TableCell className="hidden sm:table-cell text-[#1F2D58]/60">
+                        {statusConfig?.label}
                       </TableCell>
 
                       {/* Invoice download */}

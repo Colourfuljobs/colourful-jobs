@@ -334,9 +334,9 @@ export function MediaPickerDialog({
           )}
 
           {isLoading ? (
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 p-2">
+            <div className="flex flex-wrap gap-3 items-start px-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square rounded-lg" />
+                <Skeleton key={i} className="h-16 w-16 rounded-lg" />
               ))}
             </div>
           ) : displayAssets.length === 0 && !showUpload ? (
@@ -356,9 +356,9 @@ export function MediaPickerDialog({
               </Link>
             </div>
           ) : (
-            // Grid with images and optional upload tile (5 columns for 2 rows of 5)
+            // Flex layout with images in original aspect ratio
             <div className="px-2">
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+              <div className="flex flex-wrap gap-3 items-start">
                 {displayAssets.map((asset) => {
                   const selected = isSelected(asset.id)
                   const disabled = !selected && !canSelectMore
@@ -374,7 +374,7 @@ export function MediaPickerDialog({
                         onClick={() => !disabled && !deleting && handleToggle(asset.id)}
                         disabled={disabled || deleting}
                         className={`
-                          relative aspect-square rounded-lg overflow-hidden transition-all w-full
+                          relative h-16 rounded-lg overflow-hidden transition-all
                           focus:outline-none focus:ring-2 focus:ring-[#1F2D58] focus:ring-offset-2
                           ${selected 
                             ? "ring-2 ring-[#F86600] ring-offset-2" 
@@ -387,7 +387,7 @@ export function MediaPickerDialog({
                         <img
                           src={asset.url}
                           alt={asset.altText || "Media asset"}
-                          className="w-full h-full object-cover"
+                          className="h-16 w-auto object-contain"
                         />
                         
                         {/* Selection indicator */}
@@ -421,7 +421,7 @@ export function MediaPickerDialog({
                   )
                 })}
 
-              {/* Upload tile - as last grid item */}
+              {/* Upload tile - fixed size to match image height */}
               {showUpload && (() => {
                 const isAtMaxImages = images.length >= 10
                 const isDisabled = isAtMaxImages || isUploading
@@ -433,8 +433,8 @@ export function MediaPickerDialog({
                     onDrop={!isDisabled ? handleDrop : undefined}
                     onClick={() => !isDisabled && fileInputRef.current?.click()}
                     className={`
-                      relative aspect-square rounded-lg border-2 border-dashed transition-all
-                      flex flex-col items-center justify-center gap-2
+                      h-16 w-16 rounded-lg border-2 border-dashed transition-all
+                      flex flex-col items-center justify-center gap-1
                       ${isDisabled
                         ? "border-[#1F2D58]/10 bg-[#1F2D58]/5 cursor-not-allowed"
                         : isDragging
@@ -444,23 +444,16 @@ export function MediaPickerDialog({
                     `}
                   >
                     {isUploading ? (
-                      <Spinner className="h-6 w-6 text-[#193DAB]" />
+                      <Spinner className="h-4 w-4 text-[#193DAB]" />
                     ) : isAtMaxImages ? (
                       <>
-                        <div className="w-10 h-10 rounded-full bg-[#1F2D58]/10 flex items-center justify-center">
-                          <ImageIcon className="h-5 w-5 text-[#1F2D58]/40" />
-                        </div>
-                        <span className="text-xs text-[#1F2D58]/40 text-center px-2">Maximum bereikt</span>
+                        <ImageIcon className="h-4 w-4 text-[#1F2D58]/40" />
+                        <span className="text-[10px] text-[#1F2D58]/40 text-center leading-tight">Max</span>
                       </>
                     ) : (
                       <>
-                        <div className="w-10 h-10 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
-                          <Plus className="h-5 w-5 text-[#1F2D58]" />
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs text-[#1F2D58]/60">Uploaden</span>
-                          <span className="text-[10px] text-[#1F2D58]/40 -mt-0.5">{images.length}/10</span>
-                        </div>
+                        <Plus className="h-4 w-4 text-[#1F2D58]/60" />
+                        <span className="text-[10px] text-[#1F2D58]/40">{images.length}/10</span>
                       </>
                     )}
                   </div>

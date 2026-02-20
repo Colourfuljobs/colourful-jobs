@@ -83,6 +83,8 @@ export interface VacancyFormProps {
   onHeaderImageChange?: (url: string | null) => void;
   onLogoChange?: (url: string | null) => void;
   employerSectorId?: string | null;
+  /** Maximum selectable closing date based on package duration */
+  maxClosingDate?: Date;
 }
 
 export interface VacancyPreviewProps {

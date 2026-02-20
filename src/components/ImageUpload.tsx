@@ -17,7 +17,7 @@ interface ImageUploadProps {
   error?: string;
   /** Maximum file size in MB (default: 10MB) */
   maxSizeMB?: number;
-  /** Restrict to logo formats only (PNG/SVG) */
+  /** Restrict to logo formats only (JPG/PNG/SVG) */
   logoOnly?: boolean;
 }
 
@@ -38,11 +38,11 @@ export function ImageUpload({
 
   // Define allowed types based on logoOnly prop
   const allowedTypes = logoOnly
-    ? ["image/png", "image/svg+xml"]
+    ? ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"]
     : ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"];
 
   const allowedTypesText = logoOnly
-    ? "PNG of SVG"
+    ? "JPG, PNG of SVG"
     : "JPEG, PNG, WebP, AVIF of SVG";
 
   const handleFile = (file: File) => {
@@ -50,7 +50,7 @@ export function ImageUpload({
     if (!allowedTypes.includes(file.type)) {
       toast.error("Ongeldig bestandstype", {
         description: logoOnly
-          ? "Upload je logo als PNG of SVG bestand. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden."
+          ? "Upload je logo als JPG, PNG of SVG bestand."
           : `Alleen ${allowedTypesText} afbeeldingen zijn toegestaan`,
       });
       return;
@@ -137,7 +137,7 @@ export function ImageUpload({
           ref={fileInputRef}
           id={id}
           type="file"
-          accept={logoOnly ? "image/png,image/svg+xml" : "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"}
+          accept={logoOnly ? "image/jpeg,image/jpg,image/png,image/svg+xml" : "image/jpeg,image/jpg,image/png,image/webp,image/avif,image/svg+xml"}
           onChange={handleFileInputChange}
           className="hidden"
           disabled={uploading}

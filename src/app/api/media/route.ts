@@ -40,8 +40,10 @@ const ALLOWED_TYPES = [
   "image/svg+xml",
 ];
 
-// Allowed file types for logos (PNG/SVG only for quality and transparency)
+// Allowed file types for logos
 const ALLOWED_LOGO_TYPES = [
+  "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/svg+xml",
 ];
@@ -221,7 +223,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Get employer for alt text generation
-    const employer = await getEmployerById(employerId);
+    let employer;
+    try {
+      employer = await getEmployerById(employerId);
+    } catch (error) {
+      console.error("Error fetching employer:", getErrorMessage(error));
+      return NextResponse.json(
+        { error: "Kon werkgeversgegevens niet ophalen. Probeer de pagina te verversen." },
+        { status: 500 }
+      );
+    }
+
+    if (!employer) {
+      return NextResponse.json(
+        { error: "Werkgever niet gevonden. Log opnieuw in en probeer het nogmaals." },
+        { status: 404 }
+      );
+    }
 
     // Generate alt text
     const altText = generateAltText(
@@ -236,38 +254,65 @@ export async function POST(request: NextRequest) {
 
     // If uploading a new logo, soft delete the old one
     if (type === "logo" && employer?.logo?.[0]) {
-      await deleteMediaAsset(employer.logo[0]);
+      try {
+        await deleteMediaAsset(employer.logo[0]);
+      } catch (error) {
+        // Log but don't fail - old logo cleanup is not critical
+        console.error("Error deleting old logo:", getErrorMessage(error));
+      }
     }
 
     // Create Media Asset record in Airtable
-    const mediaAsset = await createMediaAsset({
-      employer_id: employerId,
-      type: type,
-      file: [{ url: cloudinaryResult.secure_url }],
-      alt_text: altText,
-      file_size: Math.round(cloudinaryResult.bytes / 1024), // Convert to KB
-    });
+    let mediaAsset;
+    try {
+      mediaAsset = await createMediaAsset({
+        employer_id: employerId,
+        type: type,
+        file: [{ url: cloudinaryResult.secure_url }],
+        alt_text: altText,
+        file_size: Math.round(cloudinaryResult.bytes / 1024), // Convert to KB
+      });
+    } catch (error) {
+      console.error("Error creating media asset in Airtable:", getErrorMessage(error));
+      return NextResponse.json(
+        { error: "Kon afbeelding niet opslaan in database. Dit kan komen door een tijdelijk probleem met onze database. Probeer het over enkele seconden opnieuw." },
+        { status: 500 }
+      );
+    }
 
     // Update Employer record (only for logo - gallery images are selected via werkgeversprofiel)
     if (type === "logo") {
-      await updateEmployer(employerId, { logo: [mediaAsset.id], needs_webflow_sync: true });
-      triggerEmployerWebflowSync(employerId);
+      try {
+        await updateEmployer(employerId, { logo: [mediaAsset.id], needs_webflow_sync: true });
+        triggerEmployerWebflowSync(employerId);
+      } catch (error) {
+        console.error("Error updating employer with new logo:", getErrorMessage(error));
+        return NextResponse.json(
+          { error: "Logo is geüpload maar kon niet worden gekoppeld aan je profiel. Ververs de pagina en probeer het opnieuw." },
+          { status: 500 }
+        );
+      }
     }
 
-    // Log event
-    await logEvent({
-      event_type: "media_uploaded",
-      actor_user_id: userId,
-      employer_id: employerId,
-      source: "web",
-      ip_address: clientIP,
-      payload: {
-        type,
-        media_asset_id: mediaAsset.id,
-        public_id: cloudinaryResult.public_id,
-        url: cloudinaryResult.secure_url,
-      },
-    });
+    // Log event (don't fail on logging errors)
+    try {
+      await logEvent({
+        event_type: "media_uploaded",
+        actor_user_id: userId,
+        employer_id: employerId,
+        source: "web",
+        ip_address: clientIP,
+        payload: {
+          type,
+          media_asset_id: mediaAsset.id,
+          public_id: cloudinaryResult.public_id,
+          url: cloudinaryResult.secure_url,
+        },
+      });
+    } catch (error) {
+      console.error("Error logging media upload event:", getErrorMessage(error));
+      // Don't fail the request for logging errors
+    }
 
     // Determine file type for display
     const isLogo = type === "logo";
@@ -303,8 +348,30 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error registering media:", getErrorMessage(error));
+    const errorMessage = getErrorMessage(error);
+    
+    // Check for common error patterns
+    if (errorMessage.includes("ETIMEDOUT") || errorMessage.includes("timeout")) {
+      return NextResponse.json(
+        { error: "Verbinding met database is verlopen. Controleer je internetverbinding en probeer het opnieuw." },
+        { status: 500 }
+      );
+    }
+    if (errorMessage.includes("rate limit") || errorMessage.includes("429")) {
+      return NextResponse.json(
+        { error: "Te veel verzoeken. Wacht even en probeer het opnieuw." },
+        { status: 429 }
+      );
+    }
+    if (errorMessage.includes("ENOTFOUND") || errorMessage.includes("network")) {
+      return NextResponse.json(
+        { error: "Netwerkfout. Controleer je internetverbinding en probeer het opnieuw." },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: "Fout bij registreren van afbeelding" },
+      { error: "Onverwachte fout bij registreren van afbeelding. Probeer het opnieuw of neem contact op met support." },
       { status: 500 }
     );
   }

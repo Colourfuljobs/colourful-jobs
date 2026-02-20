@@ -11,9 +11,8 @@ import {
   Images,
   Users,
   LogOut,
-  ChevronsUpDown,
   User,
-  Settings,
+  ExternalLink,
   Building2,
 } from "lucide-react"
 
@@ -28,13 +27,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { EmployerSwitcher } from "@/components/intermediary/EmployerSwitcher"
 
@@ -144,63 +136,54 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter>
-        <SidebarMenu>
+      <SidebarFooter className="border-t border-[#E8EEF2] p-0 gap-0">
+        {/* User info */}
+        <div className="flex items-center gap-3 pl-2 pr-4 py-3">
+          <Avatar className="h-8 w-8 rounded-full">
+            <AvatarFallback className="rounded-full bg-[#193DAB]/12 text-[#1F2D58]">
+              <User className="h-4 w-4" />
+            </AvatarFallback>
+          </Avatar>
+          <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
+            <span className="truncate font-semibold text-[#1F2D58]">
+              {user?.name || "Gebruiker"}
+            </span>
+            <span className="truncate text-xs text-[#1F2D58]/60">
+              {user?.email || ""}
+            </span>
+          </div>
+        </div>
+        
+        {/* Divider */}
+        <div className="border-t border-[#E8EEF2]" />
+        
+        {/* Actions - same styling as main menu */}
+        <SidebarMenu className="pt-2 pb-0">
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="border border-[#E8EEF2] data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <Avatar className="h-8 w-8 rounded-full">
-                    <AvatarFallback className="rounded-full bg-[#193DAB]/12 text-[#1F2D58]">
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="truncate font-semibold text-[#1F2D58] text-sm">
-                    {user?.name?.split(" ")[0] || "Gebruiker"}
-                  </span>
-                  <ChevronsUpDown className="ml-auto size-4 text-[#1F2D58]/60" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                side="bottom"
-                align="start"
-                sideOffset={4}
+            <SidebarMenuButton
+              asChild
+              tooltip="Colourful jobs website"
+              className="text-[#1F2D58]"
+            >
+              <a
+                href="https://colourfuljobs.nl"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <div className="flex items-center gap-2 px-2 py-1.5 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarFallback className="rounded-lg bg-[#193DAB]/12 text-[#1F2D58]">
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold text-[#1F2D58]">
-                      {user?.name || "Gebruiker"}
-                    </span>
-                    <span className="truncate text-xs text-[#1F2D58]/60">
-                      {user?.email || ""}
-                    </span>
-                  </div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild className="text-[#1F2D58] cursor-pointer">
-                  <Link href="/dashboard/gegevens">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Gegevens
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={handleSignOut}
-                  className="text-[#1F2D58] cursor-pointer"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Uitloggen
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <ExternalLink className="h-4 w-4" />
+                <span>Colourful jobs website</span>
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={handleSignOut}
+              tooltip="Uitloggen"
+              className="text-[#1F2D58]"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Uitloggen</span>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>

@@ -530,7 +530,7 @@ export default function VacaturesPage() {
               </EmptyHeader>
               <EmptyContent>
                 <Link href="/dashboard/vacatures/nieuw">
-                  <Button showArrow={false}>
+                  <Button variant="secondary" showArrow={false}>
                     <Plus className="h-4 w-4 mr-1" />
                     Nieuwe vacature
                   </Button>

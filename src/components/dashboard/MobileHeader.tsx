@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { signOut } from "next-auth/react"
-import { Coins, Plus, LogOut, User, Settings } from "lucide-react"
+import { Coins, Plus, LogOut, User, ExternalLink } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -112,18 +112,22 @@ export function MobileHeader({ user }: MobileHeaderProps) {
                 </div>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild className="text-[#1F2D58] cursor-pointer">
-                <Link href="/dashboard/gegevens">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Gegevens
-                </Link>
-              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleSignOut}
                 className="text-[#1F2D58] cursor-pointer"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 Uitloggen
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="text-[#1F2D58] cursor-pointer">
+                <a
+                  href="https://colourfuljobs.nl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Colourful jobs website
+                </a>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

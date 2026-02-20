@@ -21,6 +21,7 @@ import {
   PartyPopper,
   ChevronRight,
   Globe,
+  Wallet,
 } from "lucide-react"
 
 import { Button, ArrowIcon } from "@/components/ui/button"
@@ -462,14 +463,24 @@ export default function DashboardPage() {
                 <div>
                   <div className="space-y-2">
                     {isPendingUpdate ? (
-                      <div className="flex items-center gap-2">
-                        <Spinner className="h-6 w-6" />
-                        <p className="text-xl font-bold text-[#1F2D58]/70">Bijwerken...</p>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-[#DEEEE3]">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                          <Spinner className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xl font-bold text-[#1F2D58]/70 leading-tight">Bijwerken...</p>
+                        </div>
                       </div>
                     ) : (
-                      <p className="text-3xl font-bold text-[#1F2D58]">
-                        {credits.available} <span className="text-base font-normal text-[#1F2D58]/70">beschikbare credits</span>
-                      </p>
+                      <div className="flex items-center gap-3 p-3 rounded-xl bg-[#DEEEE3]">
+                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                          <Wallet className="h-5 w-5 text-[#41712F]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.available}</p>
+                          <p className="text-sm text-[#1F2D58]/70">beschikbare credits</p>
+                        </div>
+                      </div>
                     )}
                     
                     {/* Credit expiry warning */}
@@ -487,24 +498,6 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     )}
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {/* Progress bar */}
-                    <div className="h-3 w-full bg-[#E8EEF2] rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-slate-400 rounded-full transition-all duration-500"
-                        style={{ width: credits.total_purchased > 0 ? `${(credits.total_spent / credits.total_purchased) * 100}%` : '0%' }}
-                      />
-                    </div>
-                    {/* Labels */}
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-[#1F2D58]">
-                        {credits.total_spent} <span className="font-normal text-[#1F2D58]/70">gebruikt</span>
-                      </span>
-                      <span className="font-medium text-[#1F2D58]">
-                        {credits.available} <span className="font-normal text-[#1F2D58]/70">beschikbaar</span>
-                      </span>
-                    </div>
                   </div>
                 </div>
                 <div className="mt-auto pt-4">
@@ -581,7 +574,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-auto pt-4">
                   <Link href="/dashboard/vacatures/nieuw">
-                    <Button className="w-full" showArrow={false}>
+                    <Button variant="secondary" className="w-full" showArrow={false}>
                       <Plus className="h-4 w-4 mr-1" />
                       Nieuwe vacature
                     </Button>
@@ -813,7 +806,7 @@ export default function DashboardPage() {
               </EmptyHeader>
               <EmptyContent>
                 <Link href="/dashboard/vacatures/nieuw">
-                  <Button showArrow={false}>
+                  <Button variant="secondary" showArrow={false}>
                     <Plus className="h-4 w-4 mr-1" />
                     Nieuwe vacature
                   </Button>

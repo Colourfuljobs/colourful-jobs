@@ -153,12 +153,12 @@ export function validateImage(file: File): { valid: boolean; error?: string } {
  */
 export function validateLogo(file: File): { valid: boolean; error?: string } {
   const maxSize = 5 * 1024 * 1024; // 5MB for logos
-  const allowedTypes = ["image/png", "image/svg+xml"];
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/svg+xml"];
 
   if (!allowedTypes.includes(file.type)) {
     return {
       valid: false,
-      error: "Upload je logo als PNG of SVG bestand. Deze formaten behouden de kwaliteit en ondersteunen transparante achtergronden.",
+      error: "Upload je logo als JPG, PNG of SVG bestand.",
     };
   }
 

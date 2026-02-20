@@ -1,6 +1,5 @@
 "use client";
 
-import { MapPin, Clock, Briefcase, GraduationCap, Building2, Calendar, Wallet, LayoutGrid } from "lucide-react";
 import type { VacancyPreviewProps } from "./types";
 
 export function VacancyPreview({
@@ -81,7 +80,7 @@ export function VacancyPreview({
                 
                 {vacancy.closing_date && (
                   <p className="text-sm text-[#1F2D58]/70">
-                    Sluitingsdatum: {formatDate(vacancy.closing_date)}
+                    Uiterste sollicitatiedatum: {formatDate(vacancy.closing_date)}
                   </p>
                 )}
               </div>
@@ -95,6 +94,63 @@ export function VacancyPreview({
                     className="max-h-full max-w-full object-contain"
                   />
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Job details grid - hidden for "we do it for you" */}
+        {vacancy.input_type !== "we_do_it_for_you" && (
+          <div className="p-6 border-b border-[#E8EEF2]">
+            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Vacaturegegevens</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {vacancy.location && (
+                <DetailItem label="Locatie" value={vacancy.location} />
+              )}
+              {vacancy.region_id && (
+                <DetailItem
+                  label="Regio"
+                  value={getLookupName(vacancy.region_id, lookups.regions)}
+                />
+              )}
+              {vacancy.hrs_per_week && (
+                <DetailItem
+                  label="Uren per week"
+                  value={vacancy.hrs_per_week}
+                />
+              )}
+              {vacancy.function_type_id && (
+                <DetailItem
+                  label="Functietype"
+                  value={getLookupName(vacancy.function_type_id, lookups.functionTypes)}
+                />
+              )}
+              {vacancy.education_level_id && (
+                <DetailItem
+                  label="Opleidingsniveau"
+                  value={getLookupName(vacancy.education_level_id, lookups.educationLevels)}
+                />
+              )}
+              {vacancy.field_id && (
+                <DetailItem
+                  label="Vakgebied"
+                  value={getLookupName(vacancy.field_id, lookups.fields)}
+                />
+              )}
+              {vacancy.sector_id && (
+                <DetailItem
+                  label="Sector"
+                  value={getLookupName(vacancy.sector_id, lookups.sectors)}
+                />
+              )}
+              {vacancy.salary && (
+                <DetailItem label="Salaris" value={vacancy.salary} />
+              )}
+              {vacancy.closing_date && (
+                <DetailItem
+                  label="Uiterste sollicitatiedatum"
+                  value={formatDate(vacancy.closing_date)}
+                />
               )}
             </div>
           </div>
@@ -114,70 +170,6 @@ export function VacancyPreview({
               className="prose prose-sm max-w-none text-[#1F2D58] [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-[#1F2D58] [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:first:mt-0 [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-[#1F2D58] [&_h3]:mt-5 [&_h3]:mb-2 [&_h3]:first:mt-0 [&_h4]:text-base [&_h4]:font-bold [&_h4]:text-[#1F2D58] [&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:first:mt-0 [&_h5]:text-sm [&_h5]:font-bold [&_h5]:text-[#1F2D58] [&_h5]:mt-3 [&_h5]:mb-1 [&_h5]:first:mt-0 [&_p]:text-[#1F2D58] [&_p]:mb-3 [&_p]:last:mb-0 [&_p]:leading-relaxed [&_ul]:my-3 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-3 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:mb-1 [&_li]:text-[#1F2D58] [&_blockquote]:border-l-4 [&_blockquote]:border-[#1F2D58]/30 [&_blockquote]:pl-4 [&_blockquote]:my-4 [&_blockquote]:italic [&_blockquote]:text-[#1F2D58]/80 [&_a]:text-[#193DAB] [&_a]:underline [&_a]:cursor-pointer hover:[&_a]:text-[#1F2D58]"
               dangerouslySetInnerHTML={{ __html: vacancy.description }}
             />
-          </div>
-        )}
-
-        {/* Job details grid - hidden for "we do it for you" */}
-        {vacancy.input_type !== "we_do_it_for_you" && (
-          <div className="p-6 border-b border-[#E8EEF2]">
-            <h4 className="text-lg font-bold text-[#1F2D58] mb-4">Vacaturegegevens</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {vacancy.location && (
-                <DetailItem icon={MapPin} label="Locatie" value={vacancy.location} />
-              )}
-              {vacancy.region_id && (
-                <DetailItem
-                  icon={MapPin}
-                  label="Regio"
-                  value={getLookupName(vacancy.region_id, lookups.regions)}
-                />
-              )}
-              {vacancy.hrs_per_week && (
-                <DetailItem
-                  icon={Clock}
-                  label="Uren per week"
-                  value={vacancy.hrs_per_week}
-                />
-              )}
-              {vacancy.function_type_id && (
-                <DetailItem
-                  icon={LayoutGrid}
-                  label="Functietype"
-                  value={getLookupName(vacancy.function_type_id, lookups.functionTypes)}
-                />
-              )}
-              {vacancy.education_level_id && (
-                <DetailItem
-                  icon={GraduationCap}
-                  label="Opleidingsniveau"
-                  value={getLookupName(vacancy.education_level_id, lookups.educationLevels)}
-                />
-              )}
-              {vacancy.field_id && (
-                <DetailItem
-                  icon={Briefcase}
-                  label="Vakgebied"
-                  value={getLookupName(vacancy.field_id, lookups.fields)}
-                />
-              )}
-              {vacancy.sector_id && (
-                <DetailItem
-                  icon={Building2}
-                  label="Sector"
-                  value={getLookupName(vacancy.sector_id, lookups.sectors)}
-                />
-              )}
-              {vacancy.salary && (
-                <DetailItem icon={Wallet} label="Salaris" value={vacancy.salary} />
-              )}
-              {vacancy.closing_date && (
-                <DetailItem
-                  icon={Calendar}
-                  label="Sluitingsdatum"
-                  value={formatDate(vacancy.closing_date)}
-                />
-              )}
-            </div>
           </div>
         )}
 
@@ -259,23 +251,16 @@ export function VacancyPreview({
 
 // Helper component for detail items
 function DetailItem({
-  icon: Icon,
   label,
   value,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-8 h-8 rounded-full bg-[#193DAB]/12 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-4 h-4 text-[#1F2D58]" />
-      </div>
-      <div className="-mt-0.5">
-        <p className="text-xs text-[#1F2D58]/60">{label}</p>
-        <p className="text-sm text-[#1F2D58] font-medium">{value}</p>
-      </div>
+    <div>
+      <p className="text-xs text-[#1F2D58]/60">{label}</p>
+      <p className="text-sm text-[#1F2D58] font-medium">{value}</p>
     </div>
   );
 }

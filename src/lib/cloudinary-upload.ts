@@ -18,6 +18,8 @@ export const ALLOWED_IMAGE_TYPES = [
 ];
 
 export const ALLOWED_LOGO_TYPES = [
+  "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/svg+xml",
 ];

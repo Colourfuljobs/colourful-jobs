@@ -10,28 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { DesktopHeader } from "@/components/dashboard"
-import { normalizeUrl } from "@/lib/utils"
-
-// URL validation helper - must have valid domain with TLD
-// e.g., "example.nl" is valid, "examplenl" or "www.examplenl" is not
-function isValidUrl(url: string): boolean {
-  if (!url || url.trim() === "") return false;
-  const normalized = normalizeUrl(url);
-  try {
-    const parsedUrl = new URL(normalized);
-    // Remove www. prefix for domain validation
-    const hostname = parsedUrl.hostname.replace(/^www\./, '');
-    // Domain must still contain a dot (e.g., "jansmit.nl" not "jansmitnl")
-    if (!hostname.includes('.')) return false;
-    // TLD must be at least 2 characters
-    const parts = hostname.split('.');
-    const tld = parts[parts.length - 1];
-    if (tld.length < 2) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // Types for form data
 interface PersonalData {
@@ -45,7 +23,6 @@ interface CompanyData {
   company_name: string
   phone: string
   kvk: string
-  website_url: string
 }
 
 interface BillingData {
@@ -69,7 +46,6 @@ const emptyCompanyData: CompanyData = {
   company_name: "",
   phone: "",
   kvk: "",
-  website_url: "",
 }
 
 const emptyBillingData: BillingData = {
@@ -103,8 +79,6 @@ export default function GegevensPage() {
   const [editCompanyData, setEditCompanyData] = useState<CompanyData>(emptyCompanyData)
   const [editBillingData, setEditBillingData] = useState<BillingData>(emptyBillingData)
 
-  // URL validation error
-  const [urlError, setUrlError] = useState<string | null>(null)
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useCallback(() => {
@@ -115,7 +89,6 @@ export default function GegevensPage() {
       editCompanyData.company_name !== companyData.company_name ||
       editCompanyData.phone !== companyData.phone ||
       editCompanyData.kvk !== companyData.kvk ||
-      editCompanyData.website_url !== companyData.website_url ||
       editBillingData["reference-nr"] !== billingData["reference-nr"] ||
       editBillingData.invoice_contact_name !== billingData.invoice_contact_name ||
       editBillingData.invoice_email !== billingData.invoice_email ||
@@ -171,21 +144,10 @@ export default function GegevensPage() {
     setEditPersonalData({ ...personalData })
     setEditCompanyData({ ...companyData })
     setEditBillingData({ ...billingData })
-    setUrlError(null)
   }
 
   // Save all sections to API
   const saveAllSections = async () => {
-    // Validate URL before saving
-    if (editCompanyData.website_url && !isValidUrl(editCompanyData.website_url)) {
-      setUrlError("Voer een geldige URL in (bijv. www.voorbeeld.nl)")
-      toast.error("Ongeldige URL", {
-        description: "Controleer of de website-URL correct is geschreven.",
-      })
-      return
-    }
-    setUrlError(null)
-
     setIsSaving(true)
 
     try {
@@ -361,8 +323,6 @@ export default function GegevensPage() {
             data={editCompanyData}
             onChange={setEditCompanyData}
             isSaving={isSaving}
-            urlError={urlError}
-            onUrlErrorClear={() => setUrlError(null)}
           />
         </div>
       </div>
@@ -494,62 +454,41 @@ interface CompanyDataFormProps {
   data: CompanyData
   onChange: (data: CompanyData) => void
   isSaving?: boolean
-  urlError?: string | null
-  onUrlErrorClear?: () => void
 }
 
-function CompanyDataForm({ data, onChange, isSaving, urlError, onUrlErrorClear }: CompanyDataFormProps) {
+function CompanyDataForm({ data, onChange, isSaving }: CompanyDataFormProps) {
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="company_name">Juridische organisatienaam <span className="text-slate-400 text-sm">*</span></Label>
-          <Input
-            id="company_name"
-            value={data.company_name}
-            onChange={(e) => onChange({ ...data, company_name: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="phone">Telefoonnummer</Label>
-          <Input
-            id="phone"
-            type="tel"
-            value={data.phone}
-            onChange={(e) => onChange({ ...data, phone: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="kvk">KVK-nummer <span className="text-slate-400 text-sm">*</span></Label>
-          <Input
-            id="kvk"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={8}
-            value={data.kvk}
-            onChange={(e) => onChange({ ...data, kvk: e.target.value })}
-            disabled={isSaving}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="website_url">Website-URL <span className="text-slate-400 text-sm">*</span></Label>
-          <Input
-            id="website_url"
-            type="url"
-            value={data.website_url}
-            className={urlError ? "border-red-500" : ""}
-            onChange={(e) => {
-              onChange({ ...data, website_url: e.target.value });
-              if (urlError && onUrlErrorClear) onUrlErrorClear();
-            }}
-            disabled={isSaving}
-          />
-          {urlError && (
-            <p className="text-sm text-red-500">{urlError}</p>
-          )}
-        </div>
+    <div className="grid gap-4 sm:grid-cols-3">
+      <div className="space-y-2">
+        <Label htmlFor="company_name">Juridische organisatienaam <span className="text-slate-400 text-sm">*</span></Label>
+        <Input
+          id="company_name"
+          value={data.company_name}
+          onChange={(e) => onChange({ ...data, company_name: e.target.value })}
+          disabled={isSaving}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="phone">Telefoonnummer</Label>
+        <Input
+          id="phone"
+          type="tel"
+          value={data.phone}
+          onChange={(e) => onChange({ ...data, phone: e.target.value })}
+          disabled={isSaving}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="kvk">KVK-nummer <span className="text-slate-400 text-sm">*</span></Label>
+        <Input
+          id="kvk"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={8}
+          value={data.kvk}
+          onChange={(e) => onChange({ ...data, kvk: e.target.value })}
+          disabled={isSaving}
+        />
       </div>
     </div>
   )

@@ -47,6 +47,7 @@ export function VacancyForm({
   onHeaderImageChange,
   onLogoChange,
   employerSectorId,
+  maxClosingDate,
 }: VacancyFormProps) {
   const [showHeaderDialog, setShowHeaderDialog] = useState(false);
   const [showGalleryDialog, setShowGalleryDialog] = useState(false);
@@ -249,11 +250,11 @@ export function VacancyForm({
             </div>
             <div className="space-y-3">
               {headerImage?.url ? (
-                <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden">
+                <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
                   <img src={headerImage.url} alt="Header" className="h-full w-full object-cover" />
                 </div>
               ) : (
-                <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center">
+                <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
                   <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
                 </div>
               )}
@@ -266,6 +267,9 @@ export function VacancyForm({
               >
                 {headerImage?.url ? "Wijzigen" : "Kiezen"}
               </Button>
+              {validationErrors.header_image && (
+                <p className="text-sm text-red-500 mt-1">{validationErrors.header_image}</p>
+              )}
             </div>
           </div>
         </FormSection>
@@ -350,7 +354,6 @@ export function VacancyForm({
               onChange={(e) => updateField("intro_txt", e.target.value)}
               placeholder="Een korte, pakkende introductie van de vacature..."
               className={`mt-1.5 ${validationErrors.intro_txt ? "border-red-500" : ""}`}
-              rows={3}
             />
             {validationErrors.intro_txt && (
               <p className="text-sm text-red-500 mt-1">{validationErrors.intro_txt}</p>
@@ -387,11 +390,11 @@ export function VacancyForm({
               </div>
               <div className="space-y-3">
                 {headerImage?.url ? (
-                  <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden">
+                  <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
                     <img src={headerImage.url} alt="Header" className="h-full w-full object-cover" />
                   </div>
                 ) : (
-                  <div className="h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center">
+                  <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
                     <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
                   </div>
                 )}
@@ -404,6 +407,9 @@ export function VacancyForm({
                 >
                   {headerImage?.url ? "Wijzigen" : "Kiezen"}
                 </Button>
+                {validationErrors.header_image && (
+                  <p className="text-sm text-red-500 mt-1">{validationErrors.header_image}</p>
+                )}
               </div>
             </div>
 
@@ -416,12 +422,12 @@ export function VacancyForm({
                 <Label className="!mb-0">
                   Logo <span className="text-slate-400 text-sm">*</span>
                 </Label>
-                <InfoTooltip content="Upload je logo als PNG of SVG met een transparante achtergrond. Zo blijft je logo scherp en past het mooi op de website." />
+                <InfoTooltip content="Upload je logo als JPG, PNG of SVG. PNG en SVG met een transparante achtergrond werken het beste." />
               </div>
               <input
                 ref={logoFileInputRef}
                 type="file"
-                accept="image/png,image/svg+xml"
+                accept="image/jpeg,image/jpg,image/png,image/svg+xml"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
@@ -470,7 +476,7 @@ export function VacancyForm({
                       </>
                     )}
                   </Button>
-                  <p className="text-xs text-[#1F2D58]/50">PNG of SVG, max 1MB</p>
+                  <p className="text-xs text-[#1F2D58]/50">JPG, PNG of SVG, max 5MB</p>
                 </div>
               </div>
             </div>
@@ -715,7 +721,7 @@ export function VacancyForm({
                     updateField("closing_date", formattedDate);
                     setClosingDateOpen(false);
                   }}
-                  disabled={{ before: new Date() }}
+                  disabled={{ before: new Date(), after: maxClosingDate }}
                   locale={nl}
                   className="w-full"
                 />
@@ -787,12 +793,12 @@ export function VacancyForm({
           <div>
             <Label>Foto</Label>
             <div className="mt-1.5 flex items-center gap-3">
-              <div className="w-20 h-20 border-2 border-dashed border-[#1F2D58]/20 rounded-lg flex flex-col items-center justify-center gap-1 overflow-hidden">
+              <div className={`w-20 h-20 flex flex-col items-center justify-center gap-1 overflow-hidden ${contactPhoto?.url ? "rounded-full" : "border-2 border-dashed border-[#1F2D58]/20 rounded-lg"}`}>
                 {contactPhoto?.url ? (
                   <img
                     src={contactPhoto.url}
                     alt="Contactpersoon"
-                    className="w-full h-full object-cover rounded-md"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <>

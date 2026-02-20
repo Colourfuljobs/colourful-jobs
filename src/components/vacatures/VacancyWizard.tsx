@@ -69,6 +69,28 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   // Track the highest step ever reached in this session for free stepper navigation
   const [maxStepReached, setMaxStepReached] = useState<WizardStep>((initialStep || 1) as WizardStep);
 
+  // Profile completeness state (declared early because maxClickableStep depends on it)
+  const [profileComplete, setProfileComplete] = useState(true);
+
+  // Compute the highest step that is clickable in the stepper.
+  // The next step becomes clickable as soon as the current step's "Verder" condition is met —
+  // same logic as the disabled state of the "Verder" button.
+  // Step 1: requires a package AND complete profile; steps 2 and 3: always ready (validation happens on click).
+  const maxClickableStep = useMemo((): WizardStep => {
+    // If profile is not complete, block at step 1 for new vacancies
+    if (!isExistingVacancy && !profileComplete) {
+      return 1;
+    }
+    
+    const maxInternalStep = isExistingVacancy ? 3 : 4;
+    const canProceed = state.currentStep === 1 ? !!state.selectedPackage : true;
+    if (canProceed) {
+      const nextStep = Math.min(state.currentStep + 1, maxInternalStep) as WizardStep;
+      return Math.max(maxStepReached, nextStep) as WizardStep;
+    }
+    return maxStepReached;
+  }, [state.currentStep, state.selectedPackage, maxStepReached, isExistingVacancy, profileComplete]);
+
   // Step mapping for edit mode vs new mode
   // Bepaal welke stappen de stepper toont
   const displaySteps: WizardStepConfig[] = isExistingVacancy
@@ -122,7 +144,6 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails | null>(null);
   const [showInvoiceError, setShowInvoiceError] = useState(false);
-  const [profileComplete, setProfileComplete] = useState(true);
   const [contactPhotoUrl, setContactPhotoUrl] = useState<string | null>(null);
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -520,6 +541,16 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     return socialPostUpsellIds.has(product.id);
   }, [socialPostUpsellIds]);
 
+  // Calculate max closing date based on package duration
+  const maxClosingDate = useMemo(() => {
+    if (!state.selectedPackage) return undefined;
+    const baseDuration = getPackageBaseDuration(state.selectedPackage);
+    const maxDate = new Date();
+    maxDate.setHours(0, 0, 0, 0);
+    maxDate.setDate(maxDate.getDate() + baseDuration);
+    return maxDate;
+  }, [state.selectedPackage]);
+
   // Clean up empty recommendation entries from local state
   const cleanupEmptyRecommendations = useCallback(() => {
     setRecommendations((prev) => {
@@ -571,6 +602,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       if (!vacancyData.description?.trim()) {
         errors.description = "Vacaturetekst is verplicht";
       }
+      if (!vacancyData.header_image) {
+        errors.header_image = "Headerbeeld is verplicht";
+      }
       // Application method
       if (vacancyData.show_apply_form) {
         if (!vacancyData.application_email?.trim()) {
@@ -608,6 +642,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       }
       if (!vacancyData.sector_id) {
         errors.sector_id = "Sector is verplicht";
+      }
+      if (!vacancyData.header_image) {
+        errors.header_image = "Headerbeeld is verplicht";
       }
       // Contact email validation (optional field, but must be valid if filled)
       if (vacancyData.contact_email?.trim() && !isValidEmail(vacancyData.contact_email)) {
@@ -682,6 +719,14 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     // Validation per step
     if (currentStep === 1 && !selectedPackage) {
       toast.error("Selecteer eerst een pakket");
+      return;
+    }
+
+    // Block navigation from step 1 if profile is not complete
+    if (currentStep === 1 && !profileComplete) {
+      toast.error("Werkgeversprofiel niet compleet", {
+        description: "Vul eerst je werkgeversprofiel aan voordat je verder kunt.",
+      });
       return;
     }
 
@@ -793,8 +838,16 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     // Bij edit-mode, blokkeer stap 1
     if (isExistingVacancy && step < 2) return;
     
-    // Allow navigation to any step that has been reached in this session
-    if (step <= maxStepReached) {
+    // Block navigation beyond step 1 if profile is not complete (for new vacancies)
+    if (!isExistingVacancy && !profileComplete && step > 1) {
+      toast.error("Werkgeversprofiel niet compleet", {
+        description: "Vul eerst je werkgeversprofiel aan voordat je verder kunt.",
+      });
+      return;
+    }
+    
+    // Allow navigation to any step that has been reached OR that is the next reachable step
+    if (step <= maxClickableStep) {
       // Validate when navigating forward from step 2 (same check as the "Verder" button)
       if (step > state.currentStep && state.currentStep === 2) {
         cleanupEmptyRecommendations();
@@ -821,7 +874,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       // Scroll to top of page
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [maxStepReached, state.currentStep, state.isDirty, isExistingVacancy, validateVacancy, saveVacancy, cleanupEmptyRecommendations, isReadOnly]);
+  }, [maxClickableStep, state.currentStep, state.isDirty, isExistingVacancy, validateVacancy, saveVacancy, cleanupEmptyRecommendations, isReadOnly]);
 
   // Handle credits purchase success
   const handleCreditsSuccess = useCallback(async (_newBalance: number, _purchasedAmount?: number) => {
@@ -1227,6 +1280,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 onHeaderImageChange={setHeaderImageUrl}
                 onLogoChange={setLogoUrl}
                 employerSectorId={employerSectorId}
+                maxClosingDate={maxClosingDate}
               />
             )}
           </div>
@@ -1332,11 +1386,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         <div className="flex items-stretch h-[80px]">
           {/* Left: Logo with right border */}
           <div className="flex items-center border-r border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6">
-            <img 
-              src="/logo.svg" 
-              alt="Colourful jobs" 
-              className="h-6 w-auto"
-            />
+            <Link href="/dashboard">
+              <img 
+                src="/logo.svg" 
+                alt="Colourful jobs" 
+                className="h-6 w-auto cursor-pointer"
+              />
+            </Link>
           </div>
 
           {/* Center: Step indicator - only visible on larger screens */}
@@ -1353,7 +1409,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   }
                   steps={displaySteps}
                   onStepClick={(displayStep) => handleStepClick(getInternalStep(displayStep))}
-                  maxReachedStep={getDisplayStep(maxStepReached) as WizardStep}
+                  maxReachedStep={getDisplayStep(maxClickableStep) as WizardStep}
                 />
               </div>
               {/* Progress bar at bottom, edge-to-edge */}
@@ -1410,7 +1466,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 }
                 steps={displaySteps}
                 onStepClick={(displayStep) => handleStepClick(getInternalStep(displayStep))}
-                maxReachedStep={getDisplayStep(maxStepReached) as WizardStep}
+                maxReachedStep={getDisplayStep(maxClickableStep) as WizardStep}
               />
             </div>
             {/* Progress bar at bottom, edge-to-edge */}
@@ -1684,7 +1740,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                     ) : (
                       <Button
                         onClick={handleNext}
-                        disabled={isSaving || (state.currentStep === 1 && !state.selectedPackage)}
+                        disabled={isSaving || (state.currentStep === 1 && (!state.selectedPackage || !profileComplete))}
                         showArrow={!(isSaving && state.currentStep !== 2)}
                       >
                         {isSaving && state.currentStep !== 2 ? (

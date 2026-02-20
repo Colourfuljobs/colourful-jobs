@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Coins } from "lucide-react";
+import { Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { CostSidebarProps } from "./types";
 
@@ -43,47 +43,25 @@ export function CostSidebar({
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] pt-4 px-6 pb-6 text-sm">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full bg-[#E8EEF2] flex items-center justify-center flex-shrink-0">
-            <Coins className="h-5 w-5 text-[#1F2D58]" />
-          </div>
           <h3 className="text-xl font-bold text-[#1F2D58]">Overzicht</h3>
         </div>
 
-        {/* Included upsells section */}
-        {includedUpsellProducts.length > 0 && (
-          <>
-            <p className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider mb-2">
-              Inbegrepen in pakket
-            </p>
-            <div className="space-y-2 mb-4">
-              {includedUpsellProducts.map((upsell) => (
-                <div
-                  key={upsell.id}
-                  className="flex items-center gap-2 border border-[#1F2D58]/10 rounded-lg px-3 py-2"
-                >
-                  <div className="w-5 h-5 rounded-full bg-[#DEEEE3] flex items-center justify-center shrink-0">
-                    <Check className="h-3 w-3 text-[#41712F]" />
-                  </div>
-                  <span className="text-sm font-medium text-[#1F2D58] truncate flex-1">
-                    {upsell.display_name}
-                  </span>
-                  <Badge variant="muted" className="shrink-0">
-                    Inbegrepen
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Selected extras section */}
-        {extraUpsells.length > 0 && (
+        {/* Gekozen optie(s) section */}
+        {selectedPackage && (
           <>
             <hr className="border-[#1F2D58]/10 mb-4" />
             <p className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider mb-2">
-              Gekozen extra&apos;s
+              {extraUpsells.length > 0 ? "Gekozen opties" : "Gekozen optie"}
             </p>
             <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 border border-[#1F2D58]/10 rounded-lg px-3 py-2">
+                <div className="w-5 h-5 rounded-full bg-[#E8EEF2] flex items-center justify-center shrink-0">
+                  <Check className="h-3 w-3 text-[#1F2D58]" />
+                </div>
+                <span className="text-sm font-medium text-[#1F2D58] truncate flex-1">
+                  {selectedPackage.display_name}
+                </span>
+              </div>
               {extraUpsells.map((upsell) => (
                 <div
                   key={upsell.id}
@@ -95,9 +73,6 @@ export function CostSidebar({
                   <span className="text-sm font-medium text-[#1F2D58] truncate flex-1">
                     {upsell.display_name}
                   </span>
-                  <Badge variant="success" className="shrink-0">
-                    {upsell.credits}
-                  </Badge>
                 </div>
               ))}
             </div>
@@ -109,10 +84,15 @@ export function CostSidebar({
         {/* Cost breakdown - only show if package selected */}
         {selectedPackage && (
           <div className="space-y-2">
+            {/* Column header */}
+            <div className="flex justify-end">
+              <span className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider">Credits</span>
+            </div>
+
             {/* Package cost */}
             <div className="flex justify-between">
               <span className="text-[#1F2D58]">{selectedPackage.display_name}</span>
-              <span className="text-[#1F2D58]">{packageCredits} credits</span>
+              <span className="text-[#1F2D58]">{packageCredits}</span>
             </div>
 
             {/* Extras cost (only if any) */}
@@ -121,7 +101,7 @@ export function CostSidebar({
                 <span className="text-[#1F2D58]">
                   Extra&apos;s ({extraUpsells.length})
                 </span>
-                <span className="text-[#1F2D58]">+{extraCredits} credits</span>
+                <span className="text-[#1F2D58]">+{extraCredits}</span>
               </div>
             )}
 
@@ -130,13 +110,13 @@ export function CostSidebar({
             {/* Totaal */}
             <div className="flex justify-between">
               <span className="font-bold text-[#1F2D58]">Totaal</span>
-              <span className="font-bold text-[#1F2D58]">{totalCredits} credits</span>
+              <span className="font-bold text-[#1F2D58]">{totalCredits}</span>
             </div>
 
             {/* Beschikbare credits */}
             <div className="flex justify-between pt-2 border-t border-[#1F2D58]/10">
               <span className="text-[#1F2D58]">Beschikbare credits</span>
-              <span className="text-[#1F2D58]">{availableCredits} credits</span>
+              <span className="text-[#1F2D58]">{availableCredits}</span>
             </div>
 
             {/* Scenario 1: Genoeg credits */}
@@ -158,14 +138,14 @@ export function CostSidebar({
                         Over na plaatsing
                       </span>
                       <span className="font-bold text-[#1F2D58]">
-                        {creditsRemaining} credits
+                        {creditsRemaining}
                       </span>
                     </>
                   ) : (
                     <>
                       <span className="font-bold text-[#1F2D58]">Totaal</span>
                       <span className="font-bold text-[#1F2D58]">
-                        {totalCredits} credits
+                        {totalCredits}
                       </span>
                     </>
                   )}

@@ -192,6 +192,7 @@ export async function GET() {
           display_name: employer.display_name || "",
           sector: sectorName,
           sector_id: sectorId,
+          website_url: employer.website_url || "",
           short_description: employer.short_description || "",
           video_url: employer.video_url || "",
           logo: logoUrl,
@@ -357,7 +358,6 @@ export async function PATCH(request: Request) {
         company_name: data.company_name,
         phone: data.phone,
         kvk: data.kvk,
-        website_url: data.website_url,
       });
 
       // Log event
@@ -379,7 +379,6 @@ export async function PATCH(request: Request) {
           company_name: updatedEmployer.company_name || "",
           phone: updatedEmployer.phone || "",
           kvk: updatedEmployer.kvk || "",
-          website_url: updatedEmployer.website_url || "",
         },
       });
     }
@@ -428,6 +427,7 @@ export async function PATCH(request: Request) {
       
       // Text fields
       if (data.display_name !== undefined) updateData.display_name = data.display_name;
+      if (data.website_url !== undefined) updateData.website_url = data.website_url;
       if (data.short_description !== undefined) updateData.short_description = data.short_description;
       if (data.video_url !== undefined) updateData.video_url = data.video_url;
       

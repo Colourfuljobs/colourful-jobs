@@ -56,6 +56,7 @@ interface ProfileData {
   display_name: string
   sector: string
   sector_id: string | null
+  website_url: string
   short_description: string
   logo: string | null
   logo_id: string | null
@@ -76,6 +77,7 @@ const emptyProfileData: ProfileData = {
   display_name: "",
   sector: "",
   sector_id: null,
+  website_url: "",
   short_description: "",
   logo: null,
   logo_id: null,
@@ -138,6 +140,7 @@ export default function WerkgeversprofielPage() {
     return (
       editData.display_name !== profileData.display_name ||
       editData.sector_id !== profileData.sector_id ||
+      editData.website_url !== profileData.website_url ||
       editData.short_description !== profileData.short_description ||
       editData.logo_id !== profileData.logo_id ||
       editData.header_image_id !== profileData.header_image_id ||
@@ -228,6 +231,7 @@ export default function WerkgeversprofielPage() {
           display_name: data.website.display_name || "",
           sector: data.website.sector || "",
           sector_id: data.website.sector_id || null,
+          website_url: data.website.website_url || "",
           short_description: data.website.short_description || "",
           logo: data.website.logo || null,
           logo_id: data.website.logo_id || null,
@@ -299,6 +303,7 @@ export default function WerkgeversprofielPage() {
       const dataToSave = {
         display_name: editData.display_name,
         sector: editData.sector_id ? [editData.sector_id] : [],
+        website_url: editData.website_url,
         short_description: editData.short_description,
         video_url: editData.video_url,
         logo: editData.logo_id ? [editData.logo_id] : [],
@@ -428,6 +433,7 @@ export default function WerkgeversprofielPage() {
       const dataToSave = {
         display_name: editData.display_name,
         sector: editData.sector_id ? [editData.sector_id] : [],
+        website_url: editData.website_url,
         short_description: editData.short_description,
         video_url: editData.video_url,
         logo: editData.logo_id ? [editData.logo_id] : [],
@@ -1098,7 +1104,7 @@ function ProfileForm({
   return (
     <div className="space-y-6">
       {/* Basic info */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="display_name">
             Weergavenaam organisatie <span className="text-slate-400 text-sm">*</span>
@@ -1144,6 +1150,19 @@ function ProfileForm({
           {errors.sector && (
             <p className="text-sm text-red-500">{errors.sector}</p>
           )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="website_url">
+            Website-URL <span className="text-slate-400 text-sm">*</span>
+          </Label>
+          <Input
+            id="website_url"
+            type="url"
+            placeholder="www.voorbeeld.nl"
+            value={data.website_url}
+            onChange={(e) => onChange({ ...data, website_url: e.target.value })}
+            disabled={isSaving}
+          />
         </div>
       </div>
 
@@ -1208,13 +1227,13 @@ function ProfileForm({
             <Label className={`!mb-0 ${errors.logo ? "text-red-500" : ""}`}>
               Logo <span className="text-slate-400 text-sm">*</span>
             </Label>
-            <InfoTooltip content="Upload je logo als PNG of SVG met een transparante achtergrond. Zo blijft je logo scherp en past het mooi op de website." />
+            <InfoTooltip content="Upload je logo als JPG, PNG of SVG. PNG en SVG met een transparante achtergrond werken het beste." />
           </div>
-          {/* Hidden file input for logo upload (PNG/SVG only) */}
+          {/* Hidden file input for logo upload */}
           <input
             ref={logoInputRef}
             type="file"
-            accept="image/png,image/svg+xml"
+            accept="image/jpeg,image/jpg,image/png,image/svg+xml"
             onChange={handleLogoInputChange}
             className="hidden"
           />
@@ -1229,7 +1248,6 @@ function ProfileForm({
                   <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
                 </div>
               )}
-              <p className="text-xs text-[#1F2D58]/50">Zo ziet het eruit op de website</p>
             </div>
             <div className="flex flex-col gap-2">
               <Button
@@ -1257,7 +1275,7 @@ function ProfileForm({
                   </>
                 )}
               </Button>
-              <p className="text-xs text-[#1F2D58]/50">PNG of SVG, max 1MB</p>
+              <p className="text-xs text-[#1F2D58]/50">JPG, PNG of SVG, max 5MB</p>
             </div>
           </div>
           {errors.logo && (

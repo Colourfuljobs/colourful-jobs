@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, CheckCircle, AlertCircle, Building2, Pencil, Clock } from "lucide-react";
+import { Check, CheckCircle, AlertCircle, Building2, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,6 @@ export function SubmitStep({
   onToggleUpsell,
   onBuyCredits,
   onInvoiceDetailsChange,
-  onChangePackage,
   showInvoiceError = false,
   profileComplete = true,
   profileEditUrl,
@@ -187,22 +186,9 @@ export function SubmitStep({
 
       {/* Package summary */}
       <div className="bg-white p-6 rounded-[0.75rem]">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs text-[#1F2D58]/60 mb-1">Gekozen pakket</p>
-            <h3 className="text-lg font-bold text-[#1F2D58] mb-4">{selectedPackage.display_name}</h3>
-          </div>
-          {onChangePackage && (
-            <Button
-              variant="link"
-              onClick={onChangePackage}
-              showArrow={false}
-              className="shrink-0"
-            >
-              <Pencil className="h-4 w-4" />
-              Wijzigen
-            </Button>
-          )}
+        <div>
+          <p className="text-xs text-[#1F2D58]/60 mb-1">Gekozen pakket</p>
+          <h3 className="text-lg font-bold text-[#1F2D58] mb-4">{selectedPackage.display_name}</h3>
         </div>
 
         <ul className="space-y-1.5 text-sm text-[#1F2D58]">
@@ -350,7 +336,9 @@ export function SubmitStep({
       <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
         <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Factuurgegevens</h3>
         <p className="text-sm text-[#1F2D58]/70 mb-4">
-          Je credits worden automatisch verrekend. Voor het overige bedrag ontvang je een factuur.
+          {availableCredits > 0
+            ? "Je credits worden automatisch verrekend. Voor het overige bedrag ontvang je een factuur."
+            : "Je ontvangt een factuur via de e-mail."}
         </p>
 
         {/* Loading state */}

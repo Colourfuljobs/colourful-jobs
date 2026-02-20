@@ -302,6 +302,7 @@ export default function MediaLibraryPage() {
                 <p className="text-sm text-[#1F2D58]/60">Upload afbeeldingen om te gebruiken op je bedrijfspagina en vacatures.</p>
               </div>
               <Button 
+                variant="secondary"
                 showArrow={false}
                 onClick={() => imageInputRef.current?.click()}
                 disabled={isUploadingImage}

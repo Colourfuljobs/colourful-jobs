@@ -5,7 +5,15 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
+import { ListOrdered } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function normalizeBrToParagraphs(html: string): string {
+  if (!html) return html;
+  return html
+    .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
+    .replace(/<br\s*\/?>/gi, "</p><p>");
+}
 
 interface RichTextEditorProps {
   value: string;
@@ -45,9 +53,25 @@ export function RichTextEditor({
         },
       }),
     ],
-    content: value,
+    content: normalizeBrToParagraphs(value),
     editable: !disabled,
     immediatelyRender: false,
+    editorProps: {
+      transformPastedHTML(html) {
+        // Convert <br> tags to proper paragraph breaks so each line becomes
+        // its own block node — this prevents heading toggles from affecting
+        // surrounding lines that share the same paragraph block.
+        return html
+          .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
+          .replace(/<br\s*\/?>/gi, "</p><p>");
+      },
+      transformPastedText(text) {
+        // When pasting plain text, convert newlines to paragraph-wrapped lines
+        // so every line becomes its own block node.
+        const lines = text.split(/\r?\n/);
+        return lines.map((line) => `<p>${line || "<br>"}</p>`).join("");
+      },
+    },
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
@@ -211,14 +235,7 @@ export function RichTextEditor({
           disabled={disabled}
           title="Genummerde lijst"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="10" y1="6" x2="21" y2="6" />
-            <line x1="10" y1="12" x2="21" y2="12" />
-            <line x1="10" y1="18" x2="21" y2="18" />
-            <text x="3" y="7" fontSize="8" fill="currentColor" stroke="none">1</text>
-            <text x="3" y="13" fontSize="8" fill="currentColor" stroke="none">2</text>
-            <text x="3" y="19" fontSize="8" fill="currentColor" stroke="none">3</text>
-          </svg>
+          <ListOrdered className="w-4 h-4" />
         </ToolbarButton>
 
         <div className="w-px h-6 bg-[#1F2D58]/20 mx-1" />
