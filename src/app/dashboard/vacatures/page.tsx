@@ -420,7 +420,7 @@ export default function VacaturesPage() {
     switch (action) {
       case "wijzigen": {
         const step = getFurthestStep(vacancy)
-        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=${step}`)
+        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=${step}&returnTo=/dashboard/vacatures`)
         break
       }
       case "bekijken": {
@@ -428,7 +428,7 @@ export default function VacaturesPage() {
           window.open(vacancy.public_url, "_blank")
         } else {
           // Open in wizard read-only mode (for wacht_op_goedkeuring without public_url)
-          router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
+          router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3&returnTo=/dashboard/vacatures`)
         }
         break
       }
@@ -529,7 +529,7 @@ export default function VacaturesPage() {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Link href="/dashboard/vacatures/nieuw">
+                <Link href="/dashboard/vacatures/nieuw?returnTo=/dashboard/vacatures">
                   <Button variant="secondary" showArrow={false}>
                     <Plus className="h-4 w-4 mr-1" />
                     Nieuwe vacature
@@ -563,7 +563,7 @@ export default function VacaturesPage() {
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell className="w-full max-w-0">
                         <Link
-                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
+                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}&returnTo=/dashboard/vacatures`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
                           {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
@@ -579,7 +579,7 @@ export default function VacaturesPage() {
                                 </Badge>
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent className="max-w-[240px]">
+                            <TooltipContent className="max-w-[280px]">
                               <p>
                                 {vacancy.input_type === "we_do_it_for_you" 
                                   ? "We stellen de vacature voor je op. Je ontvangt een email zodra de vacature klaar is voor beoordeling."
@@ -770,7 +770,7 @@ export default function VacaturesPage() {
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell className="w-full max-w-0">
                         <Link
-                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
+                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}&returnTo=/dashboard/vacatures`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
                           {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}

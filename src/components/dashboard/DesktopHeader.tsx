@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Coins, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,12 @@ interface DesktopHeaderProps {
 export function DesktopHeader({ title }: DesktopHeaderProps) {
   const { credits, isLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  const pathname = usePathname()
+  
+  // Build the new vacancy URL with returnTo parameter based on current page
+  const newVacancyUrl = pathname === "/dashboard" 
+    ? "/dashboard/vacatures/nieuw" 
+    : `/dashboard/vacatures/nieuw?returnTo=${encodeURIComponent(pathname)}`
 
   const handleCheckoutSuccess = (newBalance: number, purchasedAmount?: number) => {
     updateCredits(newBalance, purchasedAmount)
@@ -58,7 +65,7 @@ export function DesktopHeader({ title }: DesktopHeaderProps) {
         
         {/* New vacancy button */}
         <Button showArrow={false} asChild>
-          <Link href="/dashboard/vacatures/nieuw">
+          <Link href={newVacancyUrl}>
             <Plus className="h-4 w-4 mr-1" />
             Nieuwe vacature
           </Link>

@@ -174,7 +174,7 @@ export function CostSidebar({
                       Plaats je vaker vacatures?
                       <br />
                       Bespaar tot 30% met een{" "}
-                      <span className="underline">credit bundel</span>
+                      <span className="underline whitespace-nowrap">credit bundel</span>
                     </p>
                   </button>
                 )}
@@ -211,7 +211,7 @@ export function CostSidebar({
                   Extra credits kopen met voordeel?
                   <br />
                   Bespaar tot 30% met een{" "}
-                  <span className="underline">credit bundel</span>
+                  <span className="underline whitespace-nowrap">credit bundel</span>
                 </p>
               </button>
             )}

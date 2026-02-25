@@ -47,6 +47,10 @@ interface VacancyWizardProps {
 export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  
+  // Determine return URL - default to dashboard if not specified
+  const returnTo = searchParams.get("returnTo") || "/dashboard";
   
   // Credits from global context - ensures sync across all components
   const { credits, refetch: refetchCredits } = useCredits();
@@ -214,6 +218,10 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       params.set("id", state.vacancyId);
     }
     params.set("step", state.currentStep.toString());
+    // Preserve returnTo parameter in URL
+    if (returnTo && returnTo !== "/dashboard") {
+      params.set("returnTo", returnTo);
+    }
     const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
     
     // After popstate navigation: only replaceState (update URL without new history entry)
@@ -244,7 +252,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       );
       initialStepPushedRef.current = true;
     }
-  }, [state.currentStep, state.vacancyId, pathname]);
+  }, [state.currentStep, state.vacancyId, pathname, returnTo]);
 
   // Handle browser back/forward buttons
   // Uses refs instead of state to avoid stale closure issues
@@ -277,7 +285,10 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           );
           setShowLeaveDialog(true);
         } else {
-          router.push("/dashboard");
+          // Navigate to returnTo URL (read from current URL params)
+          const params = new URLSearchParams(window.location.search);
+          const returnUrl = params.get("returnTo") || "/dashboard";
+          router.push(returnUrl);
         }
       }
     };
@@ -1017,9 +1028,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     if (state.isDirty) {
       setShowLeaveDialog(true);
     } else {
-      router.push("/dashboard");
+      router.push(returnTo);
     }
-  }, [state.isDirty, router]);
+  }, [state.isDirty, router, returnTo]);
 
   // Handle leave confirmation
   const handleLeaveConfirm = useCallback(async (shouldSave: boolean) => {
@@ -1027,8 +1038,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       await saveVacancy();
     }
     setShowLeaveDialog(false);
-    router.push("/dashboard");
-  }, [state.vacancyId, saveVacancy, router]);
+    router.push(returnTo);
+  }, [state.vacancyId, saveVacancy, router, returnTo]);
 
   // Handle saving changes for existing (already submitted) vacancies
   const handleSaveChanges = useCallback(async () => {
@@ -1233,7 +1244,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                       <p className="text-sm mb-3">
                         Om een vacature aan te maken heb je een compleet werkgeversprofiel nodig. Vul deze eerst aan.
                       </p>
-                      <Link href={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}` : ''))}`}>
+                      <Link href={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}` : '') + (returnTo !== "/dashboard" ? `&returnTo=${encodeURIComponent(returnTo)}` : ''))}`}>
                         <Button>
                           Werkgeversprofiel invullen
                         </Button>
@@ -1359,7 +1370,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             onChangePackage={() => handleStepClick(1)}
             showInvoiceError={showInvoiceError}
             profileComplete={profileComplete}
-            profileEditUrl={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}&step=4` : ''))}`}
+            profileEditUrl={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}&step=4` : '') + (returnTo !== "/dashboard" ? `&returnTo=${encodeURIComponent(returnTo)}` : ''))}`}
             extensionDateRange={extensionDateRange}
             selectedClosingDate={selectedClosingDate}
             onClosingDateChange={setSelectedClosingDate}
@@ -1485,8 +1496,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content area - full width on step 1, 2/3 width on step 2-4 with sidebar (but step 4 is skipped for existing vacancies, and step 2 sidebar hidden for existing) */}
-        <div className={state.currentStep === 4 && !isExistingVacancy || (state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature) ? "lg:col-span-2" : "lg:col-span-3"}>
+        {/* Main content area - full width on step 1, 2/3 width on step 2-4 with sidebar (but step 4 is skipped for existing vacancies, and step 2/3 sidebar hidden for existing) */}
+        <div className={state.currentStep === 4 && !isExistingVacancy || (state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature && !isReadOnly && !isExistingVacancy) ? "lg:col-span-2" : "lg:col-span-3"}>
           {renderStepContent()}
         </div>
 
@@ -1540,8 +1551,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           </div>
         )}
 
-        {/* Step 3 sidebar: Colleagues review (read-only with link back to edit, unless in read-only mode) */}
-        {state.currentStep === 3 && hasSocialPostFeature && (
+        {/* Step 3 sidebar: Colleagues review - only show when creating NEW vacancies, not for existing/preview */}
+        {state.currentStep === 3 && hasSocialPostFeature && !isReadOnly && !isExistingVacancy && (
           <div className={`hidden lg:block lg:col-span-1 ${!isReadOnly ? "mt-6" : ""}`}>
             {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
               /* State B: Show tagged colleagues */
@@ -1790,18 +1801,9 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                             <Spinner className="w-4 h-4 mr-2" />
                             Bezig met indienen...
                           </>
-                        ) : hasEnoughCredits ? (
-                          `Vacature insturen (${totalCredits} credits)`
-                        ) : (() => {
-                          // Conditional formatting: only show non-zero values
-                          if (creditsFromBalance > 0 && shortagePrice > 0) {
-                            return `Vacature insturen (${creditsFromBalance} credits + €${shortagePrice})`;
-                          } else if (creditsFromBalance > 0) {
-                            return `Vacature insturen (${creditsFromBalance} credits)`;
-                          } else {
-                            return `Vacature insturen (€${shortagePrice})`;
-                          }
-                        })()}
+                        ) : (
+                          "Vacature insturen"
+                        )}
                       </Button>
                     );
                   })()

@@ -5,7 +5,8 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
-import { ListOrdered } from "lucide-react";
+import Underline from "@tiptap/extension-underline";
+import { ListOrdered, Globe, Mail, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function normalizeBrToParagraphs(html: string): string {
@@ -32,6 +33,7 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
+  const [linkType, setLinkType] = useState<"http" | "mailto" | "tel">("http");
   const linkInputRef = useRef<HTMLInputElement>(null);
   // Force re-render on selection change to update active states
   const [, setSelectionUpdate] = useState(0);
@@ -46,6 +48,7 @@ export function RichTextEditor({
       Placeholder.configure({
         placeholder,
       }),
+      Underline,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -98,12 +101,22 @@ export function RichTextEditor({
     if (previousUrl) {
       // Editing existing link - just show input with current URL
       setIsEditingExistingLink(true);
-      setLinkUrl(previousUrl);
+      if (previousUrl.toLowerCase().startsWith("mailto:")) {
+        setLinkType("mailto");
+        setLinkUrl(previousUrl.replace(/^mailto:/i, ""));
+      } else if (previousUrl.toLowerCase().startsWith("tel:")) {
+        setLinkType("tel");
+        setLinkUrl(previousUrl.replace(/^tel:/i, ""));
+      } else {
+        setLinkType("http");
+        setLinkUrl(previousUrl);
+      }
     } else {
       // New link - apply placeholder immediately so text gets underlined
       setIsEditingExistingLink(false);
       editor.chain().focus().setLink({ href: "#" }).run();
-      setLinkUrl("https://");
+      setLinkType("http");
+      setLinkUrl("");
     }
     
     setShowLinkInput(true);
@@ -112,22 +125,33 @@ export function RichTextEditor({
   const applyLink = useCallback(() => {
     if (!editor) return;
 
-    if (linkUrl === "" || linkUrl === "https://" || linkUrl === "#") {
+    const rawUrl = linkUrl.trim();
+
+    if (rawUrl === "" || rawUrl === "#") {
       // Remove link if empty or placeholder
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
     } else {
-      // Ensure URL has https:// prefix if no protocol is present
       const normalizedUrl =
-        linkUrl.startsWith("http://") || linkUrl.startsWith("https://")
-          ? linkUrl
-          : `https://${linkUrl}`;
+        linkType === "mailto"
+          ? rawUrl.toLowerCase().startsWith("mailto:")
+            ? rawUrl
+            : `mailto:${rawUrl}`
+          : linkType === "tel"
+            ? rawUrl.toLowerCase().startsWith("tel:")
+              ? rawUrl
+              : `tel:${rawUrl.replace(/[\s()-]/g, "")}`
+            : /^(https?:\/\/)/i.test(rawUrl)
+              ? rawUrl
+              : `https://${rawUrl}`;
+
       editor.chain().focus().extendMarkRange("link").setLink({ href: normalizedUrl }).run();
     }
     
     setShowLinkInput(false);
     setLinkUrl("");
+    setLinkType("http");
     setIsEditingExistingLink(false);
-  }, [editor, linkUrl]);
+  }, [editor, linkType, linkUrl]);
 
   const cancelLink = useCallback(() => {
     if (!editor) return;
@@ -139,6 +163,7 @@ export function RichTextEditor({
     
     setShowLinkInput(false);
     setLinkUrl("");
+    setLinkType("http");
     setIsEditingExistingLink(false);
     editor.chain().focus().run();
   }, [editor, isEditingExistingLink]);
@@ -164,9 +189,9 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={cn("rich-text-editor flex flex-col border border-[#1F2D58]/20 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#1F2D58] focus-within:border-transparent", className)}>
+    <div className={cn("rich-text-editor flex flex-col border border-[#1F2D58]/20 rounded-lg focus-within:ring-2 focus-within:ring-[#1F2D58] focus-within:border-transparent", className)}>
       {/* Toolbar - always visible at top */}
-      <div className="flex flex-wrap items-center gap-1 p-2 bg-[#F8F9FA] border-b border-[#1F2D58]/20 flex-shrink-0">
+      <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 p-2 bg-[#F8F9FA] border-b border-[#1F2D58]/20 rounded-t-lg flex-shrink-0">
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive("bold")}
@@ -188,6 +213,18 @@ export function RichTextEditor({
             <line x1="19" y1="4" x2="10" y2="4" />
             <line x1="14" y1="20" x2="5" y2="20" />
             <line x1="15" y1="4" x2="9" y2="20" />
+          </svg>
+        </ToolbarButton>
+
+        <ToolbarButton
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          isActive={editor.isActive("underline")}
+          disabled={disabled}
+          title="Onderstrepen"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 4v6a6 6 0 0 0 12 0V4" />
+            <line x1="4" y1="20" x2="20" y2="20" />
           </svg>
         </ToolbarButton>
 
@@ -284,13 +321,63 @@ export function RichTextEditor({
           </>
         ) : (
           <div className="flex items-center gap-2 flex-1">
+            <div className="flex items-center rounded-full border border-[#1F2D58]/20 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setLinkType("http")}
+                title="Weblink (http/https)"
+                aria-label="Weblink (http/https)"
+                className={cn(
+                  "h-8 w-9 flex items-center justify-center text-xs font-medium transition-colors",
+                  linkType === "http"
+                    ? "bg-[#1F2D58] text-white"
+                    : "bg-white text-[#1F2D58] hover:bg-[#1F2D58]/5"
+                )}
+              >
+                <Globe className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLinkType("mailto")}
+                title="E-maillink (mailto)"
+                aria-label="E-maillink (mailto)"
+                className={cn(
+                  "h-8 w-9 flex items-center justify-center text-xs font-medium border-l border-[#1F2D58]/20 transition-colors",
+                  linkType === "mailto"
+                    ? "bg-[#1F2D58] text-white"
+                    : "bg-white text-[#1F2D58] hover:bg-[#1F2D58]/5"
+                )}
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setLinkType("tel")}
+                title="Telefoonlink (tel)"
+                aria-label="Telefoonlink (tel)"
+                className={cn(
+                  "h-8 w-9 flex items-center justify-center text-xs font-medium border-l border-[#1F2D58]/20 transition-colors",
+                  linkType === "tel"
+                    ? "bg-[#1F2D58] text-white"
+                    : "bg-white text-[#1F2D58] hover:bg-[#1F2D58]/5"
+                )}
+              >
+                <Phone className="h-4 w-4" />
+              </button>
+            </div>
             <input
               ref={linkInputRef}
-              type="url"
+              type={linkType === "mailto" ? "email" : "text"}
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               onKeyDown={handleLinkKeyDown}
-              placeholder="https://example.com"
+              placeholder={
+                linkType === "mailto"
+                  ? "naam@bedrijf.nl"
+                  : linkType === "tel"
+                    ? "+31 6 12345678"
+                    : "example.com"
+              }
               className="flex-1 min-w-[200px] h-8 px-3 text-sm border border-[#1F2D58]/20 rounded-full focus:outline-none focus:ring-1 focus:ring-[#1F2D58]"
             />
             <button
@@ -315,7 +402,7 @@ export function RichTextEditor({
       <EditorContent
         editor={editor}
         className={cn(
-          "h-[600px] overflow-y-auto bg-[#E8EEF2] p-4 flex-1",
+          "h-[600px] overflow-y-auto bg-[#E8EEF2] p-4 flex-1 rounded-b-lg",
           "prose prose-sm max-w-none",
           "focus-within:outline-none",
           "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[568px]",

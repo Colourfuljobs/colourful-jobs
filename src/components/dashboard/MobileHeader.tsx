@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { Coins, Plus, LogOut, User, ExternalLink } from "lucide-react"
 
@@ -28,6 +29,12 @@ interface MobileHeaderProps {
 export function MobileHeader({ user }: MobileHeaderProps) {
   const { credits, isLoading, isPendingUpdate, updateCredits, setOptimisticUpdate } = useCredits()
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  const pathname = usePathname()
+  
+  // Build the new vacancy URL with returnTo parameter based on current page
+  const newVacancyUrl = pathname === "/dashboard" 
+    ? "/dashboard/vacatures/nieuw" 
+    : `/dashboard/vacatures/nieuw?returnTo=${encodeURIComponent(pathname)}`
   
   const handleSignOut = async () => {
     await signOut({ redirect: false })
@@ -139,7 +146,7 @@ export function MobileHeader({ user }: MobileHeaderProps) {
             showArrow={false}
             asChild
           >
-            <Link href="/dashboard/vacatures/nieuw">
+            <Link href={newVacancyUrl}>
               <Plus className="h-4 w-4" />
             </Link>
           </Button>

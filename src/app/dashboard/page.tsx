@@ -366,7 +366,7 @@ export default function DashboardPage() {
     switch (action) {
       case "wijzigen": {
         const step = getFurthestStep(vacancy)
-        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=${step}`)
+        router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=${step}&returnTo=/dashboard`)
         break
       }
       case "bekijken": {
@@ -374,7 +374,7 @@ export default function DashboardPage() {
           window.open(vacancy.public_url, "_blank")
         } else {
           // Open in wizard read-only mode (for wacht_op_goedkeuring without public_url)
-          router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3`)
+          router.push(`/dashboard/vacatures/nieuw?id=${vacancyId}&step=3&returnTo=/dashboard`)
         }
         break
       }
@@ -844,7 +844,7 @@ export default function DashboardPage() {
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                       <TableCell className="w-full max-w-0">
                         <Link
-                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}`}
+                          href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}&returnTo=/dashboard`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
                           {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
@@ -858,7 +858,7 @@ export default function DashboardPage() {
                                 <Badge variant={config.variant}>Vacature wordt opgesteld</Badge>
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent className="max-w-[240px]">
+                            <TooltipContent className="max-w-[280px]">
                               <p>We stellen de vacature voor je op. Je ontvangt een email zodra de vacature klaar is voor beoordeling.</p>
                             </TooltipContent>
                           </Tooltip>
