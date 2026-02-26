@@ -37,8 +37,8 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName
  * Gebruik voor hulptekst bij formuliervelden en labels.
  */
 interface InfoTooltipProps {
-  /** De tekst die in de tooltip wordt getoond */
-  content: string
+  /** De tekst of JSX die in de tooltip wordt getoond */
+  content: React.ReactNode
   /** Extra classes voor de tooltip content */
   className?: string
 }
@@ -52,7 +52,7 @@ function InfoTooltip({ content, className }: InfoTooltipProps) {
         </span>
       </TooltipTrigger>
       <TooltipContent className={cn("max-w-xs", className)}>
-        <p>{content}</p>
+        <div>{content}</div>
       </TooltipContent>
     </Tooltip>
   )
