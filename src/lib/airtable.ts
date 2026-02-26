@@ -156,7 +156,6 @@ export const productRecordSchema = z.object({
   duration_days: z.number().int().nullable().optional(), // Base duration in days: for vacancy_package = online duration, for upsell with repeat_mode=renewable = effect duration
   duration_type: z.enum(["active_period", "cooldown"]).nullable().optional(), // How duration_days is interpreted for renewable upsells: active_period = effect is active for X days, cooldown = must wait X days before reordering
   max_value: z.number().int().nullable().optional(), // Only for repeat_mode=until_max: maximum cumulative value (e.g. 365 days)
-  linked_tag: z.string().nullable().optional(), // Linked record to Tags table — tag to assign to vacancy when this product is active
 });
 
 export const featureActionTagEnum = z.enum([
@@ -261,7 +260,6 @@ export const vacancyRecordSchema = z.object({
   // Package & upsells
   package_id: z.string().nullable().optional(), // Linked to Products
   selected_upsells: z.array(z.string()).optional(), // Linked to Products (multiple)
-  tag_ids: z.array(z.string()).optional(), // Linked records to Tags table
   
   // Application
   apply_url: z.string().nullable().optional(),
@@ -298,8 +296,10 @@ export const vacancyRecordSchema = z.object({
   public_url: z.string().nullable().optional(), // URL of the published vacancy on the Webflow website
   needs_webflow_sync: z.boolean().default(false), // Set to true when changes need to be synced to Webflow
 
-  // Priority
+  // Priority & Featured
   high_priority: z.boolean().default(false), // Set when "Zelfde dag online" upsell is purchased
+  is_featured: z.boolean().default(false), // Set when a product with sets_featured=true is purchased
+  "featured-at": z.string().nullable().optional(), // Timestamp when is_featured was set to true (for expiry calculation)
 
   // Timestamps
   "created-at": z.string().optional(),
@@ -1731,7 +1731,6 @@ export async function getActiveProductsByType(
       const features = Array.isArray(fields.features) ? fields.features : [];
       const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
       const target_roles = Array.isArray(fields.target_roles) ? fields.target_roles : [];
-      const linked_tag = Array.isArray(fields.linked_tag) ? fields.linked_tag[0] || null : null;
 
       const availability = Array.isArray(fields.availability) ? fields.availability : [];
 
@@ -1758,7 +1757,6 @@ export async function getActiveProductsByType(
         duration_days: fields.duration_days || null,
         duration_type: fields.duration_type || null,
         max_value: fields.max_value || null,
-        linked_tag,
       });
     });
   } catch (error: unknown) {
@@ -1804,7 +1802,6 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
     const features = Array.isArray(fields.features) ? fields.features : [];
     const included_upsells = Array.isArray(fields.included_upsells) ? fields.included_upsells : [];
     const target_roles = Array.isArray(fields.target_roles) ? fields.target_roles : [];
-    const linked_tag = Array.isArray(fields.linked_tag) ? fields.linked_tag[0] || null : null;
 
     const availability = Array.isArray(fields.availability) ? fields.availability : [];
 
@@ -1831,7 +1828,6 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       duration_days: fields.duration_days || null,
       duration_type: fields.duration_type || null,
       max_value: fields.max_value || null,
-      linked_tag,
     });
   } catch (error: unknown) {
     console.error("Error getting product by ID:", getErrorMessage(error));
@@ -2103,7 +2099,6 @@ function parseVacancyFields(record: any): VacancyRecord {
   const selected_upsells = Array.isArray(fields.selected_upsells) 
     ? fields.selected_upsells 
     : [];
-  const tag_ids = Array.isArray(fields.tags) ? fields.tags : [];
   const header_image = Array.isArray(fields.header_image) 
     ? fields.header_image[0] || null 
     : null;
@@ -2167,7 +2162,6 @@ function parseVacancyFields(record: any): VacancyRecord {
     sector_id,
     package_id,
     selected_upsells,
-    tag_ids,
     apply_url: fields.apply_url || "",
     application_email: fields.application_email || "",
     show_apply_form: fields.show_apply_form || false,
@@ -2188,6 +2182,8 @@ function parseVacancyFields(record: any): VacancyRecord {
     public_url: fields.public_url as string | undefined,
     needs_webflow_sync: fields.needs_webflow_sync as boolean | undefined,
     high_priority: fields.high_priority as boolean | undefined,
+    is_featured: fields.is_featured as boolean | undefined,
+    "featured-at": fields["featured-at"] as string | undefined,
     "created-at": fields["created-at"] as string | undefined,
     "updated-at": fields["updated-at"] as string | undefined,
     "submitted-at": fields["submitted-at"] as string | undefined,
@@ -2345,9 +2341,6 @@ export async function updateVacancy(
   if (fields.selected_upsells !== undefined) {
     airtableFields.selected_upsells = fields.selected_upsells || [];
   }
-  if (fields.tag_ids !== undefined) {
-    airtableFields.tags = fields.tag_ids || [];
-  }
   
   // Application
   if (fields.apply_url !== undefined) airtableFields.apply_url = fields.apply_url;
@@ -2378,8 +2371,10 @@ export async function updateVacancy(
   // Users
   if (fields.users !== undefined) airtableFields.users = fields.users;
   
-  // Priority
+  // Priority & Featured
   if (fields.high_priority !== undefined) airtableFields.high_priority = fields.high_priority;
+  if (fields.is_featured !== undefined) airtableFields.is_featured = fields.is_featured;
+  if (fields["featured-at"] !== undefined) airtableFields["featured-at"] = fields["featured-at"];
 
   // Webflow sync
   if (fields.needs_webflow_sync !== undefined) airtableFields.needs_webflow_sync = fields.needs_webflow_sync;
@@ -2599,7 +2594,6 @@ export async function createSpendTransaction(fields: {
   product_ids: string[]; // Package ID + upsell IDs
   context?: TransactionRecord["context"];
   // Optional: when the product effects of this transaction expire (created_at + product.duration_days)
-  // Set when any product in this transaction has duration_days + linked_tag, so n8n can remove the tag on expiry
   expires_at?: string;
   // Optional invoice fields for partial payment (when credits are insufficient)
   invoice_details_snapshot?: string;

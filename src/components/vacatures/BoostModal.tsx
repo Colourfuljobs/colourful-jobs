@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { X, Rocket, Check } from "lucide-react";
 import { ProductRecord, TransactionRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
+import { getPriceDisplayMode } from "@/lib/credits";
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal";
 import {
   getPackageBaseDuration,
@@ -65,6 +66,7 @@ export function BoostModal({
   onSuccess,
 }: BoostModalProps) {
   const { credits, updateCredits } = useCredits();
+  const priceDisplayMode = getPriceDisplayMode(credits.total_purchased);
 
   const [boostUpsells, setBoostUpsells] = React.useState<ProductRecord[]>([]);
   const [selectedUpsellIds, setSelectedUpsellIds] = React.useState<string[]>([]);
@@ -333,7 +335,7 @@ export function BoostModal({
     }
   };
 
-  // Calculate costs
+  // Calculate costs (credits)
   const extensionCost = extensionChecked && selectedDate && extensionUpsell ? extensionUpsell.credits : 0;
   const upsellsCost = React.useMemo(() => {
     return boostUpsells
@@ -341,6 +343,15 @@ export function BoostModal({
       .reduce((sum, u) => sum + u.credits, 0);
   }, [selectedUpsellIds, boostUpsells]);
   const totalCost = upsellsCost + extensionCost;
+
+  // Calculate costs (euros)
+  const extensionPrice = extensionChecked && selectedDate && extensionUpsell ? extensionUpsell.price : 0;
+  const upsellsPrice = React.useMemo(() => {
+    return boostUpsells
+      .filter((u) => selectedUpsellIds.includes(u.id))
+      .reduce((sum, u) => sum + u.price, 0);
+  }, [selectedUpsellIds, boostUpsells]);
+  const totalPrice = upsellsPrice + extensionPrice;
 
   const availableCreditsAmount = credits.available;
   const remaining = availableCreditsAmount - totalCost;
@@ -492,7 +503,7 @@ export function BoostModal({
             <div className="border-t border-[#1F2D58]/10 mx-0" />
 
             {isLoading ? (
-              <div className="p-6 pt-0 space-y-3">
+              <div className="p-6 space-y-3">
                 <Skeleton className="h-20 w-full rounded-lg bg-white/60" />
                 <Skeleton className="h-20 w-full rounded-lg bg-white/60" />
                 <Skeleton className="h-20 w-full rounded-lg bg-white/60" />
@@ -530,6 +541,7 @@ export function BoostModal({
                               currentClosingDate={vacancyData?.closing_date}
                               required={getExtensionConfig().required}
                               idPrefix="boost"
+                              priceDisplayMode={priceDisplayMode}
                             />
                           );
                         }
@@ -557,8 +569,15 @@ export function BoostModal({
                               <span className="font-medium text-[#1F2D58] flex-1">
                                 {upsell.display_name}
                               </span>
-                              <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-                                {upsell.credits} credits
+                              <span className="text-sm shrink-0">
+                                {priceDisplayMode === "euros" ? (
+                                  <>
+                                    <span className="font-medium text-[#1F2D58]">€{upsell.price % 1 === 0 ? upsell.price.toLocaleString("nl-NL") : upsell.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    <span className="text-[#1F2D58]/60"> ({upsell.credits} credits)</span>
+                                  </>
+                                ) : (
+                                  <span className="font-medium text-[#1F2D58]">{upsell.credits} credits</span>
+                                )}
                               </span>
                             </div>
                             {upsell.description && (
@@ -597,7 +616,7 @@ export function BoostModal({
                   {activeUpsells.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider mb-3">
-                        Actief op deze vacature
+                        Inbegrepen bij deze vacature
                       </p>
                       <div className="space-y-2">
                         {activeUpsells.map((item) => (
@@ -611,16 +630,9 @@ export function BoostModal({
                             <span className="text-sm text-[#1F2D58] truncate flex-1">
                               {item.display_name}
                             </span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              {item.source === "included" && (
-                                <Badge variant="muted">Inbegrepen</Badge>
-                              )}
-                              {item.expiryLabel ? (
-                                <Badge variant="muted">{item.expiryLabel}</Badge>
-                              ) : item.source !== "included" ? (
-                                <Badge variant="muted">Actief</Badge>
-                              ) : null}
-                            </div>
+                            {item.expiryLabel && (
+                              <Badge variant="muted">{item.expiryLabel}</Badge>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -634,26 +646,41 @@ export function BoostModal({
 
                   {/* Cost summary */}
                   <div className="space-y-1.5 text-sm">
-                    <div className="flex justify-between text-[#1F2D58]">
-                      <span>Totale kosten:</span>
-                      <span className="font-medium">{totalCost}</span>
-                    </div>
-                    <div className="flex justify-between text-[#1F2D58]">
-                      <span>Beschikbaar:</span>
-                      <span className="font-medium">
-                        {availableCreditsAmount}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-[#1F2D58] font-semibold">
-                        <span>Resterend:</span>
-                        <span
-                          className={cn(remaining < 0 && "text-[#BC0000]")}
-                        >
-                          {remaining}
-                        </span>
-                      </div>
-                    </div>
+                    {priceDisplayMode === "euros" ? (
+                      <>
+                        <div className="flex justify-between text-[#1F2D58]">
+                          <span>Totale kosten:</span>
+                          <span className="font-medium">
+                            €{totalPrice % 1 === 0 ? totalPrice.toLocaleString("nl-NL") : totalPrice.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-[#1F2D58]">
+                          <span>Totale kosten:</span>
+                          <span className="font-medium">
+                            {totalCost} credits
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[#1F2D58]">
+                          <span>Beschikbaar:</span>
+                          <span className="font-medium">
+                            {availableCreditsAmount}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-[#1F2D58] font-semibold">
+                            <span>Resterend:</span>
+                            <span
+                              className={cn(remaining < 0 && "text-[#BC0000]")}
+                            >
+                              {remaining}
+                            </span>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Insufficient credits warning */}

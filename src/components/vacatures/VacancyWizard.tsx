@@ -6,14 +6,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import { CreditsCheckoutModal } from "@/components/checkout";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { StepIndicator } from "./StepIndicator";
 import { CostSidebar } from "./CostSidebar";
@@ -33,6 +30,7 @@ import type {
 import { WIZARD_STEPS_NEW, WIZARD_STEPS_EDIT } from "./types";
 import type { ProductRecord, LookupRecord, VacancyRecord, TransactionRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
+import { getPriceDisplayMode } from "@/lib/credits";
 import { getVisibleUpsells } from "@/lib/upsell-filters";
 import { getPackageBaseDuration, calculateDateRange } from "@/lib/vacancy-duration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -55,6 +53,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   // Credits from global context - ensures sync across all components
   const { credits, refetch: refetchCredits } = useCredits();
   const availableCredits = credits.available;
+  const priceDisplayMode = getPriceDisplayMode(credits.total_purchased);
   
   // Wizard state
   const [state, setState] = useState<VacancyWizardState>({
@@ -142,8 +141,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
-  const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [weDoItForYouProduct, setWeDoItForYouProduct] = useState<ProductRecord | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetails | null>(null);
@@ -608,6 +607,30 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       return emailRegex.test(email);
     };
 
+    // URL validation helper
+    const isValidUrl = (url: string) => {
+      try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+          return false;
+        }
+        // Check that hostname has at least one dot (e.g., example.com, not just "example")
+        const hostname = parsedUrl.hostname;
+        if (!hostname.includes(".")) {
+          return false;
+        }
+        // Check that there's something after the last dot (TLD)
+        const parts = hostname.split(".");
+        const tld = parts[parts.length - 1];
+        if (tld.length < 2) {
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     if (inputType === "we_do_it_for_you") {
       // Simplified validation for "We do it for you"
       if (!vacancyData.description?.trim()) {
@@ -626,6 +649,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       } else {
         if (!vacancyData.apply_url?.trim()) {
           errors.apply_url = "Sollicitatie URL is verplicht";
+        } else if (!isValidUrl(vacancyData.apply_url)) {
+          errors.apply_url = "Voer een geldige URL in (bijv. www.voorbeeld.nl/solliciteren)";
         }
       }
     } else {
@@ -671,6 +696,8 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       } else {
         if (!vacancyData.apply_url?.trim()) {
           errors.apply_url = "Sollicitatie URL is verplicht";
+        } else if (!isValidUrl(vacancyData.apply_url)) {
+          errors.apply_url = "Voer een geldige URL in (bijv. www.voorbeeld.nl/solliciteren)";
         }
       }
     }
@@ -1023,23 +1050,21 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     }
   }, []);
 
-  // Handle back button with unsaved changes check
-  const handleBack = useCallback(() => {
-    if (state.isDirty) {
-      setShowLeaveDialog(true);
-    } else {
-      router.push(returnTo);
+  // Handle close button - auto-save if there are unsaved changes
+  const handleClose = useCallback(async () => {
+    if (state.isDirty && state.vacancyId) {
+      setIsClosing(true);
+      try {
+        await saveVacancy();
+      } catch (error) {
+        // Still navigate even if save fails - user clicked close
+        console.error("Failed to save on close:", error);
+      } finally {
+        setIsClosing(false);
+      }
     }
-  }, [state.isDirty, router, returnTo]);
-
-  // Handle leave confirmation
-  const handleLeaveConfirm = useCallback(async (shouldSave: boolean) => {
-    if (shouldSave && state.vacancyId) {
-      await saveVacancy();
-    }
-    setShowLeaveDialog(false);
     router.push(returnTo);
-  }, [state.vacancyId, saveVacancy, router, returnTo]);
+  }, [state.isDirty, state.vacancyId, saveVacancy, router, returnTo]);
 
   // Handle saving changes for existing (already submitted) vacancies
   const handleSaveChanges = useCallback(async () => {
@@ -1164,11 +1189,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
   // Render loading state
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Spinner className="size-8 text-[#1F2D58]" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // Render current step content
@@ -1378,6 +1399,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             inputType={state.inputType}
             isSocialPostUpsell={isSocialPostUpsell}
             onOpenColleaguesModal={() => setShowColleaguesModal(true)}
+            priceDisplayMode={priceDisplayMode}
           />
         ) : (
           <div className="bg-white rounded-t-[0.75rem] rounded-b-[2rem] p-6">
@@ -1440,15 +1462,16 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           <div className="flex flex-col items-end justify-center border-l border-[#193DAB]/[0.12] pl-4 sm:pl-8 pr-4 sm:pr-8 py-4 sm:py-6 min-w-[132px] sm:min-w-[160px]">
             <Button
               variant="link"
-              onClick={handleBack}
+              onClick={handleClose}
               showArrow={false}
               className="whitespace-nowrap"
+              disabled={isClosing}
             >
               Sluiten
             </Button>
             {!isReadOnly && state.currentStep >= 2 && (
               <div>
-                {isSaving ? (
+                {isSaving || isClosing ? (
                   <div className="flex items-center gap-1.5 text-xs text-[#1F2D58]/60 mt-0.5">
                     <Spinner className="h-3 w-3" />
                     <span>Opslaan...</span>
@@ -1503,7 +1526,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         {/* Step 2 sidebar: Colleagues + We Do It For You - NIET bij bestaande vacatures of read-only */}
         {!isReadOnly && state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct) && (
-          <div className={`lg:col-span-1 order-first lg:order-none space-y-4 ${hasSocialPostFeature ? "mt-6" : ""}`}>
+          <div className={`lg:col-span-1 order-first lg:order-none space-y-4 lg:sticky lg:top-6 lg:self-start ${hasSocialPostFeature ? "mt-6" : ""}`}>
             {hasSocialPostFeature && (
               <ColleaguesSidebar
                 recommendations={recommendations}
@@ -1515,13 +1538,6 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               <WeDoItForYouBanner
                 product={weDoItForYouProduct}
                 onSelect={handleWeDoItForYou}
-                hasEnoughCredits={(() => {
-                  const pkgCredits = state.selectedPackage?.credits || 0;
-                  const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
-                  const wdifyCredits = weDoItForYouProduct.credits;
-                  const totalWithWdify = pkgCredits + upsellCreds + wdifyCredits;
-                  return availableCredits >= totalWithWdify;
-                })()}
               />
             )}
             {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
@@ -1533,13 +1549,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   <div>
                     <h4 className="text-lg font-bold text-[#1F2D58]">{weDoItForYouProduct.display_name}</h4>
                     <p className="text-xs text-[#1F2D58]/60">
-                      {weDoItForYouProduct.credits} credits{(() => {
-                        const pkgCredits = state.selectedPackage?.credits || 0;
-                        const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
-                        const totalCredits = pkgCredits + upsellCreds;
-                        const hasEnoughCredits = availableCredits >= totalCredits;
-                        return !hasEnoughCredits ? ` (€${weDoItForYouProduct.price.toFixed(2).replace(".", ",")})` : '';
-                      })()}
+                      {weDoItForYouProduct.credits} credits
                     </p>
                   </div>
                 </div>
@@ -1553,7 +1563,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         {/* Step 3 sidebar: Colleagues review - only show when creating NEW vacancies, not for existing/preview */}
         {state.currentStep === 3 && hasSocialPostFeature && !isReadOnly && !isExistingVacancy && (
-          <div className={`hidden lg:block lg:col-span-1 ${!isReadOnly ? "mt-6" : ""}`}>
+          <div className={`hidden lg:block lg:col-span-1 lg:sticky lg:top-6 lg:self-start ${!isReadOnly ? "mt-6" : ""}`}>
             {recommendations.filter(rec => rec.firstName?.trim() || rec.lastName?.trim()).length > 0 ? (
               /* State B: Show tagged colleagues */
               <div className="bg-white rounded-[0.75rem] p-5 pb-6 border border-[#39ade5]/50">
@@ -1621,7 +1631,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
         {/* Cost sidebar - only show in step 4 for NEW vacancies (not for existing ones) */}
         {state.currentStep === 4 && !isExistingVacancy && (
-          <div className="lg:col-span-1 space-y-4">
+          <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-6 lg:self-start">
             <CostSidebar
               selectedPackage={state.selectedPackage}
               selectedUpsells={state.selectedUpsells}
@@ -1634,6 +1644,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               showPackageInfo={false}
               onChangePackage={() => handleStepClick(1)}
               onBuyCredits={() => setShowCheckoutModal(true)}
+              priceDisplayMode={priceDisplayMode}
             />
           </div>
         )}
@@ -1682,48 +1693,30 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                   <div className="flex items-center gap-1.5 font-bold">
                     <span>Gekozen pakket: {state.selectedPackage.display_name}</span>
                     <span className="text-[#1F2D58]/30 font-normal">|</span>
-                    <span>
-                      {(() => {
-                        const pkgCredits = state.selectedPackage?.credits || 0;
-                        const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
-                        return pkgCredits + upsellCreds;
-                      })()} credits
-                    </span>
                     {(() => {
                       const pkgCredits = state.selectedPackage?.credits || 0;
                       const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
                       const totalCredits = pkgCredits + upsellCreds;
-                      const hasEnoughCredits = availableCredits >= totalCredits;
+                      const pkgPrice = state.selectedPackage?.price || 0;
+                      const upsellsPrice = state.selectedUpsells.reduce((sum, u) => sum + u.price, 0);
+                      const totalPrice = pkgPrice + upsellsPrice;
+                      const formattedPrice = `€${totalPrice % 1 === 0 ? totalPrice.toLocaleString("nl-NL") : totalPrice.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                       
-                      if (!hasEnoughCredits) {
-                        const pkgPrice = state.selectedPackage?.price || 0;
-                        const upsellsPrice = state.selectedUpsells.reduce((sum, u) => sum + u.price, 0);
-                        const total = pkgPrice + upsellsPrice;
+                      if (priceDisplayMode === "euros") {
                         return (
-                          <>
-                            <span className="text-[#1F2D58]/30 font-normal">|</span>
-                            <span>
-                              €{total % 1 === 0 ? total.toLocaleString("nl-NL") : total.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </>
+                          <span>{formattedPrice} ({totalCredits} credits)</span>
                         );
                       }
-                      return null;
+                      // Credits mode: always show only credits
+                      return <span>{totalCredits} credits</span>;
                     })()}
                   </div>
                   {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
                     <span className="text-[#1F2D58]/60 text-xs">
-                      We do it for you ({weDoItForYouProduct.credits} credits{(() => {
-                        const pkgCredits = state.selectedPackage?.credits || 0;
-                        const upsellCreds = state.selectedUpsells.reduce((sum, u) => sum + u.credits, 0);
-                        const totalCredits = pkgCredits + upsellCreds;
-                        const hasEnoughCredits = availableCredits >= totalCredits;
-                        
-                        if (!hasEnoughCredits) {
-                          return ` / €${weDoItForYouProduct.price.toFixed(2).replace(".", ",")}`;
-                        }
-                        return "";
-                      })()})
+                      {priceDisplayMode === "euros"
+                        ? `We do it for you (€${weDoItForYouProduct.price.toFixed(2).replace(".", ",")} / ${weDoItForYouProduct.credits} credits)`
+                        : `We do it for you (${weDoItForYouProduct.credits} credits)`
+                      }
                     </span>
                   )}
                 </div>
@@ -1822,40 +1815,6 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         currentBalance={availableCredits}
         onSuccess={handleCreditsSuccess}
       />
-
-      {/* Leave confirmation dialog */}
-      <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Niet-opgeslagen wijzigingen</DialogTitle>
-            <DialogDescription>
-              Je hebt wijzigingen die nog niet zijn opgeslagen. Wat wil je doen?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setShowLeaveDialog(false)}
-              showArrow={false}
-            >
-              Annuleren
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleLeaveConfirm(false)}
-              showArrow={false}
-            >
-              Verlaten zonder opslaan
-            </Button>
-            <Button
-              onClick={() => handleLeaveConfirm(true)}
-              showArrow={false}
-            >
-              Opslaan en verlaten
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Collega's taggen modal - shown when social post upsell is selected */}
       <Dialog open={showColleaguesModal} onOpenChange={setShowColleaguesModal}>

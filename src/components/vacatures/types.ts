@@ -58,6 +58,7 @@ export interface CostSidebarProps {
   showUpsellOptions?: boolean;
   onChangePackage?: () => void;
   onBuyCredits?: () => void;
+  priceDisplayMode?: "euros" | "credits";
 }
 
 export interface PackageSelectorProps {
@@ -136,4 +137,6 @@ export interface SubmitStepProps {
   isSocialPostUpsell?: (product: ProductRecord) => boolean;
   /** Callback to open colleagues modal */
   onOpenColleaguesModal?: () => void;
+  /** Display mode for price/credits */
+  priceDisplayMode?: "euros" | "credits";
 }

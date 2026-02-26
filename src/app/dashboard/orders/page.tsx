@@ -43,6 +43,7 @@ import { DesktopHeader } from "@/components/dashboard"
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
 import { InfoTooltip } from "@/components/ui/tooltip"
 import { useCredits } from "@/lib/credits-context"
+import { getPriceDisplayMode } from "@/lib/credits"
 import type { TransactionRecord } from "@/lib/airtable"
 
 // UI Transaction types (1-on-1 mapped from Airtable type field)
@@ -58,6 +59,7 @@ interface UITransaction {
   category: UITransactionCategory
   description: string
   credits: number // positief = credit, negatief = debit
+  totalCost?: number // prijs in euro's
   invoiceStatus?: UIInvoiceStatus
   invoiceUrl?: string // alleen bij purchase
   expiresAt?: Date // alleen bij purchase (creditpakketten)
@@ -69,27 +71,6 @@ interface CreditsOverview {
   total_spent: number
 }
 
-// Type configuration (for the Type column — maps 1-on-1 from Airtable type)
-// Note: These are displayed as plain text, not badges
-const typeConfig: Record<UITransactionType, {
-  label: string
-}> = {
-  purchase: {
-    label: "Aankoop",
-  },
-  spend: {
-    label: "Besteed",
-  },
-  refund: {
-    label: "Terugbetaling",
-  },
-  adjustment: {
-    label: "Aanpassing",
-  },
-  expiration: {
-    label: "Verlopen",
-  },
-}
 
 // Category configuration (for the Category column — derived from Airtable context)
 const categoryConfig: Record<NonNullable<UITransactionCategory>, {
@@ -259,6 +240,7 @@ function mapTransactionToUI(
     category,
     description,
     credits,
+    totalCost: transaction.total_cost ?? undefined,
     invoiceStatus,
     invoiceUrl,
     expiresAt,
@@ -345,6 +327,7 @@ function TableSkeleton() {
 export default function OrdersPage() {
   // Get refetch from context to sync header credits after purchase
   const { credits: contextCredits, refetch: refetchCreditsContext } = useCredits()
+  const priceDisplayMode = getPriceDisplayMode(contextCredits.total_purchased)
   
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -471,69 +454,32 @@ export default function OrdersPage() {
             <div className="space-y-4">
               <Skeleton className="h-10 w-24" />
               <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-full" />
-              <div className="flex justify-between">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-24" />
-              </div>
               <Skeleton className="h-10 w-40 mt-4" />
             </div>
           ) : (
-            <div>
-              {/* Credit stats grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Available - green */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#DEEEE3]">
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                    <Wallet className="h-5 w-5 text-[#41712F]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.available}</p>
-                    <p className="text-sm text-[#1F2D58]/70">beschikbaar</p>
-                  </div>
-                </div>
-
-                {/* Used - red */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#F4DCDC]">
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                    <TrendingDown className="h-5 w-5 text-[#BC0000]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.total_spent}</p>
-                    <p className="text-sm text-[#1F2D58]/70">gebruikt</p>
-                  </div>
-                </div>
-
-                {/* Purchased - blue */}
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#193DAB]/[0.08]">
-                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                    <ShoppingCart className="h-5 w-5 text-[#193DAB]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.total_purchased}</p>
-                    <p className="text-sm text-[#1F2D58]/70">aangeschaft</p>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              {/* Available credits - simple display */}
+              <div className="flex items-baseline gap-2">
+                <p className="text-3xl font-bold text-[#1F2D58] leading-tight">{credits.available}</p>
+                <p className="text-sm text-[#1F2D58]/60">beschikbare credits</p>
               </div>
 
               {/* Credit expiry warning */}
               {contextCredits.expiring_soon && contextCredits.expiring_soon.total > 0 && (
-                <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2 mt-4">
-                  <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
-                  </div>
-                  <span className="flex-1 pt-0.5">
-                    Let op: over {contextCredits.expiring_soon.days_until} {contextCredits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
-                    <strong>{contextCredits.expiring_soon.total} credits</strong>. Gebruik ze snel!
-                  </span>
-                  <div className="pt-0.5">
+                <>
+                  <div className="border-t border-[#1F2D58]/10" />
+                  <div className="flex items-center gap-1.5 text-[#1F2D58]/70 text-sm">
+                    <span>
+                      Let op: over {contextCredits.expiring_soon.days_until} {contextCredits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
+                      <strong className="text-[#1F2D58]">{contextCredits.expiring_soon.total} credits</strong>
+                    </span>
                     <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
                   </div>
-                </div>
+                </>
               )}
 
               {/* Buy credits button */}
-              <div className="mt-6">
+              <div className="pt-4">
                 <Button showArrow={false} onClick={() => setCheckoutModalOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" />
                   Koop credits
@@ -650,15 +596,15 @@ export default function OrdersPage() {
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Categorie</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Omschrijving</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Datum</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Type</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Credits</TableHead>
+                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">
+                    {priceDisplayMode === "euros" ? "Bedrag" : "Credits"}
+                  </TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] hidden sm:table-cell">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] w-[60px]">Factuur</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredTransactions.map((transaction) => {
-                  const tConfig = typeConfig[transaction.type]
                   const catConfig = transaction.category
                     ? categoryConfig[transaction.category]
                     : null
@@ -696,16 +642,20 @@ export default function OrdersPage() {
                         {formatDate(transaction.date)}
                       </TableCell>
 
-                      {/* Type - plain text, hidden on mobile */}
-                      <TableCell className="hidden sm:table-cell text-[#1F2D58]/60">
-                        {tConfig.label}
-                      </TableCell>
 
-                      {/* Credits - green for positive, default for negative */}
+                      {/* Credits or Amount based on display mode */}
                       <TableCell className={`text-right font-medium whitespace-nowrap ${
                         transaction.credits > 0 ? "text-[#41712F]" : "text-[#1F2D58]"
                       }`}>
-                        {transaction.credits > 0 ? "+" : ""}{transaction.credits}
+                        {priceDisplayMode === "euros" ? (
+                          transaction.totalCost != null ? (
+                            `€${transaction.totalCost % 1 === 0 ? transaction.totalCost.toLocaleString("nl-NL") : transaction.totalCost.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          ) : (
+                            "-"
+                          )
+                        ) : (
+                          `${transaction.credits > 0 ? "+" : ""}${transaction.credits}`
+                        )}
                       </TableCell>
 
                       {/* Invoice status - plain text, hidden on mobile */}

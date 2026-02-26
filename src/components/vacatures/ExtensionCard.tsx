@@ -25,6 +25,8 @@ export interface ExtensionCardProps {
   required?: boolean;
   /** Prefix for the checkbox id to avoid conflicts between BoostModal and SubmitStep */
   idPrefix?: string;
+  /** Display mode for price/credits */
+  priceDisplayMode?: "euros" | "credits";
 }
 
 export function ExtensionCard({
@@ -39,6 +41,7 @@ export function ExtensionCard({
   currentClosingDate,
   required = false,
   idPrefix = "ext",
+  priceDisplayMode = "credits",
 }: ExtensionCardProps) {
   const checkboxId = `${idPrefix}-upsell-${extensionUpsell.id}`;
 
@@ -75,8 +78,15 @@ export function ExtensionCard({
             </span>
           )}
         </span>
-        <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-          {extensionUpsell.credits} credits
+        <span className="text-sm shrink-0">
+          {priceDisplayMode === "euros" ? (
+            <>
+              <span className="font-medium text-[#1F2D58]">€{extensionUpsell.price % 1 === 0 ? extensionUpsell.price.toLocaleString("nl-NL") : extensionUpsell.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span className="text-[#1F2D58]/60"> ({extensionUpsell.credits} credits)</span>
+            </>
+          ) : (
+            <span className="font-medium text-[#1F2D58]">{extensionUpsell.credits} credits</span>
+          )}
         </span>
       </div>
 

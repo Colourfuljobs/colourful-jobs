@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Briefcase,
   ChevronDown,
-  Coins,
   Pencil,
   Eye,
   EyeOff,
@@ -496,7 +495,6 @@ export default function VacaturesPage() {
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Sluitingsdatum</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -506,7 +504,6 @@ export default function VacaturesPage() {
                     <TableCell className="w-full"><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                   </TableRow>
                 ))}
@@ -549,7 +546,6 @@ export default function VacaturesPage() {
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Sluitingsdatum</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -612,16 +608,6 @@ export default function VacaturesPage() {
                           <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
-                          <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
-                            <Coins className="h-4 w-4 flex-shrink-0" />
-                            <span>{vacancy.credits_spent}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[#1F2D58]/40">-</span>
-                        )}
-                      </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {actions.filter(action => !action.iconOnly).map((action) => (
@@ -679,7 +665,6 @@ export default function VacaturesPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -688,7 +673,6 @@ export default function VacaturesPage() {
                   <TableRow key={i} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
                     <TableCell className="w-full"><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                   </TableRow>
                 ))}
@@ -756,7 +740,6 @@ export default function VacaturesPage() {
                 <TableRow className="border-b border-[#E8EEF2] hover:bg-transparent">
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px]">Vacature</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Status</TableHead>
-                  <TableHead className="text-slate-400 font-semibold uppercase text-[12px] whitespace-nowrap">Credits</TableHead>
                   <TableHead className="text-slate-400 font-semibold uppercase text-[12px] text-right whitespace-nowrap">Acties</TableHead>
                 </TableRow>
               </TableHeader>
@@ -790,16 +773,6 @@ export default function VacaturesPage() {
                           </Tooltip>
                         ) : (
                           <Badge variant={config.variant}>{config.label}</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {config.showCredits && (vacancy.credits_spent ?? 0) > 0 ? (
-                          <div className="flex items-center gap-1.5 text-[#1F2D58]/70">
-                            <Coins className="h-4 w-4 flex-shrink-0" />
-                            <span>{vacancy.credits_spent}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[#1F2D58]/40">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">

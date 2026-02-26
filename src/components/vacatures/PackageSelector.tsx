@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { Check, Coins } from "lucide-react";
 import { useCredits } from "@/lib/credits-context";
+import { getPriceDisplayMode, type PriceDisplayMode } from "@/lib/credits";
 import type { FeatureRecord } from "@/lib/airtable";
 import type { ProductWithFeatures } from "./types";
 
@@ -54,7 +55,8 @@ export function PackageSelector({
   hideAllPrices = false,
   onBuyCredits,
 }: PackageSelectorProps) {
-  const { isPendingUpdate } = useCredits();
+  const { isPendingUpdate, credits } = useCredits();
+  const priceDisplayMode = getPriceDisplayMode(credits.total_purchased);
   // Group features by category
   const groupFeaturesByCategory = (features: FeatureRecord[]) => {
     const grouped: Record<string, FeatureRecord[]> = {};
@@ -176,14 +178,22 @@ export function PackageSelector({
                   )}
                 </Button>
 
-                {/* Credits */}
+                {/* Price/Credits display based on mode */}
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-[#1F2D58]">
-                    {pkg.credits} credits
-                  </span>
-                  {!hideAllPrices && (
-                    <span className="text-sm text-[#1F2D58]/50">
-                      €{pkg.price % 1 === 0 ? pkg.price.toLocaleString("nl-NL") : pkg.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {priceDisplayMode === "euros" ? (
+                    <>
+                      <span className="text-2xl font-bold text-[#1F2D58]">
+                        €{pkg.price % 1 === 0 ? pkg.price.toLocaleString("nl-NL") : pkg.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      {!hideAllPrices && (
+                        <span className="text-sm text-[#1F2D58]/50">
+                          ({pkg.credits} credits)
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold text-[#1F2D58]">
+                      {pkg.credits} credits
                     </span>
                   )}
                 </div>

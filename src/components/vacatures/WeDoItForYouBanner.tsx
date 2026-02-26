@@ -3,22 +3,31 @@
 import { useState } from "react";
 import { Rocket, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCredits } from "@/lib/credits-context";
+import { getPriceDisplayMode } from "@/lib/credits";
 import type { ProductRecord } from "@/lib/airtable";
 
 interface WeDoItForYouBannerProps {
   product: ProductRecord;
   onSelect: () => void;
-  hasEnoughCredits?: boolean;
 }
 
-export function WeDoItForYouBanner({ product, onSelect, hasEnoughCredits = false }: WeDoItForYouBannerProps) {
+export function WeDoItForYouBanner({ product, onSelect }: WeDoItForYouBannerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { credits } = useCredits();
+  const priceDisplayMode = getPriceDisplayMode(credits.total_purchased);
+
+  const formattedPrice = `€${product.price % 1 === 0 ? product.price.toLocaleString("nl-NL") : product.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const creditInfo = (
     <p className="text-sm font-medium text-[#1F2D58] mb-4">
-      {product.credits} credits
-      {!hasEnoughCredits && (
-        <span className="text-[#1F2D58]/60"> (€{product.price.toFixed(2).replace(".", ",")})</span>
+      {priceDisplayMode === "euros" ? (
+        <>
+          {formattedPrice}
+          <span className="text-[#1F2D58]/60"> ({product.credits} credits)</span>
+        </>
+      ) : (
+        <>{product.credits} credits</>
       )}
     </p>
   );

@@ -8,7 +8,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
@@ -119,20 +119,7 @@ export default function InvitationPage() {
 
   // Loading state
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-md">
-          <div className="flex justify-center mb-8">
-            <Link href="https://www.colourfuljobs.nl/">
-              <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-            </Link>
-          </div>
-          <div className="flex justify-center">
-            <Spinner className="size-12 text-[#1F2D58]" />
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   // Error state

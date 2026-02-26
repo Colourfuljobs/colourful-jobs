@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Check, CheckCircle, AlertCircle, Building2, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ export function SubmitStep({
   inputType = "self_service",
   isSocialPostUpsell,
   onOpenColleaguesModal,
+  priceDisplayMode = "credits",
 }: SubmitStepProps) {
   // Get features from the selected package
   const features = selectedPackage.populatedFeatures || [];
@@ -212,10 +214,13 @@ export function SubmitStep({
         const extensionSelected = extensionUpsell ? selectedUpsells.some((s) => s.id === extensionUpsell.id) : false;
 
         return (
-          <div className="bg-white p-6 rounded-t-[0.75rem] rounded-b-[2rem]">
-            <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Kies extra&apos;s</h3>
+          <div className="bg-white p-6 rounded-t-[0.75rem] rounded-b-[2rem] relative">
+            <Badge variant="package" className="absolute top-4 right-4">
+              Tip
+            </Badge>
+            <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Voeg extra&apos;s toe</h3>
             <p className="text-sm text-[#1F2D58]/70 mb-4">
-              Vergroot de zichtbaarheid van je vacature
+              Laat je vacature opvallen en trek sneller de juiste kandidaten
             </p>
 
             <div className="space-y-3">
@@ -241,6 +246,7 @@ export function SubmitStep({
                       dateRange={extensionDateRange}
                       currentClosingDate={currentClosingDate}
                       idPrefix="submit"
+                      priceDisplayMode={priceDisplayMode}
                     />
                   );
                 }
@@ -274,8 +280,15 @@ export function SubmitStep({
                       <span className="font-medium text-[#1F2D58] flex-1">
                         {upsell.display_name}
                       </span>
-                      <span className="text-sm text-[#1F2D58] font-medium shrink-0">
-                        {upsell.credits} credits
+                      <span className="text-sm shrink-0">
+                        {priceDisplayMode === "euros" ? (
+                          <>
+                            <span className="font-medium text-[#1F2D58]">€{upsell.price % 1 === 0 ? upsell.price.toLocaleString("nl-NL") : upsell.price.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="text-[#1F2D58]/60"> ({upsell.credits} credits)</span>
+                          </>
+                        ) : (
+                          <span className="font-medium text-[#1F2D58]">{upsell.credits} credits</span>
+                        )}
                       </span>
                     </div>
                     

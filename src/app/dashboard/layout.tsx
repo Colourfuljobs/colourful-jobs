@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
 import { useEffect } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import { Spinner } from "@/components/ui/spinner"
+import { PageLoader } from "@/components/ui/page-loader"
 import { AppSidebar, MobileHeader, MobileNav } from "@/components/dashboard"
 import { CreditsProvider } from "@/lib/credits-context"
 import { AccountProvider, useAccount } from "@/lib/account-context"
@@ -35,29 +35,17 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Show loading state while checking session
   if (status === "loading") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner className="size-12 text-[#1F2D58]" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   // Don't render for unauthenticated or pending users
   if (status === "unauthenticated" || session?.user?.status === "pending_onboarding") {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner className="size-12 text-[#1F2D58]" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   // Show loading state while fetching account data
   if (isAccountLoading || !accountData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner className="size-12 text-[#1F2D58]" />
-      </div>
-    )
+    return <PageLoader />
   }
 
   const user = {

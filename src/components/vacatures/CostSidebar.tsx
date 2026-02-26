@@ -12,7 +12,9 @@ export function CostSidebar({
   showPackageInfo = true,
   onChangePackage,
   onBuyCredits,
+  priceDisplayMode = "credits",
 }: CostSidebarProps) {
+  const isEuroMode = priceDisplayMode === "euros";
   // Calculate credit totals
   const packageCredits = selectedPackage?.credits || 0;
 
@@ -84,15 +86,19 @@ export function CostSidebar({
         {/* Cost breakdown - only show if package selected */}
         {selectedPackage && (
           <div className="space-y-2">
-            {/* Column header */}
-            <div className="flex justify-end">
-              <span className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider">Credits</span>
-            </div>
-
             {/* Package cost */}
             <div className="flex justify-between">
               <span className="text-[#1F2D58]">{selectedPackage.display_name}</span>
-              <span className="text-[#1F2D58]">{packageCredits}</span>
+              <span className="text-[#1F2D58]">
+                {isEuroMode ? (
+                  <>
+                    <span className="font-medium">€{packagePrice % 1 === 0 ? packagePrice.toLocaleString("nl-NL") : packagePrice.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="text-[#1F2D58]/60"> ({packageCredits} credits)</span>
+                  </>
+                ) : (
+                  <span className="font-medium">{packageCredits} credits</span>
+                )}
+              </span>
             </div>
 
             {/* Extras cost (only if any) */}
@@ -101,119 +107,162 @@ export function CostSidebar({
                 <span className="text-[#1F2D58]">
                   Extra&apos;s ({extraUpsells.length})
                 </span>
-                <span className="text-[#1F2D58]">+{extraCredits}</span>
+                <span className="text-[#1F2D58]">
+                  {isEuroMode ? (
+                    <>
+                      <span className="font-medium">€{extraPrice % 1 === 0 ? extraPrice.toLocaleString("nl-NL") : extraPrice.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-[#1F2D58]/60"> ({extraCredits} credits)</span>
+                    </>
+                  ) : (
+                    <span className="font-medium">{extraCredits} credits</span>
+                  )}
+                </span>
               </div>
             )}
 
             <hr className="border-[#1F2D58]/10" />
 
-            {/* Totaal */}
-            <div className="flex justify-between">
-              <span className="font-bold text-[#1F2D58]">Totaal</span>
-              <span className="font-bold text-[#1F2D58]">{totalCredits}</span>
-            </div>
-
-            {/* Beschikbare credits */}
-            <div className="flex justify-between pt-2 border-t border-[#1F2D58]/10">
-              <span className="text-[#1F2D58]">Beschikbare credits</span>
-              <span className="text-[#1F2D58]">{availableCredits}</span>
-            </div>
-
-            {/* Scenario 1: Genoeg credits */}
-            {hasEnoughCredits && (
+            {/* Euro mode: simplified view without credit balance info */}
+            {isEuroMode ? (
               <>
-                {/* Only show intermediate "Over na plaatsing" if no extras */}
-                {extraUpsells.length === 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-[#1F2D58]">Over na plaatsing</span>
-                    <span className="text-[#1F2D58]">{creditsRemaining}</span>
-                  </div>
-                )}
+                {/* Bundle promotion for euro mode users */}
+                <button
+                  type="button"
+                  onClick={onBuyCredits}
+                  className="w-full mt-2 mb-4 px-4 pt-2 pb-3 border-2 border-[#DEEEE3] bg-[#DEEEE3]/20 rounded-lg text-center hover:bg-[#DEEEE3]/40 transition-colors"
+                >
+                  <p className="text-sm text-[#1F2D58]">
+                    Plaats je vaker vacatures?
+                    <br />
+                    Bespaar tot 30% met een{" "}
+                    <span className="underline whitespace-nowrap">credit bundel</span>
+                  </p>
+                </button>
 
-                {/* Bottom total */}
-                <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
-                  {extraUpsells.length > 0 ? (
-                    <>
-                      <span className="font-bold text-[#1F2D58]">
-                        Over na plaatsing
-                      </span>
-                      <span className="font-bold text-[#1F2D58]">
-                        {creditsRemaining}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="font-bold text-[#1F2D58]">Totaal</span>
-                      <span className="font-bold text-[#1F2D58]">
-                        {totalCredits}
-                      </span>
-                    </>
-                  )}
+                <hr className="border-[#1F2D58]/10" />
+
+                {/* Totaal */}
+                <div className="flex justify-between pt-2">
+                  <span className="font-bold text-[#1F2D58]">Totaal</span>
+                  <span className="font-bold text-[#1F2D58]">
+                    €{totalPrice % 1 === 0 ? totalPrice.toLocaleString("nl-NL") : totalPrice.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                 </div>
               </>
-            )}
-
-            {/* Scenario 2: Te weinig credits */}
-            {!hasEnoughCredits && (
+            ) : (
               <>
+                {/* Credits mode: full view with balance info */}
+                {/* Totaal */}
                 <div className="flex justify-between">
-                  <span className="text-[#1F2D58]">Tekort aan credits</span>
-                  <span className="text-[#1F2D58]">
-                    {shortage} (€{shortagePrice})
+                  <span className="font-bold text-[#1F2D58]">Totaal</span>
+                  <span className="font-bold text-[#1F2D58]">
+                    {totalCredits} credits
                   </span>
                 </div>
 
-                {/* Bundle promotion */}
-                {availableCredits <= 50 && (
+                {/* Beschikbare credits */}
+                <div className="flex justify-between pt-2 border-t border-[#1F2D58]/10">
+                  <span className="text-[#1F2D58]">Beschikbare credits</span>
+                  <span className="text-[#1F2D58]">{availableCredits}</span>
+                </div>
+
+                {/* Scenario 1: Genoeg credits */}
+                {hasEnoughCredits && (
+                  <>
+                    {/* Only show intermediate "Over na plaatsing" if no extras */}
+                    {extraUpsells.length === 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-[#1F2D58]">Over na plaatsing</span>
+                        <span className="text-[#1F2D58]">{creditsRemaining}</span>
+                      </div>
+                    )}
+
+                    {/* Bottom total */}
+                    <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
+                      {extraUpsells.length > 0 ? (
+                        <>
+                          <span className="font-bold text-[#1F2D58]">
+                            Over na plaatsing
+                          </span>
+                          <span className="font-bold text-[#1F2D58]">
+                            {creditsRemaining}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-bold text-[#1F2D58]">Totaal</span>
+                          <span className="font-bold text-[#1F2D58]">
+                            {totalCredits}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Scenario 2: Te weinig credits */}
+                {!hasEnoughCredits && (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-[#1F2D58]">Tekort aan credits</span>
+                      <span className="text-[#1F2D58]">
+                        {shortage} (€{shortagePrice})
+                      </span>
+                    </div>
+
+                    {/* Bundle promotion */}
+                    {availableCredits <= 50 && (
+                      <button
+                        type="button"
+                        onClick={onBuyCredits}
+                        className="w-full mt-4 px-4 pt-2 pb-3 border-2 border-[#DEEEE3] bg-[#DEEEE3]/20 rounded-lg text-center hover:bg-[#DEEEE3]/40 transition-colors"
+                      >
+                        <p className="text-sm text-[#1F2D58]">
+                          Plaats je vaker vacatures?
+                          <br />
+                          Bespaar tot 30% met een{" "}
+                          <span className="underline whitespace-nowrap">credit bundel</span>
+                        </p>
+                      </button>
+                    )}
+
+                    <div className="flex justify-between pt-4 mt-4 border-t border-[#1F2D58]/10">
+                      <span className="font-bold text-[#1F2D58]">Te betalen</span>
+                      <div className="text-right">
+                        <span className="font-bold text-[#1F2D58]">
+                          {(() => {
+                            // Conditional formatting: only show non-zero values
+                            if (availableCredits > 0 && shortagePrice > 0) {
+                              return `${availableCredits} credits + €${shortagePrice}`;
+                            } else if (availableCredits > 0) {
+                              return `${availableCredits} credits`;
+                            } else {
+                              return `€${shortagePrice}`;
+                            }
+                          })()}
+                        </span>
+                        <p className="text-xs text-[#1F2D58]/60">excl. btw</p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Bundle promotion for enough credits but low balance */}
+                {hasEnoughCredits && availableCredits <= 50 && (
                   <button
                     type="button"
                     onClick={onBuyCredits}
                     className="w-full mt-4 px-4 pt-2 pb-3 border-2 border-[#DEEEE3] bg-[#DEEEE3]/20 rounded-lg text-center hover:bg-[#DEEEE3]/40 transition-colors"
                   >
                     <p className="text-sm text-[#1F2D58]">
-                      Plaats je vaker vacatures?
+                      Extra credits kopen met voordeel?
                       <br />
                       Bespaar tot 30% met een{" "}
                       <span className="underline whitespace-nowrap">credit bundel</span>
                     </p>
                   </button>
                 )}
-
-                <div className="flex justify-between pt-4 mt-4 border-t border-[#1F2D58]/10">
-                  <span className="font-bold text-[#1F2D58]">Te betalen</span>
-                  <div className="text-right">
-                    <span className="font-bold text-[#1F2D58]">
-                      {(() => {
-                        // Conditional formatting: only show non-zero values
-                        if (availableCredits > 0 && shortagePrice > 0) {
-                          return `${availableCredits} credits + €${shortagePrice}`;
-                        } else if (availableCredits > 0) {
-                          return `${availableCredits} credits`;
-                        } else {
-                          return `€${shortagePrice}`;
-                        }
-                      })()}
-                    </span>
-                    <p className="text-xs text-[#1F2D58]/60">excl. btw</p>
-                  </div>
-                </div>
               </>
-            )}
-
-            {/* Bundle promotion for enough credits but low balance */}
-            {hasEnoughCredits && availableCredits <= 50 && (
-              <button
-                type="button"
-                onClick={onBuyCredits}
-                className="w-full mt-4 px-4 pt-2 pb-3 border-2 border-[#DEEEE3] bg-[#DEEEE3]/20 rounded-lg text-center hover:bg-[#DEEEE3]/40 transition-colors"
-              >
-                <p className="text-sm text-[#1F2D58]">
-                  Extra credits kopen met voordeel?
-                  <br />
-                  Bespaar tot 30% met een{" "}
-                  <span className="underline whitespace-nowrap">credit bundel</span>
-                </p>
-              </button>
             )}
           </div>
         )}

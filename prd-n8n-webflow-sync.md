@@ -55,7 +55,6 @@ Colourful Jobs is een Nederlands vacatureplatform dat werkgevers verbindt met we
 | Features | `FEATURES_TABLE` | Features per product (bijv. "Social media boost") |
 | Media Assets | `MEDIA_ASSETS_TABLE` | Afbeeldingen (logo's, sfeerbeelden) |
 | FAQ | `FAQ_TABLE` | Veelgestelde vragen per werkgever |
-| Tags | `TAGS_TABLE` | Vacature-tags (bijv. "UITGELICHT", "NIEUW"). Linked aan Vacancies. Velden: `id` (record ID), `tag` (tekst). |
 
 ### Webflow CMS Collections
 
@@ -68,7 +67,6 @@ Colourful Jobs is een Nederlands vacatureplatform dat werkgevers verbindt met we
 | └─ ○ Function Types | `698f2bea668f9bd10bfcd8ad` | `function-types` | Lookup |
 | └─ ○ Education Levels | `698f2c4de7de3d57f704ecb4` | `education-levels` | Lookup |
 | └─ ○ Sectors | `698f2c4ee7de3d57f704ed14` | `sectors` | Lookup |
-| └─ ○ Tags | `698f2c4e668f9bd10bfd0ddd` | `tags` | Lookup |
 | ○ FAQs | `698f2d8df5e04afffc19b4ea` | `faq` | Support |
 | ○ Products | `698f2eeadbfebea38d2ec41f` | `products` | Support |
 | ○ Features | `698f2eeaf2a6e8d393b05a8e` | `features` | Support |
@@ -110,10 +108,9 @@ Colourful Jobs is een Nederlands vacatureplatform dat werkgevers verbindt met we
 | `sector_id` | Linked Record | `vacancy-sectors` | MultiReference | Map Airtable ID → Webflow item ID |
 | — | — | `seo-title` | PlainText | **AI-gegenereerd** (50-60 chars, NL) |
 | — | — | `seo-meta-description` | PlainText | **AI-gegenereerd** (150-160 chars, NL) |
-| `high_priority` | Boolean | `featured` | Switch | Direct mapping |
-| — | — | `new` | Switch | `true` als `first-published-at` < 3 dagen geleden |
-| — | — | `vacancy-tag` | Reference | Dynamisch bepaald door n8n: "uitgelicht" (bij upsell) of "nieuw" (eerste 3 dagen). Zie Beslissingen §3. |
-| — | — | `announcement-bar` | Switch | Alleen bij specifieke upsell (handmatig of rule-based) |
+| `high_priority` | Boolean | — | — | Interne vlag voor "Vandaag online" — wordt niet naar Webflow gestuurd |
+| `is_featured` | Boolean | `featured` | Switch | Direct mapping — gezet door Next.js app bij aankoop van `prod_upsell_featured`, verwijderd door n8n na X dagen (uit `duration_days` van product) |
+| `is_new` | Boolean | `new` | Switch | Direct mapping — gezet door Airtable automation bij eerste publicatie, verwijderd door n8n na 3 dagen |
 
 ### Employer: Airtable → Webflow
 
@@ -200,29 +197,28 @@ Airtable record ID's (bijv. `recABC123`) zijn anders dan Webflow item ID's (bijv
 
 ## Workflows
 
-### Workflow 1: Lookup Tables + Tags Sync (Sectors, Regions, Fields, FunctionTypes, EducationLevels, Tags)
+### Workflow 1: Lookup Tables Sync (Sectors, Regions, Fields, FunctionTypes, EducationLevels)
 
 **Trigger**: Schedule — 1x per dag (06:00 CET) + handmatige trigger
 **Prioriteit**: Moet als EERSTE draaien want andere syncs zijn afhankelijk van lookup ID mappings
 
 **Flow**:
-1. **Itereer over alle collections**: Sectors, Regions, Fields, FunctionTypes, EducationLevels én Tags
+1. **Itereer over alle collections**: Sectors, Regions, Fields, FunctionTypes, EducationLevels
 2. **Haal alle records op** uit de betreffende Airtable tabel
 3. **Haal alle items op** uit de corresponderende Webflow collection
 4. **Vergelijk** op basis van `webflow_item_id` veld in Airtable:
    - Nieuw (geen `webflow_item_id`): Maak item aan in Webflow
    - Bestaand (heeft `webflow_item_id`): Update item in Webflow als data gewijzigd
    - Verwijderd (Webflow item bestaat maar Airtable record niet): Archiveer/verwijder in Webflow
-5. **AI-stap** — alleen voor lookup tables (Sectors, Regions, Fields, FunctionTypes, EducationLevels), **niet voor Tags**:
+5. **AI-stap**:
    - `seo-title`: max 60 chars, Nederlands, formaat: "Vacatures in {name} | Colourful Jobs" (voor Regions) of vergelijkbaar per type
    - `seo-meta-description`: max 160 chars, Nederlands, beschrijvend
    - `hero-intro`: 1-2 zinnen, Nederlands, uitnodigend
    - `seo-text`: 300-500 woorden, Nederlands, keyword-rich, naam minimaal 4x gebruiken
-   - Tags sla je deze stap over: Tags hebben alleen `tag` → `name` + `slug` en geen SEO-velden
 6. **Update Airtable**: Sla `webflow_item_id` op in het Airtable record
 7. **Publish** de items in Webflow
 
-**AI Prompt Template** (voor lookup SEO, niet van toepassing op Tags):
+**AI Prompt Template**:
 ```
 Je bent een Nederlandse SEO-copywriter voor Colourful Jobs, een inclusief vacatureplatform.
 
@@ -403,47 +399,67 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 
 ---
 
-### Workflow 8: "NIEUW" Tag Lifecycle
+### Workflow 8: "New" Label Expiry
 
-**Trigger**: Schedule — elke 15 minuten (kan gecombineerd worden met de Vangnet Workflow)
-**Doel**: Automatisch de tag "NIEUW" toewijzen en verwijderen op basis van publicatiedatum
+**Trigger**: Schedule — dagelijks (bijv. 00:15 CET)
+**Doel**: Automatisch het `is_new` veld op `false` zetten voor vacatures die langer dan 3 dagen gepubliceerd zijn
+
+**Achtergrond**: 
+- Het `is_new` veld wordt op `true` gezet door een Airtable automation bij eerste publicatie van een vacature
+- Deze n8n workflow zorgt ervoor dat het label na 3 dagen automatisch wordt verwijderd
+- Het `is_new` veld in Airtable wordt direct gemapt naar de `new` switch in Webflow
 
 **Flow**:
-1. **Haal alle gepubliceerde vacatures op** uit Airtable waar `first-published-at` is ingevuld
-2. **Per vacature**, bereken of de publicatie < 3 dagen geleden is:
-   - **Ja (< 3 dagen)** en tag "NIEUW" is NIET gekoppeld → Koppel de tag "NIEUW" in Airtable (linked record toevoegen) + zet `needs_webflow_sync = true`
-   - **Nee (≥ 3 dagen)** en tag "NIEUW" IS gekoppeld → Ontkoppel de tag "NIEUW" in Airtable (linked record verwijderen) + zet `needs_webflow_sync = true`
-   - **Geen wijziging nodig** → Skip
-3. De reguliere Vacancy Sync (Workflow 4/5) pikt de `needs_webflow_sync = true` op en synct de updated tag-reference naar Webflow
+1. **Haal alle vacatures op** uit Airtable waar:
+   - `is_new = true`
+   - `first-published-at` is ingevuld
+   - `first-published-at < now() - 3 dagen`
+2. **Per vacature**:
+   - Zet `is_new = false` in Airtable
+   - Zet `needs_webflow_sync = true` in Airtable
+3. De reguliere Vacancy Sync (Workflow 4/5) pikt de `needs_webflow_sync = true` op en synct de updated `new` switch naar Webflow
 
-**Opmerking**: De tag "UITGELICHT" wordt NIET door deze workflow beheerd. Toewijzen bij aankoop gebeurt in de Next.js app; verwijderen bij verlopen wordt afgehandeld door Workflow 9.
+**Airtable Formula voor filtering** (optioneel, als je een view wilt maken):
+```
+AND(
+  {is_new} = TRUE(),
+  {first-published-at} != "",
+  DATETIME_DIFF(NOW(), {first-published-at}, 'days') >= 3
+)
+```
 
 ---
 
-### Workflow 9: Product Tag Expiry (Generiek)
+### Workflow 9: "Featured" Label Expiry
 
-**Trigger**: Schedule — elke uur
-**Doel**: Automatisch tags verwijderen van vacatures waarvan de bijbehorende upsell is verlopen
+**Trigger**: Schedule — dagelijks (bijv. 00:30 CET)
+**Doel**: Automatisch het `is_featured` veld op `false` zetten voor vacatures waarvan de uitgelicht-periode is verlopen
 
-**Vereiste**: Bij het aanmaken van een spend-transaction voor een upsell met `duration_days` slaat de Next.js app `expires_at` op op de transaction (`created_at + duration_days`). Dit veld bestaat al op de Transactions tabel en wordt nu ook voor upsells gevuld.
+**Achtergrond**: 
+- Het `is_featured` veld wordt op `true` gezet door de Next.js app bij aankoop van het product `prod_upsell_featured`
+- Tegelijk wordt `featured-at` gezet op het moment van aankoop
+- De duur van de uitgelicht-periode staat in het `duration_days` veld van het `prod_upsell_featured` product
+- Deze n8n workflow controleert of de periode is verlopen en verwijdert het label
 
 **Flow**:
-1. **Haal alle verlopen spend-transactions op** uit Airtable waar:
-   - `type = "spend"`
-   - `expires_at` is ingevuld
-   - `expires_at < now()`
-   - `status = "paid"` (niet al verwerkt)
-2. **Per transaction**: haal de gekoppelde Product(en) op via `product_ids`
-3. **Per product**: controleer of het product een `linked_tag` heeft
-   - **Ja** → controleer of die tag nog gekoppeld is aan de vacancy (`vacancy_id`)
-     - **Ja, nog gekoppeld** → Verwijder de tag-link van de Vacancy in Airtable + zet `needs_webflow_sync = true` op de Vacancy
-     - **Nee, al verwijderd** → Skip
-   - **Geen `linked_tag`** → Skip
-4. **Markeer de transaction** als verwerkt door `status = "expired"` te zetten (zodat hij niet opnieuw wordt opgepakt)
-5. De reguliere Vacancy Sync (Workflow 5) pikt de `needs_webflow_sync = true` op en update de tag-reference in Webflow
+1. **Haal het `prod_upsell_featured` product op** uit Airtable om de `duration_days` te bepalen
+2. **Haal alle vacatures op** uit Airtable waar:
+   - `is_featured = true`
+   - `featured-at` is ingevuld
+   - `featured-at < now() - duration_days`
+3. **Per vacature**:
+   - Zet `is_featured = false` in Airtable
+   - Zet `needs_webflow_sync = true` in Airtable
+4. De reguliere Vacancy Sync (Workflow 4/5) pikt de `needs_webflow_sync = true` op en synct de updated `featured` switch naar Webflow
 
-**Waarom per transaction en niet per vacancy?**
-Eén vacature kan meerdere actieve upsells hebben met elk hun eigen `expires_at`. Door per transaction te werken, verloopt elke upsell op het juiste moment, onafhankelijk van andere actieve upsells op dezelfde vacature.
+**Airtable Formula voor filtering** (voorbeeld met 30 dagen):
+```
+AND(
+  {is_featured} = TRUE(),
+  {featured-at} != "",
+  DATETIME_DIFF(NOW(), {featured-at}, 'days') >= 30
+)
+```
 
 ---
 
@@ -687,14 +703,14 @@ Professionele transactie-e-mails naar werkgevers via MailerSend templates. Trigg
 
 ### Sync Volgorde (Dependencies)
 ```
-1. Lookup Tables + Tags (Sectors, Regions, Fields, FunctionTypes, EducationLevels, Tags)
+1. Lookup Tables (Sectors, Regions, Fields, FunctionTypes, EducationLevels)
 2. FAQs
 3. Features
 4. Products (depends on Features)
 5. Employers (depends on Sectors, FAQs)
-6. Vacancies (depends on Employers, Tags, all Lookups)
-7. "NIEUW" Tag Lifecycle (depends on Tags, updates Vacancies)
-8. Product Tag Expiry (depends on Transactions, Products, Tags, updates Vacancies)
+6. Vacancies (depends on Employers, all Lookups)
+7. "New" Label Expiry (updates Vacancies)
+8. "Featured" Label Expiry (updates Vacancies)
 9. WeFact Facturatie (onafhankelijk; triggered by Next.js app na succesvolle aankoop met eurobedrag)
 ```
 
@@ -786,7 +802,6 @@ Het veld `webflow_item_id` (Single Line Text) is toegevoegd aan alle tabellen di
 | FAQ | `webflow_item_id` | ✅ Aanwezig |
 | Products | `webflow_item_id` | ✅ Aanwezig |
 | Features | `webflow_item_id` | ✅ Aanwezig |
-| Tags | `webflow_item_id` | ✅ Aanwezig |
 | Employers | `needs_webflow_sync` | ✅ Aanwezig |
 
 ---
@@ -836,10 +851,10 @@ n8n schrijft de volgende events rechtstreeks naar de Airtable Events tabel (zelf
 
 2. **Video URL**: Webflow Employers collection heeft nu een `video-link` veld. Mapping: Airtable `video_url` → Webflow `video-link` (Link type). Toegevoegd aan de Employer field mapping.
 
-3. **Tags**: Er is een nieuwe `Tags` tabel in Airtable aangemaakt (velden: `id`, `tag`) die gelinkt is aan de Vacancies tabel. De Webflow Tags collection bevat dynamische labels die de weergave en positie van vacatures beïnvloeden:
-   - **"UITGELICHT"** → Wordt aan de vacature gehangen door de Next.js app op het moment van aankoop (aparte Cursor-briefing). Verwijdering bij verlopen wordt generiek afgehandeld door **Workflow 9** (Product Tag Expiry): zodra de bijbehorende spend-transaction `expires_at` verstreken is, verwijdert n8n de tag-link uit Airtable. De `expires_at` op de transaction wordt berekend als `created_at + product.duration_days` en opgeslagen bij aanmaken van de transaction in de Next.js app.
-   - **"NIEUW"** → Wordt door de **n8n workflow** gezet voor vacatures die minder dan 3 dagen gepubliceerd zijn (berekend op basis van `first-published-at`). Na 3 dagen verwijdert de n8n workflow de tag automatisch, zowel in Airtable (link verwijderen) als in Webflow (reference updaten).
-   - Tags worden vanuit Airtable gesynchroniseerd naar Webflow via de `vacancy-tag` reference.
+3. **Vacancy labels (Featured & New)**: In plaats van een aparte Tags tabel worden vacature-labels nu beheerd via boolean velden:
+   - **`is_featured`** (Airtable) → **`featured`** (Webflow): Wordt `true` gezet door de Next.js app bij aankoop van het product `prod_upsell_featured`. Tegelijk wordt `featured-at` gezet. Na X dagen (uit `duration_days` van het product) zet **Workflow 9** (Featured Label Expiry) het veld automatisch op `false`.
+   - **`is_new`** (Airtable) → **`new`** (Webflow): Wordt `true` gezet door een Airtable automation bij eerste publicatie. Na 3 dagen zet **Workflow 8** (New Label Expiry) het veld automatisch op `false`.
+   - **`high_priority`** (Airtable): Interne vlag voor "Vandaag online" — wordt NIET naar Webflow gestuurd. Wordt gebruikt voor prioritering in de goedkeuringsqueue.
 
 4. **Employer `needs_webflow_sync`**: **Toevoegen aan Airtable**. Werkt hetzelfde als bij Vacancies: wordt `true` gezet wanneer employer-data wijzigt, zodat de sync alleen gewijzigde employers verwerkt in plaats van elke keer alle actieve employers te vergelijken. Veel efficiënter.
 

@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 
 type UserStatus = "pending_onboarding" | "active" | "invited";
 
@@ -105,11 +105,7 @@ export function AuthGuard({
       return null;
     }
     
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner className="size-12 text-[#1F2D58]" />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return <>{children}</>;

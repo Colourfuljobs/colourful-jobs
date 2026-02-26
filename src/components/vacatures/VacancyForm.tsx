@@ -66,6 +66,14 @@ export function VacancyForm({
   // Track initial load to prevent overwriting user selections
   const [initialMediaLoaded, setInitialMediaLoaded] = useState(false);
 
+  // Prefill sector_id from employer if vacancy doesn't have one yet
+  // This ensures the prefilled value is actually saved to vacancyData for validation
+  useEffect(() => {
+    if (employerSectorId && !vacancy.sector_id) {
+      onChange({ sector_id: employerSectorId });
+    }
+  }, [employerSectorId, vacancy.sector_id, onChange]);
+
   // Fetch employer media on mount (only once)
   useEffect(() => {
     async function fetchMedia() {
@@ -240,36 +248,110 @@ export function VacancyForm({
         </FormSection>
 
         {/* Section: Media */}
-        <FormSection title="Afbeeldingen" description="Selecteer een headerafbeelding uit je beeldbank">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Label className="!mb-0">
-                Headerafbeelding <span className="text-slate-400 text-sm">*</span>
-              </Label>
-              <InfoTooltip content="Groot beeld bovenaan je vacature. Liggend beeld, min. 1440 × 480 px (JPG). De vacaturetitel wordt automatisch over het beeld geplaatst. Kies daarom een rustig sfeerbeeld zonder tekst." />
-            </div>
-            <div className="space-y-3">
-              {headerImage?.url ? (
-                <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
-                  <img src={headerImage.url} alt="Header" className="h-full w-full object-cover" />
+        <FormSection title="Afbeeldingen" description="Selecteer een headerafbeelding uit je beeldbank en upload je logo">
+          <div className="space-y-6">
+            {/* Header and Logo */}
+            <div className="flex flex-col sm:flex-row gap-6">
+              {/* Header */}
+              <div className="space-y-3 flex-1">
+                <div className="flex items-center gap-2">
+                  <Label className="!mb-0">
+                    Headerafbeelding <span className="text-slate-400 text-sm">*</span>
+                  </Label>
+                  <InfoTooltip content="Groot beeld bovenaan je vacature. Liggend beeld, min. 1440 × 480 px (JPG). De vacaturetitel wordt automatisch over het beeld geplaatst. Kies daarom een rustig sfeerbeeld zonder tekst." />
                 </div>
-              ) : (
-                <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
-                  <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
+                <div className="space-y-3">
+                  {headerImage?.url ? (
+                    <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 overflow-hidden ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
+                      <img src={headerImage.url} alt="Header" className="h-full w-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className={`h-32 w-full max-w-md rounded-[0.75rem] bg-[#193DAB]/12 flex items-center justify-center ${validationErrors.header_image ? "ring-2 ring-red-500" : ""}`}>
+                      <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    showArrow={false}
+                    onClick={() => setShowHeaderDialog(true)}
+                  >
+                    {headerImage?.url ? "Wijzigen" : "Kiezen"}
+                  </Button>
+                  {validationErrors.header_image && (
+                    <p className="text-sm text-red-500 mt-1">{validationErrors.header_image}</p>
+                  )}
                 </div>
-              )}
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                showArrow={false}
-                onClick={() => setShowHeaderDialog(true)}
-              >
-                {headerImage?.url ? "Wijzigen" : "Kiezen"}
-              </Button>
-              {validationErrors.header_image && (
-                <p className="text-sm text-red-500 mt-1">{validationErrors.header_image}</p>
-              )}
+              </div>
+
+              {/* Vertical divider */}
+              <div className="hidden sm:block w-px bg-[#E8EEF2] self-stretch" />
+
+              {/* Logo */}
+              <div className="space-y-3 flex-1">
+                <div className="flex items-center gap-2">
+                  <Label className="!mb-0">
+                    Logo <span className="text-slate-400 text-sm">*</span>
+                  </Label>
+                  <InfoTooltip content="Upload je logo als JPG, PNG of SVG. PNG en SVG met een transparante achtergrond werken het beste." />
+                </div>
+                <input
+                  ref={logoFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/svg+xml"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleLogoUpload(file);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center gap-1.5">
+                    {employerLogo?.url ? (
+                      <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center p-3">
+                        <img src={employerLogo.url} alt="Logo" className="max-h-full max-w-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="w-28 h-24 rounded-[0.75rem] bg-white border border-gray-200 flex items-center justify-center">
+                        <ImageIcon className="h-8 w-8 text-[#1F2D58]/40" />
+                      </div>
+                    )}
+                    <p className="text-xs text-[#1F2D58]/50 text-center">Zo ziet het eruit bij de vacature</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      showArrow={false}
+                      onClick={() => logoFileInputRef.current?.click()}
+                      disabled={isUploadingLogo}
+                    >
+                      {isUploadingLogo ? (
+                        <>
+                          <Spinner className="h-4 w-4 mr-1" />
+                          Uploaden...
+                        </>
+                      ) : employerLogo?.url ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          Vervangen
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Uploaden
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-xs text-[#1F2D58]/50">JPG, PNG of SVG, max 5MB</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </FormSection>
@@ -333,16 +415,40 @@ export function VacancyForm({
       >
         <div className="space-y-4">
           <div>
-            <Label htmlFor="title">Vacaturetitel <span className="text-slate-400 text-sm">*</span></Label>
-            <Input
-              id="title"
-              value={vacancy.title || ""}
-              onChange={(e) => updateField("title", e.target.value)}
-              placeholder="Bijv. Senior Frontend Developer"
-              className={`mt-1.5 ${validationErrors.title ? "border-red-500" : ""}`}
-            />
-            {validationErrors.title && (
-              <p className="text-sm text-red-500 mt-1">{validationErrors.title}</p>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="title" className="!mb-0">Vacaturetitel <span className="text-slate-400 text-sm">*</span></Label>
+              {["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"].includes(vacancy.status || "") && (
+                <InfoTooltip content={
+                  <span>
+                    Vacaturetitel kan niet aangepast worden. Mocht dit toch nodig zijn,{" "}
+                    <a href="https://www.colourfuljobs.nl/contact" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#39ADE5]">
+                      neem contact met ons op
+                    </a>.
+                  </span>
+                } />
+              )}
+            </div>
+            {["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"].includes(vacancy.status || "") ? (
+              <Input
+                id="title"
+                value={vacancy.title || ""}
+                disabled
+                placeholder="Bijv. Senior Frontend Developer"
+                className="mt-1.5 bg-[#E8EEF2]/50 cursor-not-allowed"
+              />
+            ) : (
+              <>
+                <Input
+                  id="title"
+                  value={vacancy.title || ""}
+                  onChange={(e) => updateField("title", e.target.value)}
+                  placeholder="Bijv. Senior Frontend Developer"
+                  className={`mt-1.5 ${validationErrors.title ? "border-red-500" : ""}`}
+                />
+                {validationErrors.title && (
+                  <p className="text-sm text-red-500 mt-1">{validationErrors.title}</p>
+                )}
+              </>
             )}
           </div>
 

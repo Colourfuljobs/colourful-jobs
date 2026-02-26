@@ -9,7 +9,7 @@ import { useForm } from "react-hook-form";
 import { Card, CardContent, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/page-loader";
 import type { KVKSearchResult, KVKDetails } from "@/lib/kvk";
 import { 
   companyDataSchema, 
@@ -1008,61 +1008,24 @@ export default function OnboardingPage() {
   // Loading states
   if (isActivating) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-[600px]">
-        <div className="flex justify-center mb-8">
-          <Link href="https://www.colourfuljobs.nl/">
-            <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-          </Link>
-        </div>
-        <Card className="p-6 sm:p-8 bg-white">
-          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-            <Spinner className="size-12 text-[#F86600] mb-4" />
-            <p className="p-large text-[#1F2D58]">Je account wordt aangemaakt...</p>
-            <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
-          </CardContent>
-        </Card>
-        </div>
-      </div>
+      <PageLoader 
+        title="Je account wordt aangemaakt..."
+        description="Even geduld, je wordt doorgestuurd naar het dashboard."
+      />
     );
   }
 
   if (joinCompleting || isJoinCallback) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-[600px]">
-        <div className="flex justify-center mb-8">
-          <Link href="https://www.colourfuljobs.nl/">
-            <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-          </Link>
-        </div>
-        <Card className="p-6 sm:p-8 bg-white">
-          <CardContent className="p-0 flex flex-col items-center justify-center py-12">
-            <Spinner className="size-12 text-[#F86600] mb-4" />
-            <p className="p-large text-[#1F2D58]">Account wordt gekoppeld...</p>
-            <p className="p-regular text-slate-500 mt-2">Even geduld, je wordt doorgestuurd naar het dashboard.</p>
-          </CardContent>
-        </Card>
-        </div>
-      </div>
+      <PageLoader 
+        title="Account wordt gekoppeld..."
+        description="Even geduld, je wordt doorgestuurd naar het dashboard."
+      />
     );
   }
 
   if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-[600px]">
-          <div className="flex justify-center mb-8">
-            <Link href="https://www.colourfuljobs.nl/">
-              <Image src="/logo.svg" alt="Colourful jobs" width={180} height={29} priority />
-            </Link>
-          </div>
-          <div className="flex justify-center">
-            <Spinner className="size-12 text-[#1F2D58]" />
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   if (verifiedInOtherTab) {

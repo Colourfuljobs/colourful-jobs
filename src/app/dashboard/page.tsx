@@ -472,31 +472,24 @@ export default function DashboardPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3 p-3 rounded-xl bg-[#DEEEE3]">
-                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                          <Wallet className="h-5 w-5 text-[#41712F]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-2xl font-bold text-[#1F2D58] leading-tight">{credits.available}</p>
-                          <p className="text-sm text-[#1F2D58]/70">beschikbare credits</p>
-                        </div>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-bold text-[#1F2D58] leading-tight">{credits.available}</p>
+                        <p className="text-sm text-[#1F2D58]/60">beschikbare credits</p>
                       </div>
                     )}
                     
                     {/* Credit expiry warning */}
                     {credits.expiring_soon && credits.expiring_soon.total > 0 && (
-                      <div className="flex items-start gap-3 text-[#1F2D58] text-sm bg-[#193DAB]/[0.12] rounded-lg px-3 py-2">
-                        <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                          <AlertTriangle className="h-3.5 w-3.5 text-[#F86600] -mt-[2px]" />
-                        </div>
-                        <span className="flex-1 pt-0.5">
-                          Let op: over {credits.expiring_soon.days_until} {credits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
-                          <strong>{credits.expiring_soon.total} credits</strong>. Gebruik ze snel!
-                        </span>
-                        <div className="pt-0.5">
+                      <>
+                        <div className="border-t border-[#1F2D58]/10" />
+                        <div className="flex items-center gap-1.5 text-[#1F2D58]/70 text-sm">
+                          <span>
+                            Let op: over {credits.expiring_soon.days_until} {credits.expiring_soon.days_until === 1 ? "dag" : "dagen"} verlopen{" "}
+                            <strong className="text-[#1F2D58]">{credits.expiring_soon.total} credits</strong>
+                          </span>
                           <InfoTooltip content="Gekochte credits zijn 1 jaar geldig na aankoop. Niet gebruikte credits vervallen automatisch na de vervaldatum." />
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>
