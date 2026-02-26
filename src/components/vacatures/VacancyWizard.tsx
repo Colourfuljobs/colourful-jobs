@@ -276,13 +276,20 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       const minStep = isExistingVacancyRef.current ? 2 : 1;
       if (currentStepRef.current <= minStep) {
         if (isDirtyRef.current) {
-          // Push state back to prevent navigation, show dialog
+          // Push state back to prevent navigation, ask for confirmation
           window.history.pushState(
             { wizardStep: currentStepRef.current, vacancyId: vacancyIdRef.current },
             "",
             window.location.href
           );
-          setShowLeaveDialog(true);
+          const confirmLeave = window.confirm(
+            "Je hebt niet-opgeslagen wijzigingen. Weet je zeker dat je wilt verlaten?"
+          );
+          if (confirmLeave) {
+            const params = new URLSearchParams(window.location.search);
+            const returnUrl = params.get("returnTo") || "/dashboard";
+            router.push(returnUrl);
+          }
         } else {
           // Navigate to returnTo URL (read from current URL params)
           const params = new URLSearchParams(window.location.search);
