@@ -85,8 +85,29 @@ function hasExistingTransaction(
 }
 
 /**
+ * Add business days (Mon-Fri) to a date.
+ * Skips weekends when counting days.
+ */
+export function addBusinessDays(startDate: Date, days: number): Date {
+  const result = new Date(startDate);
+  let addedDays = 0;
+
+  while (addedDays < days) {
+    result.setDate(result.getDate() + 1);
+    const dayOfWeek = result.getDay();
+    // Skip Saturday (6) and Sunday (0)
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      addedDays++;
+    }
+  }
+
+  return result;
+}
+
+/**
  * For `renewable` mode: check if the effect of the most recent transaction
  * has expired (created_at + duration_days < now).
+ * Supports both calendar_days (default) and business_days (Mon-Fri only).
  * Returns true if the upsell should be shown (expired or no prior purchase).
  */
 function isRenewable(
@@ -107,10 +128,18 @@ function isRenewable(
 
   if (!relevantTx || !relevantTx["created-at"]) return true; // No prior purchase
 
-  // Calculate expiry: created_at + duration_days
+  // Calculate expiry based on cooldown_unit
   const createdAt = new Date(relevantTx["created-at"]);
-  const expiresAt = new Date(createdAt);
-  expiresAt.setDate(expiresAt.getDate() + durationDays);
+  let expiresAt: Date;
+
+  if (product.cooldown_unit === "business_days") {
+    // Count only business days (Mon-Fri)
+    expiresAt = addBusinessDays(createdAt, durationDays);
+  } else {
+    // Default: calendar days
+    expiresAt = new Date(createdAt);
+    expiresAt.setDate(expiresAt.getDate() + durationDays);
+  }
 
   const now = new Date();
   return expiresAt <= now; // Show if effect has expired

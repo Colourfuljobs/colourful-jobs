@@ -30,6 +30,7 @@ import {
 import {
   filterUpsellsByRepeatMode,
   RepeatModeContext,
+  addBusinessDays,
 } from "@/lib/upsell-filters";
 import { cn } from "@/lib/utils";
 import { ExtensionCard } from "./ExtensionCard";
@@ -210,12 +211,15 @@ export function BoostModal({
               })[0];
 
             if (tx?.["created-at"]) {
-              const expiresAt = new Date(tx["created-at"]);
-              expiresAt.setDate(expiresAt.getDate() + product.duration_days);
+              const createdAt = new Date(tx["created-at"]);
+              const expiresAt = product.cooldown_unit === "business_days"
+                ? addBusinessDays(createdAt, product.duration_days)
+                : new Date(createdAt.getTime() + product.duration_days * 24 * 60 * 60 * 1000);
 
               if (product.duration_type === "cooldown") {
-                const renewableFrom = new Date(expiresAt);
-                renewableFrom.setDate(renewableFrom.getDate() + 1);
+                const renewableFrom = product.cooldown_unit === "business_days"
+                  ? addBusinessDays(expiresAt, 1)
+                  : new Date(expiresAt.getTime() + 24 * 60 * 60 * 1000);
                 expiryLabel = `Opnieuw vanaf ${renewableFrom.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
               } else {
                 expiryLabel = `Tot ${expiresAt.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
@@ -254,12 +258,15 @@ export function BoostModal({
               })[0];
 
             if (tx?.["created-at"]) {
-              const expiresAt = new Date(tx["created-at"]);
-              expiresAt.setDate(expiresAt.getDate() + product.duration_days);
+              const createdAt = new Date(tx["created-at"]);
+              const expiresAt = product.cooldown_unit === "business_days"
+                ? addBusinessDays(createdAt, product.duration_days)
+                : new Date(createdAt.getTime() + product.duration_days * 24 * 60 * 60 * 1000);
 
               if (product.duration_type === "cooldown") {
-                const renewableFrom = new Date(expiresAt);
-                renewableFrom.setDate(renewableFrom.getDate() + 1);
+                const renewableFrom = product.cooldown_unit === "business_days"
+                  ? addBusinessDays(expiresAt, 1)
+                  : new Date(expiresAt.getTime() + 24 * 60 * 60 * 1000);
                 expiryLabel = `Opnieuw vanaf ${renewableFrom.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;
               } else {
                 expiryLabel = `Tot ${expiresAt.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })}`;

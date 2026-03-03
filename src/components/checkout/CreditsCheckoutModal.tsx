@@ -264,10 +264,10 @@ export function CreditsCheckoutModal({
     }).format(price).replace(/\s/g, ""); // Remove space between € and amount
   };
 
-  // Calculate how many vacancies can be placed (rough estimate: 16 credits per basic vacancy)
+  // Calculate how many vacancies can be placed (estimate based on Compleet package)
   const getVacancyEstimate = (credits: number) => {
-    const basicVacancyCredits = 16; // Based on prod_vacancy_basic in Products table
-    return Math.floor(credits / basicVacancyCredits);
+    const completeVacancyCredits = 20; // Based on prod_vacancy_complete in Products table
+    return Math.floor(credits / completeVacancyCredits);
   };
 
   // Format validity months to Dutch text
@@ -409,23 +409,26 @@ export function CreditsCheckoutModal({
                         )}
 
                         {/* Credits */}
-                        <p className="text-base text-[#1F2D58] mt-1">
+                        <p className="text-[16px] text-[#1F2D58] mt-1">
                           <span className="font-bold">{product.credits} credits</span>
                         </p>
 
                       </div>
 
                       {/* Vacancy estimate with tooltip */}
-                      <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-[#1F2D58]/10">
-                        <div className="flex flex-col">
+                      <div className="px-4 pt-1 pb-3">
+                        <div className={cn(
+                          "flex items-center justify-between gap-2 p-2 rounded-[4px]",
+                          isSelected ? "bg-[#1F2D58]/[0.07]" : "bg-white/50"
+                        )}>
                           <span className="text-sm leading-5 text-[#1F2D58]">
                             Plaats {vacancyEstimate} vacatures
                           </span>
-                          <span className="text-sm leading-5 text-[#1F2D58]/60">
-                            Vanaf {formatPrice(Math.round(product.price / vacancyEstimate))} p/st
-                          </span>
+                          <InfoTooltip content={`Op basis van ${vacancyEstimate} 'Compleet vacatures'. Credits zijn ook anders in te zetten en hebben een geldigheid van 365 dagen.`} />
                         </div>
-                        <InfoTooltip content={`Op basis van ${vacancyEstimate} 'Compleet vacatures'. Credits zijn ook anders in te zetten en hebben een geldigheid van 365 dagen.`} />
+                        <span className="text-xs text-[#1F2D58]/60 mt-1 block">
+                          {billingCycle === "yearly" ? "Jaarlijkse facturatie" : "Eenmalige facturatie"}
+                        </span>
                       </div>
 
                       {/* Bottom section - Pricing & Button */}
@@ -433,26 +436,23 @@ export function CreditsCheckoutModal({
                         {/* Pricing */}
                         <div className="space-y-1.5">
                           {/* Price row: old price → new price */}
-                          <div className="flex items-baseline gap-2">
+                          <div className="flex flex-col -space-y-1">
                             {product.base_price && product.base_price > product.price && (
                               <span className="text-sm text-[#1F2D58]/50 line-through">
                                 {formatPrice(product.base_price)}
                               </span>
                             )}
-                            <span className="text-lg font-bold text-[#1F2D58]">
-                              {formatPrice(product.price)}
-                            </span>
-                            {billingCycle === "yearly" && (
-                              <span className="text-xs text-[#1F2D58]/60">/ jaar</span>
-                            )}
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-[16px] font-bold text-[#1F2D58]">
+                                {formatPrice(product.price)}
+                              </span>
+                              {product.discount_percentage && product.discount_percentage > 0 && (
+                                <span className="text-[12px] font-medium text-[#2F9D07]">
+                                  {Math.round(product.discount_percentage)}% korting
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          
-                          {/* Savings badge */}
-                          {product.base_price && product.base_price > product.price && (
-                            <Badge variant="success">
-                              Bespaar {formatPrice(product.base_price - product.price)}
-                            </Badge>
-                          )}
                         </div>
 
                         {/* Select button */}
@@ -487,8 +487,8 @@ export function CreditsCheckoutModal({
               </div>
               <p className="text-xs text-[#1F2D58]/60 mt-3">
                 {billingCycle === "yearly" 
-                  ? "* Maandelijks opzegbaar en de credits zijn 1 jaar geldig"
-                  : "* De credits zijn 1 jaar geldig."}
+                  ? "Maandelijks opzegbaar en de credits zijn 1 jaar geldig"
+                  : "De credits zijn 1 jaar geldig."}
               </p>
             </div>
 
@@ -684,8 +684,7 @@ export function CreditsCheckoutModal({
                   "Haal factuurgegevens op"
                 ) : (
                   <>
-                    {billingCycle === "yearly" ? "Start abonnement" : "Koop"} {selectedProduct.credits} credits /{" "}
-                    {formatPrice(selectedProduct.price)}
+                    {billingCycle === "yearly" ? "Start abonnement" : "Koop"} {selectedProduct.credits} credits
                     {billingCycle === "yearly" && " per jaar"}
                   </>
                 )}

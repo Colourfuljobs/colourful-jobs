@@ -248,7 +248,7 @@ Antwoord in JSON formaat: { "seo_title": "...", "seo_meta_description": "...", "
    - Linked records: logo (Media Asset → attachment URL), header_image, gallery, sector, FAQ
 3. **Resolve references**: 
    - Sector → haal `webflow_item_id` op uit Airtable Sectors tabel
-   - FAQ items → haal `webflow_item_id`'s op uit Airtable FAQ tabel (eerst FAQ syncen!)
+   - FAQ items → sync FAQ items naar Webflow als onderdeel van deze workflow, haal `webflow_item_id`'s op
 4. **Resolve media**:
    - Logo: Haal Media Asset record op → extract `file[0].url` (Airtable attachment URL)
    - Header image: Idem
@@ -279,23 +279,7 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 
 ---
 
-### Workflow 3: FAQ Sync
-
-**Trigger**: Onderdeel van Employer Sync (sub-workflow) + Schedule (1x per dag)
-**Prioriteit**: Moet VOOR Employer Sync draaien want employers refereren naar FAQ items
-
-**Flow**:
-1. **Haal alle FAQ records op** uit Airtable
-2. **Vergelijk** met bestaande Webflow FAQ items
-3. **Upsert**: Create of Update in Webflow
-4. **Update Airtable**: Sla `webflow_item_id` op per FAQ record
-5. **Publish** items
-
-**Velden mapping**: Zie FAQ tabel hierboven. Geen AI-stap nodig (content is handmatig).
-
----
-
-### Workflow 4: Vacancy Publish → Webflow Create
+### Workflow 3: Vacancy Publish → Webflow Create
 
 **Trigger**: Webhook van Next.js app (via `triggerWebflowSync()`)
 **Signaal**: `needs_webflow_sync = true` in Airtable + vacancy status = `"gepubliceerd"`
@@ -351,12 +335,12 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 
 ---
 
-### Workflow 5: Vacancy Update → Webflow Update
+### Workflow 4: Vacancy Update → Webflow Update
 
 **Trigger**: Webhook van Next.js app (via `triggerWebflowSync()`) voor bestaande vacatures
 **Signaal**: `needs_webflow_sync = true` + `webflow_item_id` is al gevuld
 
-**Flow**: Identiek aan Workflow 4, maar:
+**Flow**: Identiek aan Workflow 3, maar:
 - Altijd **Update** (nooit Create)
 - SEO-teksten NIET opnieuw genereren als ze al gevuld zijn in Webflow (zodat handmatige optimalisaties behouden blijven)
 - `new` badge opnieuw berekenen
@@ -365,7 +349,7 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 
 ---
 
-### Workflow 6: Vacancy Depublish → Webflow Archiveren
+### Workflow 5: Vacancy Depublish → Webflow Archiveren
 
 **Trigger**: Webhook van Next.js app (bij depublish/verlopen)
 **Signaal**: `needs_webflow_sync = true` + status = `"gedepubliceerd"` of `"verlopen"`
@@ -380,7 +364,7 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 
 ---
 
-### Workflow 7: Products & Features Sync
+### Workflow 6: Products & Features Sync
 
 **Trigger**: Schedule — 1x per dag (06:30 CET) + handmatige trigger
 **Prioriteit**: Laag — deze data wijzigt zelden
@@ -399,7 +383,7 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 
 ---
 
-### Workflow 8: "New" Label Expiry
+### Workflow 7: "New" Label Expiry
 
 **Trigger**: Schedule — dagelijks (bijv. 00:15 CET)
 **Doel**: Automatisch het `is_new` veld op `false` zetten voor vacatures die langer dan 3 dagen gepubliceerd zijn
@@ -417,7 +401,7 @@ Antwoord in JSON: { "seo_title": "...", "seo_meta_description": "..." }
 2. **Per vacature**:
    - Zet `is_new = false` in Airtable
    - Zet `needs_webflow_sync = true` in Airtable
-3. De reguliere Vacancy Sync (Workflow 4/5) pikt de `needs_webflow_sync = true` op en synct de updated `new` switch naar Webflow
+3. De reguliere Vacancy Sync (Workflow 3/4) pikt de `needs_webflow_sync = true` op en synct de updated `new` switch naar Webflow
 
 **Airtable Formula voor filtering** (optioneel, als je een view wilt maken):
 ```
@@ -430,40 +414,39 @@ AND(
 
 ---
 
-### Workflow 9: "Featured" Label Expiry
+### Workflow 8: "Featured" Label Expiry
 
 **Trigger**: Schedule — dagelijks (bijv. 00:30 CET)
-**Doel**: Automatisch het `is_featured` veld op `false` zetten voor vacatures waarvan de uitgelicht-periode is verlopen
+**Doel**: Automatisch het `is_featured` veld op `false` zetten voor vacatures die niet meer gepubliceerd zijn
 
 **Achtergrond**: 
 - Het `is_featured` veld wordt op `true` gezet door de Next.js app bij aankoop van het product `prod_upsell_featured`
 - Tegelijk wordt `featured-at` gezet op het moment van aankoop
-- De duur van de uitgelicht-periode staat in het `duration_days` veld van het `prod_upsell_featured` product
-- Deze n8n workflow controleert of de periode is verlopen en verwijdert het label
+- **Belangrijk**: Het "Uitgelicht" label loopt mee met de vacature-looptijd — het verloopt pas wanneer de vacature niet meer gepubliceerd is (status ≠ `gepubliceerd`)
+- Bij verlenging van de vacature blijft het label automatisch actief
 
 **Flow**:
-1. **Haal het `prod_upsell_featured` product op** uit Airtable om de `duration_days` te bepalen
-2. **Haal alle vacatures op** uit Airtable waar:
+1. **Haal alle vacatures op** uit Airtable waar:
    - `is_featured = true`
-   - `featured-at` is ingevuld
-   - `featured-at < now() - duration_days`
-3. **Per vacature**:
+   - `status` is NIET `gepubliceerd` (dus: `verlopen`, `gedepubliceerd`, `concept`, etc.)
+2. **Per vacature**:
    - Zet `is_featured = false` in Airtable
    - Zet `needs_webflow_sync = true` in Airtable
-4. De reguliere Vacancy Sync (Workflow 4/5) pikt de `needs_webflow_sync = true` op en synct de updated `featured` switch naar Webflow
+3. De reguliere Vacancy Sync (Workflow 3/4) pikt de `needs_webflow_sync = true` op en synct de updated `featured` switch naar Webflow
 
-**Airtable Formula voor filtering** (voorbeeld met 30 dagen):
+**Airtable Formula voor filtering**:
 ```
 AND(
   {is_featured} = TRUE(),
-  {featured-at} != "",
-  DATETIME_DIFF(NOW(), {featured-at}, 'days') >= 30
+  {status} != "gepubliceerd"
 )
 ```
 
+**Opmerking**: De oude logica op basis van `featured-at + duration_days` is vervangen. Het `featured-at` veld wordt nog wel gezet (voor audit/rapportage), maar wordt niet meer gebruikt voor expiry-berekening.
+
 ---
 
-### Workflow 10: Factuur Aanmaken via WeFact
+### Workflow 9: Factuur Aanmaken via WeFact
 
 **Trigger**: Webhook van Next.js app (bij aankoop met eurobedrag)
 **Doel**: Automatisch een factuur aanmaken en versturen via WeFact wanneer een werkgever iets koopt met (deels) euros
@@ -665,8 +648,8 @@ Professionele transactie-e-mails naar werkgevers via MailerSend templates. Trigg
 **Flow**:
 1. Query Airtable: alle vacatures waar `needs_webflow_sync = true`
 2. Per vacature: bepaal juiste actie op basis van status:
-   - `"gepubliceerd"` → Workflow 4 of 5 (create/update)
-   - `"gedepubliceerd"` of `"verlopen"` → Workflow 6 (archiveren)
+   - `"gepubliceerd"` → Workflow 3 of 4 (create/update)
+   - `"gedepubliceerd"` of `"verlopen"` → Workflow 5 (archiveren)
 3. Verwerk max 10 per run (rate limiting)
 
 ---
@@ -704,14 +687,13 @@ Professionele transactie-e-mails naar werkgevers via MailerSend templates. Trigg
 ### Sync Volgorde (Dependencies)
 ```
 1. Lookup Tables (Sectors, Regions, Fields, FunctionTypes, EducationLevels)
-2. FAQs
-3. Features
-4. Products (depends on Features)
-5. Employers (depends on Sectors, FAQs)
-6. Vacancies (depends on Employers, all Lookups)
-7. "New" Label Expiry (updates Vacancies)
-8. "Featured" Label Expiry (updates Vacancies)
-9. WeFact Facturatie (onafhankelijk; triggered by Next.js app na succesvolle aankoop met eurobedrag)
+2. Features
+3. Products (depends on Features)
+4. Employers (depends on Sectors; FAQ sync is onderdeel van Employer Sync)
+5. Vacancies (depends on Employers, all Lookups)
+6. "New" Label Expiry (updates Vacancies)
+7. "Featured" Label Expiry (updates Vacancies)
+8. WeFact Facturatie (onafhankelijk; triggered by Next.js app na succesvolle aankoop met eurobedrag)
 ```
 
 ### Facturatie (WeFact)
@@ -781,7 +763,7 @@ De Next.js app stuurt webhooks naar n8n via env variabelen. Beide functies zijn 
 
 | Env variabele | Functie | Gebruikt door |
 |---|---|---|
-| `N8N_WEBFLOW_SYNC_WEBHOOK_URL` | `triggerWebflowSync(vacancyId)` | Workflows 4, 5, 6 |
+| `N8N_WEBFLOW_SYNC_WEBHOOK_URL` | `triggerWebflowSync(vacancyId)` | Workflows 3, 4, 5 |
 | `N8N_EMPLOYER_WEBFLOW_SYNC_WEBHOOK_URL` | `triggerEmployerWebflowSync(employerId)` | Workflow 2 |
 
 ---
@@ -827,8 +809,8 @@ n8n schrijft de volgende events rechtstreeks naar de Airtable Events tabel (zelf
 
 | Event type | Workflow | Velden |
 |---|---|---|
-| `vacancy_webflow_synced` | Workflow 4, 5, 6 | `vacancy_id`, `source: "n8n"`, `payload: { action: "create" / "update" / "archive", webflow_item_id }` |
-| `invoice_created` | Workflow 10 | `employer_id`, `source: "n8n"`, `payload: { transaction_id, wefact_invoice_number, amount_euros }` |
+| `vacancy_webflow_synced` | Workflow 3, 4, 5 | `vacancy_id`, `source: "n8n"`, `payload: { action: "create" / "update" / "archive", webflow_item_id }` |
+| `invoice_created` | Workflow 9 | `employer_id`, `source: "n8n"`, `payload: { transaction_id, wefact_invoice_number, amount_euros }` |
 
 **Implementatie**: Voeg na elke succesvolle actie een Airtable `Create Record` node toe in de Events tabel met de bovenstaande velden.
 
@@ -837,8 +819,8 @@ n8n schrijft de volgende events rechtstreeks naar de Airtable Events tabel (zelf
 ## Implementatie Volgorde
 
 1. **Fase 1 — Foundation**: Airtable schema wijzigingen + Lookup Tables Sync workflow
-2. **Fase 2 — Support**: FAQ Sync + Features Sync + Products Sync  
-3. **Fase 3 — Employers**: Employer Sync workflow met media resolving
+2. **Fase 2 — Support**: Features Sync + Products Sync  
+3. **Fase 3 — Employers**: Employer Sync workflow met media resolving (inclusief FAQ sync)
 4. **Fase 4 — Vacancies**: Vacancy Create/Update/Archive workflows + SEO AI
 5. **Fase 5 — Vangnet**: Scheduled catch-all workflow + monitoring
 6. **Fase 6 — Notificaties**: MailerSend notification workflows (N-1, N-2, N-3 → N-8, N-9 → N-12c)
@@ -851,13 +833,8 @@ n8n schrijft de volgende events rechtstreeks naar de Airtable Events tabel (zelf
 
 2. **Video URL**: Webflow Employers collection heeft nu een `video-link` veld. Mapping: Airtable `video_url` → Webflow `video-link` (Link type). Toegevoegd aan de Employer field mapping.
 
-3. **Vacancy labels (Featured & New)**: In plaats van een aparte Tags tabel worden vacature-labels nu beheerd via boolean velden:
-   - **`is_featured`** (Airtable) → **`featured`** (Webflow): Wordt `true` gezet door de Next.js app bij aankoop van het product `prod_upsell_featured`. Tegelijk wordt `featured-at` gezet. Na X dagen (uit `duration_days` van het product) zet **Workflow 9** (Featured Label Expiry) het veld automatisch op `false`.
-   - **`is_new`** (Airtable) → **`new`** (Webflow): Wordt `true` gezet door een Airtable automation bij eerste publicatie. Na 3 dagen zet **Workflow 8** (New Label Expiry) het veld automatisch op `false`.
-   - **`high_priority`** (Airtable): Interne vlag voor "Vandaag online" — wordt NIET naar Webflow gestuurd. Wordt gebruikt voor prioritering in de goedkeuringsqueue.
+3. **Employer `needs_webflow_sync`**: **Toevoegen aan Airtable**. Werkt hetzelfde als bij Vacancies: wordt `true` gezet wanneer employer-data wijzigt, zodat de sync alleen gewijzigde employers verwerkt in plaats van elke keer alle actieve employers te vergelijken. Veel efficiënter.
 
-4. **Employer `needs_webflow_sync`**: **Toevoegen aan Airtable**. Werkt hetzelfde als bij Vacancies: wordt `true` gezet wanneer employer-data wijzigt, zodat de sync alleen gewijzigde employers verwerkt in plaats van elke keer alle actieve employers te vergelijken. Veel efficiënter.
+4. **Slug uniciteit**: Bij duplicaten wordt de bedrijfsnaam toegevoegd aan de slug. Voorbeeld: als `senior-developer` al bestaat, wordt het `senior-developer-colourful-jobs`. Dit is beter voor SEO dan een generieke suffix als `-2`.
 
-5. **Slug uniciteit**: Bij duplicaten wordt de bedrijfsnaam toegevoegd aan de slug. Voorbeeld: als `senior-developer` al bestaat, wordt het `senior-developer-colourful-jobs`. Dit is beter voor SEO dan een generieke suffix als `-2`.
-
-6. **SEO regeneratie**: AI-SEO wordt **alleen gegenereerd als de velden leeg zijn**. Als er al SEO-tekst in Webflow staat (bijv. handmatig geoptimaliseerd), blijft die behouden. Dit geeft controle om SEO in Webflow te finetunen zonder dat de sync het overschrijft.
+5. **SEO regeneratie**: AI-SEO wordt **alleen gegenereerd als de velden leeg zijn**. Als er al SEO-tekst in Webflow staat (bijv. handmatig geoptimaliseerd), blijft die behouden. Dit geeft controle om SEO in Webflow te finetunen zonder dat de sync het overschrijft.

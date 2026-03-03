@@ -261,7 +261,6 @@ export async function POST(
       "submitted-at": new Date().toISOString(),
       ...(hasVandaagOnline ? { high_priority: true } : {}),
       ...(hasFeatured ? { is_featured: true, "featured-at": new Date().toISOString() } : {}),
-      needs_webflow_sync: true,
       // Strip DIY-only fields for "We do it for you" submissions
       // Use null for all fields to safely clear both text and select fields in Airtable
       ...(vacancy.input_type === "we_do_it_for_you" ? {

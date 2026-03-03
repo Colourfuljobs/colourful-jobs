@@ -88,7 +88,7 @@ export async function POST(
     const updatedVacancy = await updateVacancy(id, {
       status: "gedepubliceerd",
       "depublished-at": new Date().toISOString(),
-      needs_webflow_sync: true,
+      needs_webflow_archive: true,
     });
 
     // Trigger Webflow sync

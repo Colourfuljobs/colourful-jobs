@@ -13,6 +13,7 @@ import {
   EyeOff,
   Rocket,
   ArrowUpFromLine,
+  Loader2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -266,6 +267,7 @@ export default function VacaturesPage() {
   const [boostModalOpen, setBoostModalOpen] = useState(false)
   const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
   const [depublishConfirmId, setDepublishConfirmId] = useState<string | null>(null)
+  const [publishingVacancyId, setPublishingVacancyId] = useState<string | null>(null)
   
   // Track if toast has been shown to prevent duplicates (e.g. in React Strict Mode)
   const toastShownRef = useRef(false)
@@ -394,6 +396,7 @@ export default function VacaturesPage() {
   }
 
   const handlePublish = async (vacancyId: string) => {
+    setPublishingVacancyId(vacancyId)
     try {
       const response = await fetch(`/api/vacancies/${vacancyId}/publish`, {
         method: "POST",
@@ -409,6 +412,8 @@ export default function VacaturesPage() {
       fetchVacancies()
     } catch {
       toast.error("Publiceren mislukt", { description: "Er ging iets mis bij het publiceren" })
+    } finally {
+      setPublishingVacancyId(null)
     }
   }
 
@@ -610,19 +615,27 @@ export default function VacaturesPage() {
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {actions.filter(action => !action.iconOnly).map((action) => (
-                            <Button
-                              key={action.action}
-                              variant="tertiary"
-                              size="sm"
-                              onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                              className="gap-1.5"
-                              showArrow={false}
-                            >
-                              <action.icon className="h-3.5 w-3.5" />
-                              {action.label}
-                            </Button>
-                          ))}
+                          {actions.filter(action => !action.iconOnly).map((action) => {
+                            const isPublishing = action.action === "publiceren" && publishingVacancyId === vacancy.id
+                            return (
+                              <Button
+                                key={action.action}
+                                variant="tertiary"
+                                size="sm"
+                                onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                                className="gap-1.5"
+                                showArrow={false}
+                                disabled={isPublishing}
+                              >
+                                {isPublishing ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <action.icon className="h-3.5 w-3.5" />
+                                )}
+                                {action.label}
+                              </Button>
+                            )
+                          })}
                           {actions.filter(action => action.iconOnly).map((action) => (
                             <Tooltip key={action.action}>
                               <TooltipTrigger asChild>
@@ -777,19 +790,27 @@ export default function VacaturesPage() {
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {actions.filter(action => !action.iconOnly).map((action) => (
-                            <Button
-                              key={action.action}
-                              variant="tertiary"
-                              size="sm"
-                              onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                              className="gap-1.5"
-                              showArrow={false}
-                            >
-                              <action.icon className="h-3.5 w-3.5" />
-                              {action.label}
-                            </Button>
-                          ))}
+                          {actions.filter(action => !action.iconOnly).map((action) => {
+                            const isPublishing = action.action === "publiceren" && publishingVacancyId === vacancy.id
+                            return (
+                              <Button
+                                key={action.action}
+                                variant="tertiary"
+                                size="sm"
+                                onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                                className="gap-1.5"
+                                showArrow={false}
+                                disabled={isPublishing}
+                              >
+                                {isPublishing ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <action.icon className="h-3.5 w-3.5" />
+                                )}
+                                {action.label}
+                              </Button>
+                            )
+                          })}
                           {actions.filter(action => action.iconOnly).map((action) => (
                             <Tooltip key={action.action}>
                               <TooltipTrigger asChild>

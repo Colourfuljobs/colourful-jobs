@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Globe,
   Wallet,
+  Loader2,
 } from "lucide-react"
 
 import { Button, ArrowIcon } from "@/components/ui/button"
@@ -177,6 +178,7 @@ export default function DashboardPage() {
   const [boostModalOpen, setBoostModalOpen] = useState(false)
   const [boostVacancy, setBoostVacancy] = useState<{ id: string; title: string } | null>(null)
   const [depublishConfirmId, setDepublishConfirmId] = useState<string | null>(null)
+  const [publishingVacancyId, setPublishingVacancyId] = useState<string | null>(null)
 
   // Get onboarding dismissed state from account context (per employer)
   const onboardingDismissed = accountData?.onboarding_dismissed ?? false
@@ -335,6 +337,7 @@ export default function DashboardPage() {
   }
 
   const handlePublish = async (vacancyId: string) => {
+    setPublishingVacancyId(vacancyId)
     try {
       const response = await fetch(`/api/vacancies/${vacancyId}/publish`, {
         method: "POST",
@@ -356,6 +359,8 @@ export default function DashboardPage() {
       setPublishedCount((prev) => prev + 1)
     } catch {
       toast.error("Publiceren mislukt", { description: "Er ging iets mis bij het publiceren" })
+    } finally {
+      setPublishingVacancyId(null)
     }
   }
 
@@ -861,19 +866,27 @@ export default function DashboardPage() {
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {actions.filter(action => !action.iconOnly).map((action) => (
-                            <Button
-                              key={action.action}
-                              variant="tertiary"
-                              size="sm"
-                              onClick={() => handleVacancyAction(action.action, vacancy.id)}
-                              className="gap-1.5"
-                              showArrow={false}
-                            >
-                              <action.icon className="h-3.5 w-3.5" />
-                              {action.label}
-                            </Button>
-                          ))}
+                          {actions.filter(action => !action.iconOnly).map((action) => {
+                            const isPublishing = action.action === "publiceren" && publishingVacancyId === vacancy.id
+                            return (
+                              <Button
+                                key={action.action}
+                                variant="tertiary"
+                                size="sm"
+                                onClick={() => handleVacancyAction(action.action, vacancy.id)}
+                                className="gap-1.5"
+                                showArrow={false}
+                                disabled={isPublishing}
+                              >
+                                {isPublishing ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <action.icon className="h-3.5 w-3.5" />
+                                )}
+                                {action.label}
+                              </Button>
+                            )
+                          })}
                           {actions.filter(action => action.iconOnly).map((action) => (
                             <Tooltip key={action.action}>
                               <TooltipTrigger asChild>

@@ -156,6 +156,7 @@ export const productRecordSchema = z.object({
   duration_days: z.number().int().nullable().optional(), // Base duration in days: for vacancy_package = online duration, for upsell with repeat_mode=renewable = effect duration
   duration_type: z.enum(["active_period", "cooldown"]).nullable().optional(), // How duration_days is interpreted for renewable upsells: active_period = effect is active for X days, cooldown = must wait X days before reordering
   max_value: z.number().int().nullable().optional(), // Only for repeat_mode=until_max: maximum cumulative value (e.g. 365 days)
+  cooldown_unit: z.enum(["calendar_days", "business_days"]).nullable().optional(), // How cooldown is counted for renewable upsells: calendar_days (default) or business_days (Mon-Fri only)
 });
 
 export const featureActionTagEnum = z.enum([
@@ -295,6 +296,7 @@ export const vacancyRecordSchema = z.object({
   // Webflow
   public_url: z.string().nullable().optional(), // URL of the published vacancy on the Webflow website
   needs_webflow_sync: z.boolean().default(false), // Set to true when changes need to be synced to Webflow
+  needs_webflow_archive: z.boolean().default(false), // Set to true when vacancy is depublished and needs to be archived in Webflow
 
   // Priority & Featured
   high_priority: z.boolean().default(false), // Set when "Zelfde dag online" upsell is purchased
@@ -1757,6 +1759,7 @@ export async function getActiveProductsByType(
         duration_days: fields.duration_days || null,
         duration_type: fields.duration_type || null,
         max_value: fields.max_value || null,
+        cooldown_unit: fields.cooldown_unit || null,
       });
     });
   } catch (error: unknown) {
@@ -1828,6 +1831,7 @@ export async function getProductById(id: string): Promise<ProductRecord | null> 
       duration_days: fields.duration_days || null,
       duration_type: fields.duration_type || null,
       max_value: fields.max_value || null,
+      cooldown_unit: fields.cooldown_unit || null,
     });
   } catch (error: unknown) {
     console.error("Error getting product by ID:", getErrorMessage(error));
@@ -2188,6 +2192,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     events,
     public_url: fields.public_url as string | undefined,
     needs_webflow_sync: fields.needs_webflow_sync as boolean | undefined,
+    needs_webflow_archive: fields.needs_webflow_archive as boolean | undefined,
     high_priority: fields.high_priority as boolean | undefined,
     is_featured: fields.is_featured as boolean | undefined,
     "featured-at": fields["featured-at"] as string | undefined,
@@ -2385,6 +2390,7 @@ export async function updateVacancy(
 
   // Webflow sync
   if (fields.needs_webflow_sync !== undefined) airtableFields.needs_webflow_sync = fields.needs_webflow_sync;
+  if (fields.needs_webflow_archive !== undefined) airtableFields.needs_webflow_archive = fields.needs_webflow_archive;
 
   // Special timestamps
   if (fields["submitted-at"] !== undefined) airtableFields["submitted-at"] = fields["submitted-at"];
