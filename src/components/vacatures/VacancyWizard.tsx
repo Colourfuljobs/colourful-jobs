@@ -1711,21 +1711,13 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                       
                       if (priceDisplayMode === "euros") {
                         return (
-                          <span>{formattedPrice} ({totalCredits} credits)</span>
+                          <span>{formattedPrice} <span className="text-[#1F2D58]/60 font-normal">({totalCredits} credits)</span></span>
                         );
                       }
                       // Credits mode: always show only credits
                       return <span>{totalCredits} credits</span>;
                     })()}
                   </div>
-                  {state.inputType === "we_do_it_for_you" && weDoItForYouProduct && (
-                    <span className="text-[#1F2D58]/60 text-xs">
-                      {priceDisplayMode === "euros"
-                        ? `We do it for you (€${weDoItForYouProduct.price.toFixed(2).replace(".", ",")} / ${weDoItForYouProduct.credits} credits)`
-                        : `We do it for you (${weDoItForYouProduct.credits} credits)`
-                      }
-                    </span>
-                  )}
                 </div>
               )}
 

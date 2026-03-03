@@ -114,11 +114,11 @@ function Calendar({
           defaultClassNames.today
         ),
         outside: cn(
-          "text-muted-foreground/50 aria-selected:text-muted-foreground",
+          "text-[#1F2D58]/50 aria-selected:text-[#1F2D58]",
           defaultClassNames.outside
         ),
         disabled: cn(
-          "text-muted-foreground opacity-50",
+          "text-[#1F2D58]/20",
           defaultClassNames.disabled
         ),
         hidden: cn("invisible", defaultClassNames.hidden),
@@ -200,8 +200,9 @@ function CalendarDayButton({
       data-range-start={modifiers.range_start}
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
+      data-outside={modifiers.outside}
       className={cn(
-        "data-[selected-single=true]:bg-[#F86600] data-[selected-single=true]:text-white data-[range-middle=true]:bg-[#193DAB]/10 data-[range-middle=true]:text-[#1F2D58] data-[range-start=true]:bg-[#F86600] data-[range-start=true]:text-white data-[range-end=true]:bg-[#F86600] data-[range-end=true]:text-white group-data-[focused=true]/day:border-[#1F2D58] group-data-[focused=true]/day:ring-[#1F2D58]/30 flex aspect-square h-auto w-full min-w-[--cell-size] flex-col gap-1 font-normal leading-none text-[#1F2D58] hover:bg-[#193DAB]/10 transition-colors data-[range-end=true]:rounded-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] [&>span]:text-xs [&>span]:opacity-70",
+        "data-[selected-single=true]:bg-[#F86600] data-[selected-single=true]:text-white data-[range-middle=true]:bg-[#193DAB]/10 data-[range-middle=true]:text-[#1F2D58] data-[range-start=true]:bg-[#F86600] data-[range-start=true]:text-white data-[range-end=true]:bg-[#F86600] data-[range-end=true]:text-white group-data-[focused=true]/day:border-[#1F2D58] group-data-[focused=true]/day:ring-[#1F2D58]/30 flex aspect-square h-auto w-full min-w-[--cell-size] flex-col gap-1 font-semibold leading-none text-[#1F2D58] hover:bg-[#193DAB]/10 transition-colors data-[range-end=true]:rounded-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] [&>span]:text-xs [&>span]:opacity-70 data-[outside=true]:font-normal",
         defaultClassNames.day,
         className
       )}
