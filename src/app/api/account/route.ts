@@ -17,7 +17,6 @@ import {
   getCreditExpiryWarningDays,
 } from "@/lib/airtable";
 import { logEvent, getClientIP } from "@/lib/events";
-import { triggerEmployerWebflowSync } from "@/lib/webflow-sync";
 import { getErrorMessage, isProfileComplete } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -454,7 +453,7 @@ export async function PATCH(request: Request) {
         },
       });
 
-      triggerEmployerWebflowSync(effectiveEmployerId);
+      // Note: No webhook call here - Airtable Automations picks up needs_webflow_sync = true
 
       return NextResponse.json({
         success: true,
@@ -511,7 +510,7 @@ export async function PATCH(request: Request) {
           order: data.order,
         });
 
-        await updateEmployer(effectiveEmployerId, { needs_webflow_sync: true });
+        // Note: needs_webflow_sync is NOT set here - it's only set when user clicks "Opslaan" on werkgeversprofiel
 
         await logEvent({
           event_type: "employer_updated",
@@ -521,8 +520,6 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "create", faq_id: newFaq.id },
         });
-
-        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({
           success: true,
@@ -546,7 +543,7 @@ export async function PATCH(request: Request) {
           order: data.order,
         });
 
-        await updateEmployer(effectiveEmployerId, { needs_webflow_sync: true });
+        // Note: needs_webflow_sync is NOT set here - it's only set when user clicks "Opslaan" on werkgeversprofiel
 
         await logEvent({
           event_type: "employer_updated",
@@ -556,8 +553,6 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "update", faq_id: data.id },
         });
-
-        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({
           success: true,
@@ -577,7 +572,7 @@ export async function PATCH(request: Request) {
 
         await deleteFAQ(data.id);
 
-        await updateEmployer(effectiveEmployerId, { needs_webflow_sync: true });
+        // Note: needs_webflow_sync is NOT set here - it's only set when user clicks "Opslaan" on werkgeversprofiel
 
         await logEvent({
           event_type: "employer_updated",
@@ -587,8 +582,6 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "delete", faq_id: data.id },
         });
-
-        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({ success: true });
       }
@@ -600,9 +593,9 @@ export async function PATCH(request: Request) {
         }
 
         // Update the employer's faq linked field with the new order
+        // Note: needs_webflow_sync is NOT set here - it's only set when user clicks "Opslaan" on werkgeversprofiel
         await updateEmployer(effectiveEmployerId, {
           faq: data.faqIds,
-          needs_webflow_sync: true,
         });
 
         await logEvent({
@@ -613,8 +606,6 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "reorder", faq_order: data.faqIds },
         });
-
-        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({ success: true });
       }
@@ -688,9 +679,9 @@ export async function PATCH(request: Request) {
         }
 
         // Update order on employer record
+        // Note: needs_webflow_sync is NOT set here - it's set by the website section save which is called together with FAQ sync
         await updateEmployer(effectiveEmployerId, {
           faq: results.map(r => r.id),
-          needs_webflow_sync: true,
         });
 
         await logEvent({
@@ -701,8 +692,6 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: { section: "faq", action: "sync", count: results.length },
         });
-
-        triggerEmployerWebflowSync(effectiveEmployerId);
 
         return NextResponse.json({ success: true, data: results });
       }

@@ -218,7 +218,7 @@ export function SubmitStep({
             <Badge variant="package" className="absolute top-4 right-4">
               Tip
             </Badge>
-            <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Voeg extra&apos;s toe</h3>
+            <h3 className="text-lg font-bold text-[#1F2D58] mb-1">Kies extra&apos;s</h3>
             <p className="text-sm text-[#1F2D58]/70 mb-4">
               Laat je vacature opvallen en trek sneller de juiste kandidaten
             </p>

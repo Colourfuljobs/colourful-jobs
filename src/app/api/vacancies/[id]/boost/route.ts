@@ -16,16 +16,25 @@ import { logEvent, getClientIP } from "@/lib/events";
 import { getPackageBaseDuration } from "@/lib/vacancy-duration";
 import { triggerWebflowSync } from "@/lib/webflow-sync";
 
+// Invoice details type matching frontend
+interface InvoiceDetails {
+  contact_name: string;
+  email: string;
+  street: string;
+  postal_code: string;
+  city: string;
+  reference_nr: string;
+}
+
 /**
  * POST /api/vacancies/[id]/boost
  * Boosts a published, expired, or depublished vacancy with additional upsells
- * Body: { upsell_ids: string[], new_closing_date?: string }
+ * Body: { upsell_ids: string[], new_closing_date?: string, invoice_details?: InvoiceDetails }
  * - Validates vacancy ownership and status
  * - Validates upsells have "boost-option" availability
  * - If new_closing_date provided: validates it's within 365 days from publication
- * - Checks credit balance (requires sufficient credits)
- * - Deducts credits via FIFO
- * - Creates spend transaction with context "boost"
+ * - If sufficient credits: deducts credits and creates spend transaction
+ * - If insufficient credits: deducts available credits + creates invoice transaction for the rest
  * - Appends new upsell IDs to vacancy selected_upsells
  * - Updates closing_date if new_closing_date provided
  * - Republishes vacancy if status was "verlopen" or "gedepubliceerd"
@@ -39,9 +48,10 @@ export async function POST(
 
     // Parse request body
     const body = await request.json();
-    const { upsell_ids, new_closing_date } = body as {
+    const { upsell_ids, new_closing_date, invoice_details } = body as {
       upsell_ids: string[];
       new_closing_date?: string;
+      invoice_details?: InvoiceDetails;
     };
 
     if (
@@ -236,32 +246,54 @@ export async function POST(
     }
 
     const availableCredits = wallet.balance;
+    const shortage = Math.max(0, totalCredits - availableCredits);
+    const hasEnoughCredits = shortage === 0;
 
-    // Boost requires sufficient credits (no invoice option)
-    if (availableCredits < totalCredits) {
+    // If not enough credits, invoice details are required
+    if (!hasEnoughCredits && !invoice_details) {
       return NextResponse.json(
-        {
-          error: "Niet genoeg credits beschikbaar",
-          shortage: totalCredits - availableCredits,
-        },
+        { error: "Factuurgegevens zijn verplicht bij onvoldoende credits" },
         { status: 400 }
       );
     }
+
+    // Validate invoice details if provided
+    if (!hasEnoughCredits && invoice_details) {
+      if (!invoice_details.contact_name || !invoice_details.email || 
+          !invoice_details.street || !invoice_details.postal_code || !invoice_details.city) {
+        return NextResponse.json(
+          { error: "Vul alle factuurgegevens in" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Calculate credits to deduct and invoice amount
+    const creditsToDeduct = Math.min(availableCredits, totalCredits);
+    const creditsForInvoice = shortage;
+    
+    // Calculate invoice amount proportionally
+    const invoiceAmount = totalCredits > 0 
+      ? Math.round((creditsForInvoice / totalCredits) * totalPrice)
+      : 0;
 
     console.log("[Boost] Credit calculation:", {
       totalCredits,
       totalPrice,
       availableCredits,
+      shortage,
+      creditsToDeduct,
+      invoiceAmount,
       upsellCount: upsellsToProcess.length,
       new_closing_date: validatedClosingDate || null,
     });
 
-    // Deduct credits via FIFO
-    if (totalCredits > 0) {
+    // Deduct available credits via FIFO (if any)
+    if (creditsToDeduct > 0) {
       const fifoResult = await spendCreditsWithFIFO(
         vacancy.employer_id,
         wallet.id,
-        totalCredits
+        creditsToDeduct
       );
       console.log("[Boost] FIFO spend result:", fifoResult);
     }
@@ -275,20 +307,27 @@ export async function POST(
         vacancy_id: vacancy.id,
         total_credits: totalCredits,
         total_cost: totalPrice,
-        credits_shortage: 0, // Boost always requires full credits
-        invoice_amount: 0,
+        credits_shortage: shortage,
+        invoice_amount: invoiceAmount,
         product_ids: upsellsToProcess,
         context: "boost",
+        // Include invoice details if there's a shortage
+        ...(shortage > 0 && invoice_details ? {
+          invoice_details_snapshot: JSON.stringify(invoice_details),
+          invoice_trigger: "on_vacancy_publish" as const,
+        } : {}),
       });
     }
 
     // Build vacancy update object
     const vacancyUpdate: Record<string, unknown> = {};
 
-    // Append new upsell IDs to existing selected_upsells
+    // Append new upsell IDs to existing selected_upsells (avoiding duplicates)
     if (upsellsToProcess.length > 0) {
       const existingUpsells = vacancy.selected_upsells || [];
-      vacancyUpdate.selected_upsells = [...existingUpsells, ...upsellsToProcess];
+      const existingSet = new Set(existingUpsells);
+      const newUpsells = upsellsToProcess.filter(id => !existingSet.has(id));
+      vacancyUpdate.selected_upsells = [...existingUpsells, ...newUpsells];
     }
 
     // Update closing_date if provided
@@ -338,7 +377,11 @@ export async function POST(
         upsell_names: validUpsells.map((u) => u.display_name),
         total_credits: totalCredits,
         total_price: totalPrice,
-        new_balance: availableCredits - totalCredits,
+        credits_deducted: creditsToDeduct,
+        credits_invoiced: creditsForInvoice,
+        invoice_amount: invoiceAmount,
+        new_balance: availableCredits - creditsToDeduct,
+        payment_method: hasEnoughCredits ? "credits" : "partial_invoice",
         ...(validatedClosingDate && {
           new_closing_date: validatedClosingDate,
           previous_closing_date: vacancy.closing_date || null,
@@ -355,8 +398,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       vacancy: updatedVacancy,
-      credits_spent: totalCredits,
-      new_balance: availableCredits - totalCredits,
+      credits_spent: creditsToDeduct,
+      credits_invoiced: creditsForInvoice,
+      invoice_amount: invoiceAmount,
+      new_balance: availableCredits - creditsToDeduct,
     });
   } catch (error: unknown) {
     console.error("Error boosting vacancy:", getErrorMessage(error));

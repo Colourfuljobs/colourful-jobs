@@ -120,11 +120,10 @@ export function CostSidebar({
               </div>
             )}
 
-            <hr className="border-[#1F2D58]/10" />
-
             {/* Euro mode: simplified view without credit balance info */}
             {isEuroMode ? (
               <>
+                <hr className="border-[#1F2D58]/10" />
                 {/* Bundle promotion for euro mode users */}
                 <button
                   type="button"
@@ -152,18 +151,11 @@ export function CostSidebar({
             ) : (
               <>
                 {/* Credits mode: full view with balance info */}
-                {/* Totaal */}
-                <div className="flex justify-between">
-                  <span className="font-bold text-[#1F2D58]">Totaal</span>
-                  <span className="font-bold text-[#1F2D58]">
-                    {totalCredits} credits
-                  </span>
-                </div>
 
                 {/* Beschikbare credits */}
                 <div className="flex justify-between pt-2 border-t border-[#1F2D58]/10">
-                  <span className="text-[#1F2D58]">Beschikbare credits</span>
-                  <span className="text-[#1F2D58]">{availableCredits}</span>
+                  <span className="text-[#1F2D58]">Beschikbaar</span>
+                  <span className="text-[#1F2D58]">{availableCredits} credits</span>
                 </div>
 
                 {/* Scenario 1: Genoeg credits */}
@@ -173,7 +165,7 @@ export function CostSidebar({
                     {extraUpsells.length === 0 && (
                       <div className="flex justify-between">
                         <span className="text-[#1F2D58]">Over na plaatsing</span>
-                        <span className="text-[#1F2D58]">{creditsRemaining}</span>
+                        <span className="text-[#1F2D58]">{creditsRemaining} credits</span>
                       </div>
                     )}
 
@@ -185,14 +177,14 @@ export function CostSidebar({
                             Over na plaatsing
                           </span>
                           <span className="font-bold text-[#1F2D58]">
-                            {creditsRemaining}
+                            {creditsRemaining} credits
                           </span>
                         </>
                       ) : (
                         <>
                           <span className="font-bold text-[#1F2D58]">Totaal</span>
                           <span className="font-bold text-[#1F2D58]">
-                            {totalCredits}
+                            {totalCredits} credits
                           </span>
                         </>
                       )}
@@ -241,7 +233,6 @@ export function CostSidebar({
                             }
                           })()}
                         </span>
-                        <p className="text-xs text-[#1F2D58]/60">excl. btw</p>
                       </div>
                     </div>
                   </>

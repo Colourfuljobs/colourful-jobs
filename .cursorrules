@@ -449,3 +449,37 @@ De `bg-white/50` header boven een witte card. Gebruik deze styling consistent:
 - De webhook-functie voor vacatures staat in `src/lib/webflow-sync.ts` (`triggerWebflowSync`)
 - De webhook-functie voor employers staat in `src/lib/webflow-sync.ts` (`triggerEmployerWebflowSync`)
 - Env variabelen: `N8N_WEBFLOW_SYNC_WEBHOOK_URL` (vacatures), `N8N_EMPLOYER_WEBFLOW_SYNC_WEBHOOK_URL` (employers)
+
+## Prijsweergave: Euroview vs Creditsview
+De prijsweergave hangt af van of de gebruiker ooit credits heeft gekocht. Gebruik `getPriceDisplayMode()` uit `src/lib/credits.ts`.
+
+- **Euroview** (`total_purchased === 0`): Euro prominent, credits secundair → `€249 (5 credits)`
+- **Creditsview** (`total_purchased > 0`): Credits prominent, euro secundair → `5 credits (€249)`
+
+### Kostenweergave in sidebars/overzichten
+- **Euroview**: Toon alleen totaalprijs in euro's, geen credit-saldo info
+- **Creditsview**: Toon credit-saldo, kosten in credits, en "Over na plaatsing"
+- **Creditsview regel**: Zet ALTIJD "credits" achter het getal, ook bij 0 → `0 credits`, `5 credits`, `25 credits`
+
+## Hybride Betaling (Credits + Factuur)
+Wanneer een gebruiker onvoldoende credits heeft, worden beschikbare credits afgeschreven en het restbedrag gefactureerd. Het factuurbedrag wordt proportioneel berekend op basis van het tekort.
+
+### Scenario's
+| Scenario | Beschikbaar | Kosten | Resultaat |
+|----------|-------------|--------|-----------|
+| Genoeg credits | 25 | 20 credits | 20 credits afgeschreven, 5 over |
+| Geen credits | 0 | 20 credits (€400) | €400 gefactureerd |
+| Gedeeltelijk | 10 | 20 credits (€400) | 10 credits afgeschreven + €200 gefactureerd |
+
+### UI bij tekort
+1. Toon kosten breakdown: totale kosten, beschikbaar, tekort
+2. Te betalen: `{credits} credits + €{bedrag}` (of alleen euro's bij 0 credits)
+3. Factuurgegevens formulier (verplicht): contactpersoon, e-mail, adres
+
+### Backend
+- Schrijf credits af via FIFO (`spendCreditsWithFIFO`)
+- Transactie met `credits_shortage`, `invoice_amount`, `invoice_details_snapshot`
+
+### Ondersteuning
+- **Vacature plaatsen**: Volledig ondersteund
+- **Boost modal**: Volledig ondersteund

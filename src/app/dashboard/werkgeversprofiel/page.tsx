@@ -370,7 +370,9 @@ export default function WerkgeversprofielPage() {
       window.dispatchEvent(new Event('profile-updated'))
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 3000)
-      toast.success("Werkgeversprofiel opgeslagen")
+      toast.success("Werkgeversprofiel opgeslagen", {
+        description: "Wijzigingen zijn binnen enkele minuten zichtbaar op de website.",
+      })
       
       setShowUnsavedDialog(false)
       if (pendingNavigation === "back") {
@@ -512,14 +514,16 @@ export default function WerkgeversprofielPage() {
       // Show success toast with optional return link
       if (returnToVacancy) {
         toast.success("Werkgeversprofiel opgeslagen", {
-          description: "Je kunt nu verder met je vacature.",
+          description: "Je kunt nu verder met je vacature. Wijzigingen zijn binnen enkele minuten zichtbaar op de website.",
           action: {
             label: "Terug naar vacature",
             onClick: () => router.push(returnToVacancy),
           },
         })
       } else {
-        toast.success("Werkgeversprofiel opgeslagen")
+        toast.success("Werkgeversprofiel opgeslagen", {
+          description: "Wijzigingen zijn binnen enkele minuten zichtbaar op de website.",
+        })
       }
     } catch (error) {
       console.error("Error saving profile:", error)

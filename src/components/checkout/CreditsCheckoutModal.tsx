@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { InfoTooltip } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { X, ChevronDown, Coins, Check } from "lucide-react";
+import { X, ChevronDown, Coins, Check, Pencil } from "lucide-react";
 import { ProductRecord } from "@/lib/airtable";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +58,7 @@ export function CreditsCheckoutModal({
 }: CreditsCheckoutModalProps) {
   const [products, setProducts] = React.useState<ProductRecord[]>([]);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductRecord | null>(null);
-  const [billingCycle, setBillingCycle] = React.useState<"one_time" | "yearly">("one_time");
+  const [billingCycle, setBillingCycle] = React.useState<"one_time" | "yearly">("yearly");
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -80,7 +80,7 @@ export function CreditsCheckoutModal({
       fetchProducts();
       // Reset state when opening
       setSelectedProduct(null);
-      setBillingCycle("one_time");
+      setBillingCycle("yearly");
       setUseAccountDetails(false);
       setInvoiceDetailsOpen(false);
       setInvoiceDetails({
@@ -130,8 +130,8 @@ export function CreditsCheckoutModal({
         city: billing.invoice_city || "",
         reference_nr: billing["reference-nr"] || "",
       });
-      // Automatically open the details section when data is loaded
-      setInvoiceDetailsOpen(true);
+      // Show summary first, user can click edit to open form
+      setInvoiceDetailsOpen(false);
     } catch (error) {
       console.error("Error fetching account details:", error);
       toast.error("Fout", {
@@ -353,13 +353,22 @@ export function CreditsCheckoutModal({
             <div className="space-y-6 pt-6">
             {/* Billing cycle toggle */}
             <div className="flex items-center justify-end gap-3">
-              <span className="text-sm font-medium text-[#1F2D58]">
-                Bespaar met jaarlijks abonnement
+              <span className={cn(
+                "text-sm font-medium text-[#1F2D58] transition-opacity",
+                billingCycle === "one_time" ? "opacity-100" : "opacity-70"
+              )}>
+                Eénmalig
               </span>
               <Switch
                 checked={billingCycle === "yearly"}
                 onCheckedChange={handleBillingCycleChange}
               />
+              <span className={cn(
+                "text-sm font-medium text-[#1F2D58] transition-opacity",
+                billingCycle === "yearly" ? "opacity-100" : "opacity-70"
+              )}>
+                Jaarlijks (bespaar tot 49%)
+              </span>
             </div>
 
             {/* Product cards */}
@@ -416,7 +425,7 @@ export function CreditsCheckoutModal({
                             Vanaf {formatPrice(Math.round(product.price / vacancyEstimate))} p/st
                           </span>
                         </div>
-                        <InfoTooltip content="Dit is een indicatie gebaseerd op basis vacatures (16 credits). Credits zijn vrij inzetbaar voor vacatures, boosts, verlengingen en andere acties." />
+                        <InfoTooltip content={`Op basis van ${vacancyEstimate} 'Compleet vacatures'. Credits zijn ook anders in te zetten en hebben een geldigheid van 365 dagen.`} />
                       </div>
 
                       {/* Bottom section - Pricing & Button */}
@@ -430,11 +439,11 @@ export function CreditsCheckoutModal({
                                 {formatPrice(product.base_price)}
                               </span>
                             )}
-                            <span className="text-xl font-bold text-[#1F2D58]">
+                            <span className="text-lg font-bold text-[#1F2D58]">
                               {formatPrice(product.price)}
                             </span>
                             {billingCycle === "yearly" && (
-                              <span className="text-xs text-[#1F2D58]/60 ml-1">/ jaar</span>
+                              <span className="text-xs text-[#1F2D58]/60">/ jaar</span>
                             )}
                           </div>
                           
@@ -467,9 +476,7 @@ export function CreditsCheckoutModal({
                                 Geselecteerd
                               </>
                             ) : (
-                              billingCycle === "yearly"
-                                ? `${product.credits} credits / jaar`
-                                : `Koop ${product.credits} credits`
+                              `${product.credits} credits`
                             )}
                           </Button>
                         </div>
@@ -480,7 +487,7 @@ export function CreditsCheckoutModal({
               </div>
               <p className="text-xs text-[#1F2D58]/60 mt-3">
                 {billingCycle === "yearly" 
-                  ? "* Het abonnement wordt jaarlijks gefactureerd. Opzegbaar na de eerste verlenging en credits zijn 1 jaar geldig."
+                  ? "* Maandelijks opzegbaar en de credits zijn 1 jaar geldig"
                   : "* De credits zijn 1 jaar geldig."}
               </p>
             </div>
@@ -488,161 +495,173 @@ export function CreditsCheckoutModal({
             {/* Invoice details section */}
             <div className={cn(
               "border border-[#1F2D58]/10 rounded-[0.75rem] p-4 transition-colors",
-              invoiceDetailsOpen && useAccountDetails
-                ? "bg-white"
-                : "bg-transparent"
+              invoiceDetailsOpen ? "bg-white" : "bg-transparent"
             )}>
-              {/* Checkbox and collapsible toggle row */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                {/* Checkbox to load from account */}
-                <Field orientation="horizontal" className="justify-start items-center w-auto">
-                  <Checkbox
-                    id="useAccountDetails"
-                    checked={useAccountDetails}
-                    onCheckedChange={handleUseAccountDetailsChange}
-                  />
-                  <FieldLabel
-                    htmlFor="useAccountDetails"
-                    className="text-sm text-[#1F2D58] cursor-pointer !mb-0 leading-none -mt-0.5"
-                  >
-                    Haal factuurgegevens op uit account
-                  </FieldLabel>
-                  {isLoadingAccountDetails && <Spinner className="h-4 w-4" />}
-                </Field>
+              {/* Checkbox to load from account */}
+              <Field orientation="horizontal" className="justify-start items-center w-auto">
+                <Checkbox
+                  id="useAccountDetails"
+                  checked={useAccountDetails}
+                  onCheckedChange={handleUseAccountDetailsChange}
+                />
+                <FieldLabel
+                  htmlFor="useAccountDetails"
+                  className="text-sm text-[#1F2D58] cursor-pointer !mb-0 leading-none -mt-0.5"
+                >
+                  Haal factuurgegevens op uit account
+                </FieldLabel>
+                {isLoadingAccountDetails && <Spinner className="h-4 w-4" />}
+              </Field>
 
-                {/* Collapsible invoice details toggle */}
-                {useAccountDetails && (
-                  <button
+              {/* Invoice summary - shown when details are loaded but not editing */}
+              {useAccountDetails && !invoiceDetailsOpen && !isLoadingAccountDetails && (
+                <div className="mt-3 flex items-start justify-between gap-3">
+                  <p className="text-sm text-[#1F2D58]">
+                    <span className="font-bold">Factuur naar: </span>
+                    {invoiceDetails.contact_name || "—"}, {invoiceDetails.street || "—"}, {invoiceDetails.postal_code || "—"} {invoiceDetails.city || "—"}
+                    <br />
+                    <span className="text-[#1F2D58]/60">{invoiceDetails.email || "—"}{invoiceDetails.reference_nr && ` · Ref: ${invoiceDetails.reference_nr}`}</span>
+                  </p>
+                  <Button
                     type="button"
-                    onClick={() => setInvoiceDetailsOpen(!invoiceDetailsOpen)}
-                    className="flex items-center gap-2 text-sm text-[#1F2D58]/70 hover:text-[#1F2D58] transition-colors"
+                    variant="tertiary"
+                    size="icon"
+                    className="w-[30px] h-[30px] shrink-0"
+                    showArrow={false}
+                    onClick={() => setInvoiceDetailsOpen(true)}
                   >
-                    {invoiceDetailsOpen ? "Verberg factuurgegevens" : "Bekijk factuurgegevens"}
-                    <ChevronDown
-                      className={cn(
-                        "h-4 w-4 transition-transform",
-                        invoiceDetailsOpen && "rotate-180"
-                      )}
-                    />
-                  </button>
-                )}
-              </div>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
 
-              {/* Collapsible invoice details content */}
+              {/* Editable invoice details form */}
               {useAccountDetails && invoiceDetailsOpen && (
                 <div className="mt-4 space-y-4">
-                      {/* Row 1: Contact person (1/3) - Email (1/3) - Ref nr (1/3) */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="contact_name" className="text-[#1F2D58]">
-                            Contactpersoon <span className="text-slate-400 text-sm">*</span>
-                          </Label>
-                          <Input
-                            id="contact_name"
-                            value={invoiceDetails.contact_name}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                contact_name: e.target.value,
-                              })
-                            }
-                            placeholder="Naam contactpersoon"
-                          />
-                        </div>
+                  {/* Row 1: Contact person (1/3) - Email (1/3) - Ref nr (1/3) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="contact_name" className="text-[#1F2D58]">
+                        Contactpersoon <span className="text-slate-400 text-sm">*</span>
+                      </Label>
+                      <Input
+                        id="contact_name"
+                        value={invoiceDetails.contact_name}
+                        onChange={(e) =>
+                          setInvoiceDetails({
+                            ...invoiceDetails,
+                            contact_name: e.target.value,
+                          })
+                        }
+                        placeholder="Naam contactpersoon"
+                      />
+                    </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="email" className="text-[#1F2D58]">
-                            E-mail <span className="text-slate-400 text-sm">*</span>
-                          </Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            value={invoiceDetails.email}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                email: e.target.value,
-                              })
-                            }
-                            placeholder="factuur@bedrijf.nl"
-                          />
-                        </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-[#1F2D58]">
+                        E-mail <span className="text-slate-400 text-sm">*</span>
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={invoiceDetails.email}
+                        onChange={(e) =>
+                          setInvoiceDetails({
+                            ...invoiceDetails,
+                            email: e.target.value,
+                          })
+                        }
+                        placeholder="factuur@bedrijf.nl"
+                      />
+                    </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="reference_nr" className="text-[#1F2D58]">
-                            Referentie
-                          </Label>
-                          <Input
-                            id="reference_nr"
-                            value={invoiceDetails.reference_nr}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                reference_nr: e.target.value,
-                              })
-                            }
-                            placeholder="Referentie/Inkooporder nr."
-                          />
-                        </div>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reference_nr" className="text-[#1F2D58]">
+                        Referentie
+                      </Label>
+                      <Input
+                        id="reference_nr"
+                        value={invoiceDetails.reference_nr}
+                        onChange={(e) =>
+                          setInvoiceDetails({
+                            ...invoiceDetails,
+                            reference_nr: e.target.value,
+                          })
+                        }
+                        placeholder="Referentie/Inkooporder nr."
+                      />
+                    </div>
+                  </div>
 
-                      {/* Row 2: Street (40%) - Postal code (20%) - City (40%) */}
-                      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr] gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="street" className="text-[#1F2D58]">
-                            Straat en huisnummer <span className="text-slate-400 text-sm">*</span>
-                          </Label>
-                          <Input
-                            id="street"
-                            value={invoiceDetails.street}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                street: e.target.value,
-                              })
-                            }
-                            placeholder="Straatnaam 123"
-                          />
-                        </div>
+                  {/* Row 2: Street (40%) - Postal code (20%) - City (40%) */}
+                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr] gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="street" className="text-[#1F2D58]">
+                        Straat en huisnummer <span className="text-slate-400 text-sm">*</span>
+                      </Label>
+                      <Input
+                        id="street"
+                        value={invoiceDetails.street}
+                        onChange={(e) =>
+                          setInvoiceDetails({
+                            ...invoiceDetails,
+                            street: e.target.value,
+                          })
+                        }
+                        placeholder="Straatnaam 123"
+                      />
+                    </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="postal_code" className="text-[#1F2D58]">
-                            Postcode <span className="text-slate-400 text-sm">*</span>
-                          </Label>
-                          <Input
-                            id="postal_code"
-                            value={invoiceDetails.postal_code}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                postal_code: e.target.value,
-                              })
-                            }
-                            placeholder="1234 AB"
-                          />
-                        </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="postal_code" className="text-[#1F2D58]">
+                        Postcode <span className="text-slate-400 text-sm">*</span>
+                      </Label>
+                      <Input
+                        id="postal_code"
+                        value={invoiceDetails.postal_code}
+                        onChange={(e) =>
+                          setInvoiceDetails({
+                            ...invoiceDetails,
+                            postal_code: e.target.value,
+                          })
+                        }
+                        placeholder="1234 AB"
+                      />
+                    </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="city" className="text-[#1F2D58]">
-                            Plaats <span className="text-slate-400 text-sm">*</span>
-                          </Label>
-                          <Input
-                            id="city"
-                            value={invoiceDetails.city}
-                            onChange={(e) =>
-                              setInvoiceDetails({
-                                ...invoiceDetails,
-                                city: e.target.value,
-                              })
-                            }
-                            placeholder="Amsterdam"
-                          />
-                        </div>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="city" className="text-[#1F2D58]">
+                        Plaats <span className="text-slate-400 text-sm">*</span>
+                      </Label>
+                      <Input
+                        id="city"
+                        value={invoiceDetails.city}
+                        onChange={(e) =>
+                          setInvoiceDetails({
+                            ...invoiceDetails,
+                            city: e.target.value,
+                          })
+                        }
+                        placeholder="Amsterdam"
+                      />
+                    </div>
+                  </div>
 
-                      <p className="text-xs text-[#1F2D58]/60">
-                        De bovenstaande factuurgegevens worden uitsluitend voor deze aankoop gebruikt.
-                      </p>
+                  <div className="flex items-center justify-between gap-6">
+                    <p className="text-xs text-[#1F2D58]/60">
+                      De bovenstaande factuurgegevens worden uitsluitend voor deze aankoop gebruikt.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      showArrow={false}
+                      onClick={() => setInvoiceDetailsOpen(false)}
+                    >
+                      <Check className="h-4 w-4" />
+                      Opslaan
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

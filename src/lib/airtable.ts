@@ -1994,8 +1994,15 @@ export async function createPurchaseTransaction(fields: {
   // Calculate expiration date based on months
   const createdAt = new Date();
   const monthsToExpire = fields.validity_months ?? 12; // Default to 1 year (12 months)
+  
+  // Safe month addition that handles edge cases (e.g., Jan 31 + 1 month = Feb 28, not Mar 3)
   const expiresAt = new Date(createdAt);
+  const originalDay = expiresAt.getDate();
   expiresAt.setMonth(expiresAt.getMonth() + monthsToExpire);
+  // If the day changed (overflow), set to last day of target month
+  if (expiresAt.getDate() !== originalDay) {
+    expiresAt.setDate(0); // Sets to last day of previous month (which is our target month)
+  }
 
   const airtableFields: Record<string, any> = {
     ...(fields.employer_id && { employer: [fields.employer_id] }), // Only add employer if present

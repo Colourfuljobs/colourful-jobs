@@ -13,8 +13,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { X, Rocket, Check } from "lucide-react";
+import { X, Rocket, Check, ChevronDown, Pencil } from "lucide-react";
+import { Field, FieldLabel } from "@/components/ui/field";
+import type { InvoiceDetails } from "./types";
 import { ProductRecord, TransactionRecord } from "@/lib/airtable";
 import { useCredits } from "@/lib/credits-context";
 import { getPriceDisplayMode } from "@/lib/credits";
@@ -86,6 +90,19 @@ export function BoostModal({
   // Active upsells for the right column
   const [activeUpsells, setActiveUpsells] = React.useState<ActiveUpsellItem[]>([]);
 
+  // Invoice details state for hybrid payment
+  const [invoiceDetails, setInvoiceDetails] = React.useState<InvoiceDetails>({
+    contact_name: "",
+    email: "",
+    street: "",
+    postal_code: "",
+    city: "",
+    reference_nr: "",
+  });
+  const [isLoadingAccountDetails, setIsLoadingAccountDetails] = React.useState(false);
+  const [useAccountDetails, setUseAccountDetails] = React.useState(false);
+  const [invoiceDetailsOpen, setInvoiceDetailsOpen] = React.useState(false);
+
   // Fetch boost upsells when modal opens
   React.useEffect(() => {
     if (open) {
@@ -96,6 +113,18 @@ export function BoostModal({
       setDateRange(null);
       setIsPremiumPackage(false);
       setActiveUpsells([]);
+      // Reset invoice state
+      setInvoiceDetails({
+        contact_name: "",
+        email: "",
+        street: "",
+        postal_code: "",
+        city: "",
+        reference_nr: "",
+      });
+      setIsLoadingAccountDetails(false);
+      setUseAccountDetails(false);
+      setInvoiceDetailsOpen(false);
       fetchData();
     }
   }, [open, vacancyId]);
@@ -358,9 +387,73 @@ export function BoostModal({
   const hasEnoughCredits = remaining >= 0;
   const hasSelection = selectedUpsellIds.length > 0 || (extensionChecked && !!selectedDate);
 
+  // Calculate shortage for hybrid payment
+  const shortage = Math.max(0, totalCost - availableCreditsAmount);
+  const shortagePrice = totalCost > 0
+    ? Math.round((shortage / totalCost) * totalPrice)
+    : 0;
+
+  // Check if invoice details are complete
+  const hasCompleteInvoiceDetails = React.useMemo(() => {
+    return !!(
+      invoiceDetails.contact_name &&
+      invoiceDetails.email &&
+      invoiceDetails.street &&
+      invoiceDetails.postal_code &&
+      invoiceDetails.city
+    );
+  }, [invoiceDetails]);
+
   // For verlopen vacancies, extension is required
   const isExpired = vacancyData?.status === "verlopen";
   const extensionRequired = isExpired;
+
+  // Handle checkbox change for loading account details
+  const handleUseAccountDetailsChange = async (checked: boolean | "indeterminate") => {
+    const isChecked = checked === true;
+    setUseAccountDetails(isChecked);
+    
+    if (isChecked) {
+      setIsLoadingAccountDetails(true);
+      try {
+        const response = await fetch("/api/account");
+        if (!response.ok) {
+          throw new Error("Failed to fetch account");
+        }
+        const data = await response.json();
+        const billing = data.billing || {};
+        const details: InvoiceDetails = {
+          contact_name: billing.invoice_contact_name || "",
+          email: billing.invoice_email || "",
+          street: billing.invoice_street || "",
+          postal_code: billing["invoice_postal-code"] || "",
+          city: billing.invoice_city || "",
+          reference_nr: billing["reference-nr"] || "",
+        };
+        setInvoiceDetails(details);
+        setInvoiceDetailsOpen(false);
+      } catch (error) {
+        console.error("Error fetching account details:", error);
+        toast.error("Fout", {
+          description: "Kon factuurgegevens niet ophalen",
+        });
+        setUseAccountDetails(false);
+      } finally {
+        setIsLoadingAccountDetails(false);
+      }
+    } else {
+      // Reset when unchecked
+      setInvoiceDetails({
+        contact_name: "",
+        email: "",
+        street: "",
+        postal_code: "",
+        city: "",
+        reference_nr: "",
+      });
+      setInvoiceDetailsOpen(false);
+    }
+  };
 
   // Toggle upsell selection
   const toggleUpsell = (upsellId: string) => {
@@ -374,14 +467,15 @@ export function BoostModal({
   // Determine if submit is allowed
   const canSubmit = React.useMemo(() => {
     if (isSubmitting) return false;
-    if (!hasEnoughCredits) return false;
     if (!hasSelection) return false;
     // For verlopen vacancies, extension must be checked with a date
     if (extensionRequired && (!extensionChecked || !selectedDate)) return false;
     // If extension is checked but no date selected yet, can't submit
     if (extensionChecked && !selectedDate) return false;
+    // If not enough credits, must have loaded account details and have complete invoice details
+    if (!hasEnoughCredits && (!useAccountDetails || isLoadingAccountDetails || !hasCompleteInvoiceDetails)) return false;
     return true;
-  }, [isSubmitting, hasEnoughCredits, hasSelection, extensionRequired, extensionChecked, selectedDate]);
+  }, [isSubmitting, hasSelection, extensionRequired, extensionChecked, selectedDate, hasEnoughCredits, useAccountDetails, isLoadingAccountDetails, hasCompleteInvoiceDetails]);
 
   // Submit boost
   const handleSubmit = async () => {
@@ -395,7 +489,11 @@ export function BoostModal({
         upsellIds.push(extensionUpsell.id);
       }
 
-      const requestBody: { upsell_ids: string[]; new_closing_date?: string } = {
+      const requestBody: { 
+        upsell_ids: string[]; 
+        new_closing_date?: string;
+        invoice_details?: InvoiceDetails;
+      } = {
         upsell_ids: upsellIds,
       };
 
@@ -405,6 +503,11 @@ export function BoostModal({
         const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
         const day = String(selectedDate.getDate()).padStart(2, "0");
         requestBody.new_closing_date = `${year}-${month}-${day}`;
+      }
+
+      // Add invoice details if there's a shortage
+      if (!hasEnoughCredits && useAccountDetails && hasCompleteInvoiceDetails) {
+        requestBody.invoice_details = invoiceDetails;
       }
 
       const response = await fetch(`/api/vacancies/${vacancyId}/boost`, {
@@ -511,7 +614,7 @@ export function BoostModal({
             ) : (
               <div className="flex flex-col sm:flex-row">
                 {/* ── Left column: selectable option cards ── */}
-                <div className="w-full sm:w-[53%] min-w-0 p-6 pt-4 space-y-2">
+                <div className="w-full sm:w-[58%] min-w-0 p-6 pt-4 space-y-2">
                   {hasAnyOptions ? (
                     <>
                       <p className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider mb-3">
@@ -597,6 +700,164 @@ export function BoostModal({
                           </p>
                         </div>
                       )}
+
+                      {/* Invoice details section - only show when not enough credits and has selection */}
+                      {hasSelection && !hasEnoughCredits && (
+                        <>
+                          <p className="text-xs font-semibold text-[#1F2D58]/50 uppercase tracking-wider mb-2 mt-4">
+                            Factuurgegevens
+                          </p>
+                          <p className="text-sm text-[#1F2D58]/70 mb-3">
+                            {availableCreditsAmount > 0
+                              ? "Je credits worden automatisch verrekend. Voor het overige bedrag ontvang je een factuur."
+                              : "Je ontvangt een factuur via de e-mail."}
+                          </p>
+
+                          <div className={cn(
+                            "border border-[#1F2D58]/10 rounded-[0.75rem] p-4 transition-colors",
+                            invoiceDetailsOpen ? "bg-white" : "bg-transparent"
+                          )}>
+                            {/* Checkbox to load from account */}
+                            <Field orientation="horizontal" className="justify-start items-center w-auto">
+                              <Checkbox
+                                id="boost_useAccountDetails"
+                                checked={useAccountDetails}
+                                onCheckedChange={handleUseAccountDetailsChange}
+                              />
+                              <FieldLabel
+                                htmlFor="boost_useAccountDetails"
+                                className="text-sm text-[#1F2D58] cursor-pointer !mb-0 leading-none -mt-0.5"
+                              >
+                                Haal factuurgegevens op uit account
+                              </FieldLabel>
+                              {isLoadingAccountDetails && <Spinner className="h-4 w-4" />}
+                            </Field>
+
+                            {/* Invoice summary - shown when details are loaded but not editing */}
+                            {useAccountDetails && !invoiceDetailsOpen && !isLoadingAccountDetails && (
+                              <div className="mt-3 flex items-start justify-between gap-3">
+                                <p className="text-sm text-[#1F2D58]">
+                                  <span className="font-bold">Factuur naar: </span>
+                                  {invoiceDetails.contact_name || "—"}, {invoiceDetails.street || "—"}, {invoiceDetails.postal_code || "—"} {invoiceDetails.city || "—"}
+                                  <br />
+                                  <span className="text-[#1F2D58]/60">{invoiceDetails.email || "—"}{invoiceDetails.reference_nr && ` · Ref: ${invoiceDetails.reference_nr}`}</span>
+                                </p>
+                                <Button
+                                  type="button"
+                                  variant="tertiary"
+                                  size="icon"
+                                  className="w-[30px] h-[30px] shrink-0"
+                                  showArrow={false}
+                                  onClick={() => setInvoiceDetailsOpen(true)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Editable invoice details form */}
+                            {useAccountDetails && invoiceDetailsOpen && (
+                              <div className="mt-4 space-y-4">
+                                {/* Row 1: Contact person - Email - Ref nr */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="boost_contact_name" className="text-[#1F2D58]">
+                                      Contactpersoon <span className="text-slate-400 text-sm">*</span>
+                                    </Label>
+                                    <Input
+                                      id="boost_contact_name"
+                                      value={invoiceDetails.contact_name}
+                                      onChange={(e) => setInvoiceDetails({ ...invoiceDetails, contact_name: e.target.value })}
+                                      placeholder="Naam contactpersoon"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="boost_email" className="text-[#1F2D58]">
+                                      E-mail <span className="text-slate-400 text-sm">*</span>
+                                    </Label>
+                                    <Input
+                                      id="boost_email"
+                                      type="email"
+                                      value={invoiceDetails.email}
+                                      onChange={(e) => setInvoiceDetails({ ...invoiceDetails, email: e.target.value })}
+                                      placeholder="factuur@bedrijf.nl"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="boost_reference_nr" className="text-[#1F2D58]">
+                                      Referentie
+                                    </Label>
+                                    <Input
+                                      id="boost_reference_nr"
+                                      value={invoiceDetails.reference_nr}
+                                      onChange={(e) => setInvoiceDetails({ ...invoiceDetails, reference_nr: e.target.value })}
+                                      placeholder="Referentie/Inkooporder nr."
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Row 2: Street - Postal code - City */}
+                                <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr] gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="boost_street" className="text-[#1F2D58]">
+                                      Straat en huisnummer <span className="text-slate-400 text-sm">*</span>
+                                    </Label>
+                                    <Input
+                                      id="boost_street"
+                                      value={invoiceDetails.street}
+                                      onChange={(e) => setInvoiceDetails({ ...invoiceDetails, street: e.target.value })}
+                                      placeholder="Straatnaam 123"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="boost_postal_code" className="text-[#1F2D58]">
+                                      Postcode <span className="text-slate-400 text-sm">*</span>
+                                    </Label>
+                                    <Input
+                                      id="boost_postal_code"
+                                      value={invoiceDetails.postal_code}
+                                      onChange={(e) => setInvoiceDetails({ ...invoiceDetails, postal_code: e.target.value })}
+                                      placeholder="1234 AB"
+                                    />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor="boost_city" className="text-[#1F2D58]">
+                                      Plaats <span className="text-slate-400 text-sm">*</span>
+                                    </Label>
+                                    <Input
+                                      id="boost_city"
+                                      value={invoiceDetails.city}
+                                      onChange={(e) => setInvoiceDetails({ ...invoiceDetails, city: e.target.value })}
+                                      placeholder="Amsterdam"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-6">
+                                  <p className="text-xs text-[#1F2D58]/60">
+                                    De bovenstaande factuurgegevens worden uitsluitend voor deze aankoop gebruikt.
+                                  </p>
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    showArrow={false}
+                                    onClick={() => setInvoiceDetailsOpen(false)}
+                                  >
+                                    <Check className="h-4 w-4" />
+                                    Opslaan
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                        </>
+                      )}
                     </>
                   ) : (
                     <div className="bg-white rounded-lg p-4 text-sm text-[#1F2D58]/60">
@@ -611,7 +872,7 @@ export function BoostModal({
                 <div className="sm:hidden border-t border-[#1F2D58]/10 mx-6" />
 
                 {/* ── Right column: active upsells + cost summary + button ── */}
-                <div className="w-full sm:w-[47%] shrink-0 p-6 pt-4 flex flex-col gap-4">
+                <div className="w-full sm:w-[42%] shrink-0 p-6 pt-4 flex flex-col gap-4">
                   {/* Active upsells on this vacancy */}
                   {activeUpsells.length > 0 && (
                     <div>
@@ -666,38 +927,73 @@ export function BoostModal({
                         <div className="flex justify-between text-[#1F2D58]">
                           <span>Beschikbaar:</span>
                           <span className="font-medium">
-                            {availableCreditsAmount}
+                            {availableCreditsAmount} credits
                           </span>
                         </div>
-                        <div>
+                        
+                        {/* Scenario: Enough credits */}
+                        {hasEnoughCredits && (
                           <div className="flex justify-between text-[#1F2D58] font-semibold">
                             <span>Resterend:</span>
-                            <span
-                              className={cn(remaining < 0 && "text-[#BC0000]")}
-                            >
-                              {remaining}
-                            </span>
+                            <span>{remaining} credits</span>
                           </div>
-                        </div>
+                        )}
+
+                        {/* Bundle promotion for enough credits but low balance */}
+                        {hasEnoughCredits && availableCreditsAmount <= 50 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCheckoutModal(true)}
+                            className="w-full mt-4 px-4 pt-2 pb-3 border border-[#41712F]/30 bg-[#DEEEE3] rounded-lg text-center hover:bg-[#DEEEE3]/80 transition-colors"
+                          >
+                            <p className="text-sm text-[#1F2D58]">
+                              Extra credits kopen met voordeel?
+                              <br />
+                              Bespaar tot 30% met een{" "}
+                              <span className="underline whitespace-nowrap">credit bundel</span>
+                            </p>
+                          </button>
+                        )}
+
+                        {/* Scenario: Not enough credits - show shortage and payment breakdown */}
+                        {!hasEnoughCredits && hasSelection && (
+                          <>
+                            <div className="flex justify-between text-[#1F2D58]">
+                              <span>Tekort aan credits:</span>
+                              <span>{shortage} (€{shortagePrice})</span>
+                            </div>
+
+                            {/* Bundle promotion */}
+                            {availableCreditsAmount <= 50 && (
+                              <button
+                                type="button"
+                                onClick={() => setShowCheckoutModal(true)}
+                                className="w-full mt-4 px-4 pt-2 pb-3 border border-[#41712F]/30 bg-[#DEEEE3] rounded-lg text-center hover:bg-[#DEEEE3]/80 transition-colors"
+                              >
+                                <p className="text-sm text-[#1F2D58]">
+                                  Plaats je vaker vacatures?
+                                  <br />
+                                  Bespaar tot 30% met een{" "}
+                                  <span className="underline whitespace-nowrap">credit bundel</span>
+                                </p>
+                              </button>
+                            )}
+
+                            <div className="flex justify-between text-[#1F2D58] font-semibold pt-4 mt-4 border-t border-[#1F2D58]/10">
+                              <span>Te betalen:</span>
+                              <span>
+                                {availableCreditsAmount > 0 && shortagePrice > 0
+                                  ? `${availableCreditsAmount} credits + €${shortagePrice}`
+                                  : availableCreditsAmount > 0
+                                  ? `${availableCreditsAmount} credits`
+                                  : `€${shortagePrice}`}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
-
-                  {/* Insufficient credits warning */}
-                  {hasSelection && !hasEnoughCredits && (
-                    <div className="bg-[#F4DCDC] border border-[#BC0000]/30 rounded-lg p-3 text-sm text-[#BC0000]">
-                      <p>
-                        Niet genoeg credits.{" "}
-                        <button
-                          type="button"
-                          onClick={() => setShowCheckoutModal(true)}
-                          className="underline font-medium hover:opacity-70 transition-opacity"
-                        >
-                          Koop meer credits.
-                        </button>
-                      </p>
-                    </div>
-                  )}
 
                   {/* Submit button - pushed to bottom */}
                   <div className="mt-auto">
@@ -715,12 +1011,16 @@ export function BoostModal({
                       ) : (
                         <>
                           {hasSelection ? (
-                            <>
-                              <Rocket className="h-4 w-4" />
-                              {(vacancyData?.status === "verlopen" || vacancyData?.status === "gedepubliceerd")
-                                ? `Boost en publiceer`
-                                : `Boost je vacature`}
-                            </>
+                            !hasEnoughCredits && (!useAccountDetails || !hasCompleteInvoiceDetails) ? (
+                              "Haal factuurgegevens op"
+                            ) : (
+                              <>
+                                <Rocket className="h-4 w-4" />
+                                {(vacancyData?.status === "verlopen" || vacancyData?.status === "gedepubliceerd")
+                                  ? `Boost en publiceer`
+                                  : `Boost je vacature`}
+                              </>
+                            )
                           ) : extensionRequired ? (
                             "Selecteer een sluitingsdatum"
                           ) : (
