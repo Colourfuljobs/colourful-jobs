@@ -149,57 +149,53 @@ export function CostSidebar({
                 </div>
               </>
             ) : (
-              <>
-                {/* Credits mode: full view with balance info */}
+            <>
+              {/* Credits mode: full view with balance info */}
 
-                {/* Beschikbare credits */}
-                <div className="flex justify-between pt-2 border-t border-[#1F2D58]/10">
-                  <span className="text-[#1F2D58]">Beschikbaar</span>
-                  <span className="text-[#1F2D58]">{availableCredits} credits</span>
-                </div>
+              {/* Scenario 1: Genoeg credits */}
+              {hasEnoughCredits && (
+                <>
+                  {/* Totaal (pakket + upsells) */}
+                  <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
+                    <span className="font-bold text-[#1F2D58]">Totaal</span>
+                    <span className="font-bold text-[#1F2D58]">{totalCredits} credits</span>
+                  </div>
 
-                {/* Scenario 1: Genoeg credits */}
-                {hasEnoughCredits && (
-                  <>
-                    {/* Only show intermediate "Over na plaatsing" if no extras */}
-                    {extraUpsells.length === 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-[#1F2D58]">Over na plaatsing</span>
-                        <span className="text-[#1F2D58]">{creditsRemaining} credits</span>
-                      </div>
-                    )}
-
-                    {/* Bottom total */}
-                    <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
-                      {extraUpsells.length > 0 ? (
-                        <>
-                          <span className="font-bold text-[#1F2D58]">
-                            Over na plaatsing
-                          </span>
-                          <span className="font-bold text-[#1F2D58]">
-                            {creditsRemaining} credits
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="font-bold text-[#1F2D58]">Totaal</span>
-                          <span className="font-bold text-[#1F2D58]">
-                            {totalCredits} credits
-                          </span>
-                        </>
-                      )}
+                  {/* Beschikbaar & Over na plaatsing */}
+                  <div className="pt-2 mt-2 border-t border-[#1F2D58]/10 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-[#1F2D58]">Beschikbaar</span>
+                      <span className="text-[#1F2D58]">{availableCredits} credits</span>
                     </div>
-                  </>
-                )}
+                    <div className="flex justify-between">
+                      <span className="text-[#1F2D58]">Over na plaatsing</span>
+                      <span className="text-[#1F2D58]">{creditsRemaining} credits</span>
+                    </div>
+                  </div>
+                </>
+              )}
 
                 {/* Scenario 2: Te weinig credits */}
                 {!hasEnoughCredits && (
                   <>
-                    <div className="flex justify-between">
-                      <span className="text-[#1F2D58]">Tekort aan credits</span>
-                      <span className="text-[#1F2D58]">
-                        {shortage} (€{shortagePrice})
-                      </span>
+                    {/* Totaal (pakket + upsells) */}
+                    <div className="flex justify-between pt-2 mt-2 border-t border-[#1F2D58]/10">
+                      <span className="font-bold text-[#1F2D58]">Totaal</span>
+                      <span className="font-bold text-[#1F2D58]">{totalCredits} credits</span>
+                    </div>
+
+                    {/* Beschikbaar & Tekort */}
+                    <div className="pt-2 mt-2 border-t border-[#1F2D58]/10 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-[#1F2D58]">Beschikbaar</span>
+                        <span className="text-[#1F2D58]">{availableCredits} credits</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#1F2D58]">Tekort aan credits</span>
+                        <span className="text-[#1F2D58]">
+                          {shortage} (€{shortagePrice})
+                        </span>
+                      </div>
                     </div>
 
                     {/* Bundle promotion */}
@@ -223,7 +219,6 @@ export function CostSidebar({
                       <div className="text-right">
                         <span className="font-bold text-[#1F2D58]">
                           {(() => {
-                            // Conditional formatting: only show non-zero values
                             if (availableCredits > 0 && shortagePrice > 0) {
                               return `${availableCredits} credits + €${shortagePrice}`;
                             } else if (availableCredits > 0) {

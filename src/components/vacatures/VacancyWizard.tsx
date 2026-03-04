@@ -1456,7 +1456,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
               <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-transparent">
                 <div
                   className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
-                  style={{ width: `${(getDisplayStep(maxStepReached) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
+                  style={{ width: `${(getDisplayStep(state.currentStep) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
                 />
               </div>
             </div>
@@ -1514,7 +1514,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             <div className="h-[3px] bg-transparent">
               <div
                 className="h-full bg-[#193DAB]/[0.12] transition-all duration-300"
-                style={{ width: `${(getDisplayStep(maxStepReached) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
+                style={{ width: `${(getDisplayStep(state.currentStep) / (isExistingVacancy ? 2 : 4)) * 100}%` }}
               />
             </div>
           </div>

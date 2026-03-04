@@ -78,7 +78,7 @@ function Calendar({
           defaultClassNames.dropdown
         ),
         caption_label: cn(
-          "select-none font-medium text-[#1F2D58]",
+          "select-none font-semibold text-[#1F2D58]",
           captionLayout === "label"
             ? "text-sm"
             : "[&>svg]:text-muted-foreground flex h-9 items-center gap-1.5 rounded-md pl-3 pr-2 text-sm [&>svg]:size-4",
@@ -87,7 +87,7 @@ function Calendar({
         table: "w-full border-collapse table-fixed",
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
-          "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-normal w-[--cell-size] h-[--cell-size] flex items-center justify-center",
+          "text-muted-foreground flex-1 select-none rounded-md text-[0.8rem] font-semibold w-[--cell-size] h-[--cell-size] flex items-center justify-center",
           defaultClassNames.weekday
         ),
         week: cn("flex w-full", defaultClassNames.week),
