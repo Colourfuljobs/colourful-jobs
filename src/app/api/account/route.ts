@@ -134,14 +134,26 @@ export async function GET() {
           website_url: employer.website_url || "",
         };
 
-        response.billing = {
-          "reference-nr": employer["reference-nr"] || "",
-          invoice_contact_name: employer.invoice_contact_name || "",
-          invoice_email: employer.invoice_email || "",
-          invoice_street: employer.invoice_street || "",
-          "invoice_postal-code": employer["invoice_postal-code"] || "",
-          invoice_city: employer.invoice_city || "",
-        };
+        // For intermediaries, billing comes from user record; for employers, from employer record
+        if (user.role_id === "intermediary") {
+          response.billing = {
+            "reference-nr": user.reference_nr || "",
+            invoice_contact_name: user.invoice_contact_name || "",
+            invoice_email: user.invoice_email || "",
+            invoice_street: user.invoice_street || "",
+            "invoice_postal-code": user.invoice_postal_code || "",
+            invoice_city: user.invoice_city || "",
+          };
+        } else {
+          response.billing = {
+            "reference-nr": employer["reference-nr"] || "",
+            invoice_contact_name: employer.invoice_contact_name || "",
+            invoice_email: employer.invoice_email || "",
+            invoice_street: employer.invoice_street || "",
+            "invoice_postal-code": employer["invoice_postal-code"] || "",
+            invoice_city: employer.invoice_city || "",
+          };
+        }
 
         // Run all independent data fetches in parallel for better performance
         // This reduces ~6 sequential calls to 1 parallel batch
@@ -384,39 +396,75 @@ export async function PATCH(request: Request) {
 
     // Handle billing data updates (Employers table)
     if (section === "billing") {
-      const updatedEmployer = await updateEmployer(effectiveEmployerId, {
-        "reference-nr": data["reference-nr"],
-        invoice_contact_name: data.invoice_contact_name,
-        invoice_email: data.invoice_email,
-        invoice_street: data.invoice_street,
-        "invoice_postal-code": data["invoice_postal-code"],
-        invoice_city: data.invoice_city,
-      });
+      // For intermediaries, billing is stored on user record; for employers, on employer record
+      if (user.role_id === "intermediary") {
+        const updatedUser = await updateUser(user.id, {
+          reference_nr: data["reference-nr"],
+          invoice_contact_name: data.invoice_contact_name,
+          invoice_email: data.invoice_email,
+          invoice_street: data.invoice_street,
+          invoice_postal_code: data["invoice_postal-code"],
+          invoice_city: data.invoice_city,
+        });
 
-      // Log event
-      await logEvent({
-        event_type: "employer_updated",
-        actor_user_id: user.id,
-        employer_id: effectiveEmployerId,
-        source: "web",
-        ip_address: clientIP,
-        payload: {
-          section: "billing",
-          updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
-        },
-      });
+        // Log event
+        await logEvent({
+          event_type: "user_updated",
+          actor_user_id: user.id,
+          source: "web",
+          ip_address: clientIP,
+          payload: {
+            section: "billing",
+            updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+          },
+        });
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          "reference-nr": updatedEmployer["reference-nr"] || "",
-          invoice_contact_name: updatedEmployer.invoice_contact_name || "",
-          invoice_email: updatedEmployer.invoice_email || "",
-          invoice_street: updatedEmployer.invoice_street || "",
-          "invoice_postal-code": updatedEmployer["invoice_postal-code"] || "",
-          invoice_city: updatedEmployer.invoice_city || "",
-        },
-      });
+        return NextResponse.json({
+          success: true,
+          data: {
+            "reference-nr": updatedUser.reference_nr || "",
+            invoice_contact_name: updatedUser.invoice_contact_name || "",
+            invoice_email: updatedUser.invoice_email || "",
+            invoice_street: updatedUser.invoice_street || "",
+            "invoice_postal-code": updatedUser.invoice_postal_code || "",
+            invoice_city: updatedUser.invoice_city || "",
+          },
+        });
+      } else {
+        const updatedEmployer = await updateEmployer(effectiveEmployerId, {
+          "reference-nr": data["reference-nr"],
+          invoice_contact_name: data.invoice_contact_name,
+          invoice_email: data.invoice_email,
+          invoice_street: data.invoice_street,
+          "invoice_postal-code": data["invoice_postal-code"],
+          invoice_city: data.invoice_city,
+        });
+
+        // Log event
+        await logEvent({
+          event_type: "employer_updated",
+          actor_user_id: user.id,
+          employer_id: effectiveEmployerId,
+          source: "web",
+          ip_address: clientIP,
+          payload: {
+            section: "billing",
+            updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+          },
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            "reference-nr": updatedEmployer["reference-nr"] || "",
+            invoice_contact_name: updatedEmployer.invoice_contact_name || "",
+            invoice_email: updatedEmployer.invoice_email || "",
+            invoice_street: updatedEmployer.invoice_street || "",
+            "invoice_postal-code": updatedEmployer["invoice_postal-code"] || "",
+            invoice_city: updatedEmployer.invoice_city || "",
+          },
+        });
+      }
     }
 
     // Handle website/profile data updates (Employers table)

@@ -127,7 +127,8 @@ const filterCategories: { value: NonNullable<UITransactionCategory>; label: stri
  */
 function mapTransactionToUI(
   transaction: TransactionRecord,
-  productNames?: Record<string, string>
+  productNames?: Record<string, string>,
+  employerNames?: Record<string, string>
 ): UITransaction {
   // Type is 1-on-1 from Airtable
   const uiType: UITransactionType = transaction.type
@@ -161,6 +162,11 @@ function mapTransactionToUI(
       .filter((name): name is string => !!name)
   }
 
+  // Get employer name for intermediary transactions
+  const employerName = transaction.employer_id && employerNames 
+    ? employerNames[transaction.employer_id] 
+    : null
+
   // Build description: product + vacancy name combined
   let description: string
   switch (transaction.type) {
@@ -179,12 +185,19 @@ function mapTransactionToUI(
       } else {
         description = "Transactie"
       }
+      // Add employer name for intermediary transactions
+      if (employerName) {
+        description = `${description} (${employerName})`
+      }
       break
     }
     case "refund":
       description = transaction.vacancy_name
         ? `Terugbetaling — ${transaction.vacancy_name}`
         : "Terugbetaling"
+      if (employerName) {
+        description = `${description} (${employerName})`
+      }
       break
     case "adjustment":
       description = "Correctie"
@@ -362,10 +375,11 @@ export default function OrdersPage() {
       
       const data = await response.json()
       
-      // Map transactions to UI format, passing product names for display
+      // Map transactions to UI format, passing product names and employer names for display
       const productNames: Record<string, string> = data.productNames || {}
+      const employerNames: Record<string, string> = data.employerNames || {}
       const uiTransactions = (data.transactions || []).map(
-        (tx: TransactionRecord) => mapTransactionToUI(tx, productNames)
+        (tx: TransactionRecord) => mapTransactionToUI(tx, productNames, employerNames)
       )
       setTransactions(uiTransactions)
       

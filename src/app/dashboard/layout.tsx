@@ -51,6 +51,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const user = {
     name: accountData.personal.first_name || "Gebruiker",
     email: accountData.personal.email,
+    companyName: accountData.company_name,
   }
 
   // Focused page layout (no sidebar, full width)
@@ -75,7 +76,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       {/* Desktop layout with sidebar */}
       <SidebarProvider>
         {/* Desktop Sidebar - hidden on mobile */}
-        <div className="hidden sm:block">
+        <div className="hidden sm:block w-0 overflow-visible">
           <AppSidebar user={user} profileComplete={accountData.profile_complete} />
         </div>
 

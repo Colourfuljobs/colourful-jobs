@@ -414,39 +414,7 @@ AND(
 
 ---
 
-### Workflow 8: "Featured" Label Expiry
-
-**Trigger**: Schedule — dagelijks (bijv. 00:30 CET)
-**Doel**: Automatisch het `is_featured` veld op `false` zetten voor vacatures die niet meer gepubliceerd zijn
-
-**Achtergrond**: 
-- Het `is_featured` veld wordt op `true` gezet door de Next.js app bij aankoop van het product `prod_upsell_featured`
-- Tegelijk wordt `featured-at` gezet op het moment van aankoop
-- **Belangrijk**: Het "Uitgelicht" label loopt mee met de vacature-looptijd — het verloopt pas wanneer de vacature niet meer gepubliceerd is (status ≠ `gepubliceerd`)
-- Bij verlenging van de vacature blijft het label automatisch actief
-
-**Flow**:
-1. **Haal alle vacatures op** uit Airtable waar:
-   - `is_featured = true`
-   - `status` is NIET `gepubliceerd` (dus: `verlopen`, `gedepubliceerd`, `concept`, etc.)
-2. **Per vacature**:
-   - Zet `is_featured = false` in Airtable
-   - Zet `needs_webflow_sync = true` in Airtable
-3. De reguliere Vacancy Sync (Workflow 3/4) pikt de `needs_webflow_sync = true` op en synct de updated `featured` switch naar Webflow
-
-**Airtable Formula voor filtering**:
-```
-AND(
-  {is_featured} = TRUE(),
-  {status} != "gepubliceerd"
-)
-```
-
-**Opmerking**: De oude logica op basis van `featured-at + duration_days` is vervangen. Het `featured-at` veld wordt nog wel gezet (voor audit/rapportage), maar wordt niet meer gebruikt voor expiry-berekening.
-
----
-
-### Workflow 9: Factuur Aanmaken via WeFact
+### Workflow 8: Factuur Aanmaken via WeFact
 
 **Trigger**: Webhook van Next.js app (bij aankoop met eurobedrag)
 **Doel**: Automatisch een factuur aanmaken en versturen via WeFact wanneer een werkgever iets koopt met (deels) euros
@@ -589,7 +557,7 @@ Professionele transactie-e-mails naar werkgevers via MailerSend templates. Trigg
 4. Haal employer op: `company_name`, contactpersoon + e-mailadres
 5. Verstuur e-mail met template-variabelen: `product_name`, `credits_purchased`, `amount_euros`, `employer_name`, `transaction_date`
 
-**Opmerking**: Deze workflow kan gecombineerd worden met Workflow 10 (WeFact facturatie) als er ook een eurobedrag in rekening wordt gebracht.
+**Opmerking**: Deze workflow kan gecombineerd worden met Workflow 8 (WeFact facturatie) als er ook een eurobedrag in rekening wordt gebracht.
 
 ---
 
@@ -810,7 +778,7 @@ n8n schrijft de volgende events rechtstreeks naar de Airtable Events tabel (zelf
 | Event type | Workflow | Velden |
 |---|---|---|
 | `vacancy_webflow_synced` | Workflow 3, 4, 5 | `vacancy_id`, `source: "n8n"`, `payload: { action: "create" / "update" / "archive", webflow_item_id }` |
-| `invoice_created` | Workflow 9 | `employer_id`, `source: "n8n"`, `payload: { transaction_id, wefact_invoice_number, amount_euros }` |
+| `invoice_created` | Workflow 8 | `employer_id`, `source: "n8n"`, `payload: { transaction_id, wefact_invoice_number, amount_euros }` |
 
 **Implementatie**: Voeg na elke succesvolle actie een Airtable `Create Record` node toe in de Events tabel met de bovenstaande velden.
 

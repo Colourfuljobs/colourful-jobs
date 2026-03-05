@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { DesktopHeader } from "@/components/dashboard"
+import { useAccount } from "@/lib/account-context"
 
 // Types for form data
 interface PersonalData {
@@ -58,6 +59,11 @@ const emptyBillingData: BillingData = {
 }
 
 export default function GegevensPage() {
+  // Get account data for intermediary check
+  const { accountData } = useAccount()
+  const isIntermediary = accountData?.role_id === "intermediary"
+  const activeEmployerName = accountData?.active_employer?.display_name || accountData?.active_employer?.company_name || "de actieve werkgever"
+
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -313,9 +319,16 @@ export default function GegevensPage() {
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
               <Building2 className="h-5 w-5 text-[#1F2D58]" />
             </div>
-            <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
-              Organisatiegegevens
-            </h2>
+            <div>
+              <h2 className="!text-[1.125rem] sm:!text-[1.5rem] font-semibold text-[#1F2D58] -mt-1">
+                Organisatiegegevens
+              </h2>
+              {isIntermediary && (
+                <p className="text-sm text-[#1F2D58]/60">
+                  <strong className="font-medium">Let op:</strong> Dit zijn de gegevens van {activeEmployerName}. Wijzigingen worden direct doorgevoerd voor deze werkgever.
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <div className="bg-white p-6">

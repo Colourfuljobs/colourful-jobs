@@ -37,6 +37,7 @@ interface AccountData {
     role: string
   }
   role_id: string // "employer" | "intermediary"
+  company_name: string
   profile_complete: boolean
   profile_missing_fields: string[]
   credits: CreditsData
@@ -72,7 +73,8 @@ const defaultAccountData: AccountData = {
     email: "",
     role: "",
   },
-  role_id: "employer", // Default to employer
+  role_id: "employer",
+  company_name: "",
   profile_complete: true,
   profile_missing_fields: [],
   credits: defaultCredits,
@@ -98,6 +100,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             role: data.personal?.role || "",
           },
           role_id: data.role_id || "employer",
+          company_name: data.active_employer?.company_name || data.company?.company_name || "",
           profile_complete: data.profile_complete ?? true,
           profile_missing_fields: data.profile_missing_fields ?? [],
           credits: {

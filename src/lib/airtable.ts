@@ -38,6 +38,13 @@ export const userRecordSchema = z.object({
   invite_token: z.string().nullable().optional(),
   invite_expires: z.string().nullable().optional(),
   invited_by: z.string().nullable().optional(), // User ID who sent the invitation
+  // Billing fields (for intermediaries)
+  invoice_contact_name: z.string().nullable().optional(),
+  invoice_email: z.string().nullable().optional(),
+  invoice_street: z.string().nullable().optional(),
+  invoice_postal_code: z.string().nullable().optional(),
+  invoice_city: z.string().nullable().optional(),
+  reference_nr: z.string().nullable().optional(),
 });
 
 export const employerRecordSchema = z.object({
@@ -652,6 +659,13 @@ export async function updateUser(
     // Airtable Link fields require an array of record IDs
     airtableFields.invited_by = fields.invited_by ? [fields.invited_by] : null;
   }
+  // Billing fields (for intermediaries)
+  if (fields.invoice_contact_name !== undefined) airtableFields.invoice_contact_name = fields.invoice_contact_name;
+  if (fields.invoice_email !== undefined) airtableFields.invoice_email = fields.invoice_email;
+  if (fields.invoice_street !== undefined) airtableFields.invoice_street = fields.invoice_street;
+  if (fields.invoice_postal_code !== undefined) airtableFields.invoice_postal_code = fields.invoice_postal_code;
+  if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
+  if (fields.reference_nr !== undefined) airtableFields.reference_nr = fields.reference_nr;
 
   const record = await base(USERS_TABLE).update(id, airtableFields);
 
@@ -1015,7 +1029,7 @@ export async function getTransactionsByWalletId(walletId: string): Promise<Trans
   try {
     const records = await base(TRANSACTIONS_TABLE)
       .select({
-        filterByFormula: `FIND('${escapeAirtableString(walletId)}', ARRAYJOIN({wallet_id}))`,
+        filterByFormula: `FIND('${escapeAirtableString(walletId)}', ARRAYJOIN({wallet}))`,
         sort: [{ field: "created-at", direction: "desc" }],
       })
       .all();

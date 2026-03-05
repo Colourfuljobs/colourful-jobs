@@ -372,7 +372,7 @@ export function BoostModal({
   };
 
   // Calculate costs (credits)
-  const extensionCost = extensionChecked && selectedDate && extensionUpsell ? extensionUpsell.credits : 0;
+  const extensionCost = extensionChecked && extensionUpsell ? extensionUpsell.credits : 0;
   const upsellsCost = React.useMemo(() => {
     return boostUpsells
       .filter((u) => selectedUpsellIds.includes(u.id))
@@ -381,7 +381,7 @@ export function BoostModal({
   const totalCost = upsellsCost + extensionCost;
 
   // Calculate costs (euros)
-  const extensionPrice = extensionChecked && selectedDate && extensionUpsell ? extensionUpsell.price : 0;
+  const extensionPrice = extensionChecked && extensionUpsell ? extensionUpsell.price : 0;
   const upsellsPrice = React.useMemo(() => {
     return boostUpsells
       .filter((u) => selectedUpsellIds.includes(u.id))
@@ -916,31 +916,34 @@ export function BoostModal({
                   <div className="space-y-1.5 text-sm">
                     {priceDisplayMode === "euros" ? (
                       <>
-                        <div className="flex justify-between text-[#1F2D58]">
+                        <div className="flex justify-between text-[#1F2D58] font-semibold">
                           <span>Totale kosten:</span>
-                          <span className="font-medium">
+                          <span>
                             €{totalPrice % 1 === 0 ? totalPrice.toLocaleString("nl-NL") : totalPrice.toLocaleString("nl-NL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="flex justify-between text-[#1F2D58]">
+                        <div className="flex justify-between text-[#1F2D58] font-semibold">
                           <span>Totale kosten:</span>
-                          <span className="font-medium">
+                          <span>
                             {totalCost} credits
                           </span>
                         </div>
+                        
+                        <div className="border-t border-[#1F2D58]/10 my-2" />
+                        
                         <div className="flex justify-between text-[#1F2D58]">
                           <span>Beschikbaar:</span>
-                          <span className="font-medium">
+                          <span>
                             {availableCreditsAmount} credits
                           </span>
                         </div>
                         
                         {/* Scenario: Enough credits */}
                         {hasEnoughCredits && (
-                          <div className="flex justify-between text-[#1F2D58] font-semibold">
+                          <div className="flex justify-between text-[#1F2D58]">
                             <span>Resterend:</span>
                             <span>{remaining} credits</span>
                           </div>

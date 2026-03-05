@@ -6,6 +6,7 @@ import {
   getWalletByUserId,
   getUserByEmail,
   getActiveProductsByType,
+  getManagedEmployers,
   TransactionRecord,
   WalletRecord,
 } from "@/lib/airtable";
@@ -34,28 +35,27 @@ export async function GET() {
       return NextResponse.json({ error: "No employer linked to user" }, { status: 400 });
     }
 
-    if (isIntermediary && !user.active_employer) {
-      return NextResponse.json({ error: "Selecteer eerst een werkgever" }, { status: 400 });
-    }
-
-    console.log("[Orders GET] Fetching for", isIntermediary ? "intermediary with active_employer:" : "employer_id:", isIntermediary ? user.active_employer : user.employer_id);
+    console.log("[Orders GET] Fetching for", isIntermediary ? "intermediary" : "employer_id:", isIntermediary ? user.id : user.employer_id);
 
     // Fetch transactions and wallet based on user type
     let allTransactions: TransactionRecord[];
     let wallet: WalletRecord | null;
+    let employerNames: Record<string, string> = {};
 
     if (isIntermediary) {
-      // Intermediary: fetch from user-level wallet, filtered by active employer
+      // Intermediary: fetch ALL transactions from user-level wallet (no filtering by employer)
       wallet = await getWalletByUserId(user.id);
       
       if (wallet) {
-        const walletTransactions = await getTransactionsByWalletId(wallet.id);
-        // Filter to only show transactions for the active employer
-        allTransactions = walletTransactions.filter(
-          (tx) => tx.employer_id === user.active_employer
-        );
+        allTransactions = await getTransactionsByWalletId(wallet.id);
       } else {
         allTransactions = [];
+      }
+
+      // Build employer name map for display
+      const managedEmployers = await getManagedEmployers(user.id);
+      for (const employer of managedEmployers) {
+        employerNames[employer.id] = employer.display_name || employer.company_name || "Onbekend";
       }
     } else {
       // Regular employer: existing logic
@@ -96,6 +96,8 @@ export async function GET() {
       transactions,
       credits,
       productNames,
+      employerNames,
+      isIntermediary,
     });
   } catch (error: unknown) {
     console.error("[Orders GET] error:", getErrorMessage(error));

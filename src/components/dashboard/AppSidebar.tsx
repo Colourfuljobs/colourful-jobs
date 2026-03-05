@@ -73,6 +73,7 @@ interface AppSidebarProps {
   user?: {
     name?: string | null
     email?: string | null
+    companyName?: string | null
   }
   profileComplete?: boolean
 }
@@ -87,7 +88,7 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="none">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-4 pb-2 overflow-hidden">
         <Link href="/dashboard" className="flex items-center mb-4">
           <img
             src="/logo.svg"
@@ -97,10 +98,7 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
             className="h-8 w-auto"
           />
         </Link>
-        {/* Employer switcher for intermediaries - negative margins to match menu item width */}
-        <div className="-ml-4 -mr-4">
-          <EmployerSwitcher />
-        </div>
+        <EmployerSwitcher />
       </SidebarHeader>
 
       <SidebarContent className="h-full">
@@ -136,10 +134,10 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-[#E8EEF2] p-0 gap-0">
+      <SidebarFooter className="border-t border-[#E8EEF2] p-0 gap-0 overflow-hidden">
         {/* User info */}
-        <div className="flex items-center gap-3 pl-2 pr-4 py-3">
-          <Avatar className="h-8 w-8 rounded-full">
+        <div className="flex items-center gap-3 pl-2 pr-4 py-3 overflow-hidden">
+          <Avatar className="h-8 w-8 rounded-full flex-shrink-0">
             <AvatarFallback className="rounded-full bg-[#193DAB]/12 text-[#1F2D58]">
               <User className="h-4 w-4" />
             </AvatarFallback>
@@ -149,7 +147,7 @@ export function AppSidebar({ user, profileComplete = true }: AppSidebarProps) {
               {user?.name || "Gebruiker"}
             </span>
             <span className="truncate text-xs text-[#1F2D58]/60">
-              {user?.email || ""}
+              {user?.companyName || user?.email || ""}
             </span>
           </div>
         </div>
