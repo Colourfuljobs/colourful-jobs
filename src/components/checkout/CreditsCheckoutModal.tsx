@@ -397,7 +397,7 @@ export function CreditsCheckoutModal({
                       {/* Top section */}
                       <div className="p-4 pb-3">
                         {/* Product name - Contempora style */}
-                        <h3 className="contempora-medium text-[#1F2D58] !text-[2rem] sm:!text-[2.5rem]">
+                        <h3 className="contempora-medium text-[#1F2D58] !text-[3rem]">
                           {product.display_name}
                         </h3>
 
@@ -418,7 +418,7 @@ export function CreditsCheckoutModal({
                       {/* Vacancy estimate with tooltip */}
                       <div className="px-4 pt-1 pb-3">
                         <div className={cn(
-                          "flex items-center justify-between gap-2 p-2 rounded-[4px]",
+                          "inline-flex items-center gap-2 p-2 rounded-[4px] w-fit",
                           isSelected ? "bg-[#1F2D58]/[0.07]" : "bg-white/50"
                         )}>
                           <span className="text-sm leading-5 text-[#1F2D58]">
@@ -438,7 +438,7 @@ export function CreditsCheckoutModal({
                           {/* Price row: old price → new price */}
                           <div className="flex flex-col -space-y-1">
                             {product.base_price && product.base_price > product.price && (
-                              <span className="text-sm text-[#1F2D58]/50 line-through">
+                              <span className="text-[12px] text-[#1F2D58]/50 line-through">
                                 {formatPrice(product.base_price)}
                               </span>
                             )}
@@ -447,7 +447,7 @@ export function CreditsCheckoutModal({
                                 {formatPrice(product.price)}
                               </span>
                               {product.discount_percentage && product.discount_percentage > 0 && (
-                                <span className="text-[12px] font-medium text-[#2F9D07]">
+                                <span className="text-[13px] font-medium text-[#2F9D07]">
                                   {Math.round(product.discount_percentage)}% korting
                                 </span>
                               )}
@@ -668,7 +668,7 @@ export function CreditsCheckoutModal({
 
             {/* Submit button with invoice info */}
             <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
-              <p className="text-sm text-[#1F2D58]/70 text-center sm:text-left">
+              <p className="text-[12px] text-[#1F2D58]/70 text-center sm:text-left">
                 De factuur wordt verzonden naar het e-mailadres dat bij facturatie is ingesteld.
               </p>
               <Button
@@ -684,8 +684,7 @@ export function CreditsCheckoutModal({
                   "Haal factuurgegevens op"
                 ) : (
                   <>
-                    {billingCycle === "yearly" ? "Start abonnement" : "Koop"} {selectedProduct.credits} credits
-                    {billingCycle === "yearly" && " per jaar"}
+                    Koop {selectedProduct.credits} credits{billingCycle === "yearly" && " per jaar"}
                   </>
                 )}
               </Button>
