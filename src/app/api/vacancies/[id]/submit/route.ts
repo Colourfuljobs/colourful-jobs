@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import {
   getUserByEmail,
   getVacancyById,
+  getVacanciesByEmployerId,
   updateVacancy,
   getWalletByEmployerId,
   deductCreditsFromWallet,
@@ -79,6 +80,13 @@ export async function POST(
     if (!vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
+
+    // Check if this is the first submitted vacancy for this employer
+    // We check for any vacancies that have been submitted before (past concept stage)
+    const existingSubmittedVacancies = await getVacanciesByEmployerId(vacancy.employer_id, {
+      status: ["wacht_op_goedkeuring", "gepubliceerd", "gedepubliceerd", "verlopen"]
+    });
+    const isFirstVacancy = existingSubmittedVacancies.length === 0;
 
     // Prevent re-submission of already submitted vacancies
     const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
@@ -253,12 +261,14 @@ export async function POST(
 
     // Update vacancy status (and set high_priority if "Vandaag online" upsell is selected)
     // Also set is_featured if any product has sets_featured=true
+    // Set is_first_vacancy if this is the first submitted vacancy for the employer
     // Strip DIY-only fields when submitting as "We do it for you"
     // These fields may have been filled during a previous DIY session and should not
     // be persisted in the final submission to avoid confusion for the review team.
     const updatedVacancy = await updateVacancy(id, {
       status: "wacht_op_goedkeuring",
       "submitted-at": new Date().toISOString(),
+      ...(isFirstVacancy ? { is_first_vacancy: true } : {}),
       ...(hasVandaagOnline ? { high_priority: true } : {}),
       ...(hasFeatured ? { is_featured: true, "featured-at": new Date().toISOString() } : {}),
       // Strip DIY-only fields for "We do it for you" submissions
@@ -317,6 +327,7 @@ export async function POST(
         invoice_amount: invoiceAmount,
         input_type: vacancy.input_type,
         payment_method: hasEnoughCredits ? "credits" : "partial_invoice",
+        is_first_vacancy: isFirstVacancy,
         ...(hasVandaagOnline ? {
           vandaag_online: true,
           submitted_before_cutoff: submittedBeforeCutoff,

@@ -205,10 +205,9 @@ export async function PATCH(
   } catch (error: unknown) {
     const errorMessage = getErrorMessage(error);
     console.error("Error updating vacancy:", errorMessage);
-    // Log more details for debugging
     console.error("Error details:", error);
     return NextResponse.json(
-      { error: `Er ging iets mis bij het updaten van de vacature: ${errorMessage}` },
+      { error: "Er ging iets mis bij het updaten van de vacature" },
       { status: 500 }
     );
   }

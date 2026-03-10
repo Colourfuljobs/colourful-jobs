@@ -309,6 +309,9 @@ export const vacancyRecordSchema = z.object({
   high_priority: z.boolean().default(false), // Set when "Zelfde dag online" upsell is purchased
   is_featured: z.boolean().default(false), // Set when a product with sets_featured=true is purchased
   "featured-at": z.string().nullable().optional(), // Timestamp when is_featured was set to true (for expiry calculation)
+  
+  // First vacancy flag (for email automation)
+  is_first_vacancy: z.boolean().default(false), // Set to true when this is the first submitted vacancy for the employer
 
   // Timestamps
   "created-at": z.string().optional(),
@@ -2210,6 +2213,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     high_priority: fields.high_priority as boolean | undefined,
     is_featured: fields.is_featured as boolean | undefined,
     "featured-at": fields["featured-at"] as string | undefined,
+    is_first_vacancy: fields.is_first_vacancy as boolean | undefined,
     "created-at": fields["created-at"] as string | undefined,
     "updated-at": fields["updated-at"] as string | undefined,
     "submitted-at": fields["submitted-at"] as string | undefined,
@@ -2401,6 +2405,9 @@ export async function updateVacancy(
   if (fields.high_priority !== undefined) airtableFields.high_priority = fields.high_priority;
   if (fields.is_featured !== undefined) airtableFields.is_featured = fields.is_featured;
   if (fields["featured-at"] !== undefined) airtableFields["featured-at"] = fields["featured-at"];
+  
+  // First vacancy flag
+  if (fields.is_first_vacancy !== undefined) airtableFields.is_first_vacancy = fields.is_first_vacancy;
 
   // Webflow sync
   if (fields.needs_webflow_sync !== undefined) airtableFields.needs_webflow_sync = fields.needs_webflow_sync;

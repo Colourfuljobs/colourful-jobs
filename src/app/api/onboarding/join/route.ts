@@ -117,9 +117,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Join validation error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Er ging iets mis bij de validatie";
     return NextResponse.json(
-      { error: errorMessage },
+      { error: "Er ging iets mis bij de validatie" },
       { status: 500 }
     );
   }
@@ -201,9 +200,8 @@ export async function PATCH(request: Request) {
     });
   } catch (error) {
     console.error("Join completion error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Er ging iets mis bij het voltooien van de registratie";
     return NextResponse.json(
-      { error: errorMessage },
+      { error: "Er ging iets mis bij het voltooien van de registratie" },
       { status: 500 }
     );
   }
