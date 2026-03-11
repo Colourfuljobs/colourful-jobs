@@ -11,8 +11,14 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 
-// Email validation schema
-const emailSchema = z.string().email();
+const joinPostSchema = z.object({
+  email: z.string().email().max(200),
+  employer_id: z.string().min(1),
+});
+
+const joinPatchSchema = z.object({
+  employer_id: z.string().min(1),
+});
 
 /**
  * POST /api/onboarding/join
@@ -40,33 +46,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, employer_id } = body;
+    const parsed = joinPostSchema.safeParse(body);
 
-    if (!email) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "E-mailadres is verplicht" },
+        { valid: false, error: "Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)" },
         { status: 400 }
       );
     }
 
-    // Validate email format early
-    const emailValidation = emailSchema.safeParse(email);
-    if (!emailValidation.success) {
-      return NextResponse.json(
-        { 
-          valid: false, 
-          error: "Voer een geldig e-mailadres in (bijv. naam@bedrijf.nl)" 
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!employer_id) {
-      return NextResponse.json(
-        { error: "Employer ID is verplicht" },
-        { status: 400 }
-      );
-    }
+    const { email, employer_id } = parsed.data;
 
     // Get the employer to check website_url
     const employer = await getEmployerById(employer_id);
@@ -138,15 +127,17 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const { employer_id } = body;
-    const clientIP = getClientIP(request);
+    const parsed = joinPatchSchema.safeParse(body);
 
-    if (!employer_id) {
+    if (!parsed.success) {
       return NextResponse.json(
         { error: "Employer ID is verplicht" },
         { status: 400 }
       );
     }
+
+    const { employer_id } = parsed.data;
+    const clientIP = getClientIP(request);
 
     // Verify the employer exists
     const employer = await getEmployerById(employer_id);
@@ -154,6 +145,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json(
         { error: "Werkgever niet gevonden" },
         { status: 404 }
+      );
+    }
+
+    // Server-side domain validation to prevent tampering with employer_id
+    if (!employer.website_url || !doDomainsMatch(session.user.email, employer.website_url)) {
+      return NextResponse.json(
+        { error: "De domeinnaam van je e-mailadres komt niet overeen met dit werkgeversaccount." },
+        { status: 403 }
       );
     }
 
@@ -166,9 +165,6 @@ export async function PATCH(request: Request) {
         { status: 404 }
       );
     }
-
-    // User's first_name, last_name, role were already saved when user was created
-    // Now just link to employer and set status to active
     const updatedUser = await updateUser(user.id, {
       employer_id,
       status: "active",

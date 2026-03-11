@@ -2,152 +2,21 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Coins, Eye, EyeOff, Pencil, Rocket, ArrowUpFromLine, MapPin, Clock, Calendar } from "lucide-react"
+import { Coins, MapPin, Clock, Calendar } from "lucide-react"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  type VacancyStatus,
+  statusConfig,
+  cardActionsPerStatus,
+  formatDate,
+  getPublicationInfoForCard,
+} from "@/lib/vacancy-utils"
 
-// Status types
-export type VacancyStatus = 
-  | "concept"
-  | "incompleet"
-  | "wacht_op_goedkeuring"
-  | "gepubliceerd"
-  | "verlopen"
-  | "gedepubliceerd"
-
-// Status configuration
-const statusConfig: Record<VacancyStatus, {
-  label: string
-  variant: "muted" | "info" | "success" | "warning" | "error"
-  showCredits: boolean
-  creditMessage?: string
-}> = {
-  concept: {
-    label: "Concept",
-    variant: "muted",
-    showCredits: false,
-  },
-  incompleet: {
-    label: "Incompleet",
-    variant: "muted",
-    showCredits: true,
-  },
-  wacht_op_goedkeuring: {
-    label: "Wacht op goedkeuring",
-    variant: "info",
-    showCredits: true,
-  },
-  gepubliceerd: {
-    label: "Gepubliceerd",
-    variant: "success",
-    showCredits: true,
-  },
-  verlopen: {
-    label: "Verlopen",
-    variant: "warning",
-    showCredits: true,
-    creditMessage: "Deze vacature is verlopen. Boost om de vacature weer actief te maken.",
-  },
-  gedepubliceerd: {
-    label: "Gedepubliceerd",
-    variant: "error",
-    showCredits: true,
-  },
-}
-
-// Actions per status
-const actionsPerStatus: Record<VacancyStatus, Array<{
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "depubliceren"
-  iconOnly?: boolean // Whether to show only icon (with tooltip)
-}>> = {
-  concept: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
-  incompleet: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
-  wacht_op_goedkeuring: [
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
-  gepubliceerd: [
-    { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-  ],
-  verlopen: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-  ],
-  gedepubliceerd: [
-    { label: "Publiceren", icon: ArrowUpFromLine, action: "publiceren", iconOnly: false },
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
-}
-
-// Helper function to calculate days remaining
-function getDaysRemaining(closingDate: Date): number {
-  const now = new Date()
-  const diffTime = closingDate.getTime() - now.getTime()
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-}
-
-// Helper function to format date
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("nl-NL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })
-}
-
-// Get publication info text based on status
-function getPublicationInfo(
-  status: VacancyStatus,
-  publishedAt?: Date,
-  closingDate?: Date
-): { icon: React.ComponentType<{ className?: string }>; text: string } | null {
-  switch (status) {
-    case "concept":
-    case "wacht_op_goedkeuring":
-      return { icon: Calendar, text: "Nog niet online" }
-    case "gepubliceerd":
-      if (publishedAt && closingDate) {
-        const daysRemaining = getDaysRemaining(closingDate)
-        return {
-          icon: Clock,
-          text: `Gepubliceerd ${formatDate(publishedAt)} · Nog ${daysRemaining} ${daysRemaining === 1 ? "dag" : "dagen"} online`,
-        }
-      }
-      return null
-    case "verlopen":
-      if (publishedAt) {
-        return {
-          icon: Clock,
-          text: `Gepubliceerd ${formatDate(publishedAt)} · Looptijd verlopen`,
-        }
-      }
-      return null
-    case "gedepubliceerd":
-      if (publishedAt) {
-        return {
-          icon: Clock,
-          text: `Gepubliceerd ${formatDate(publishedAt)} · Handmatig offline gehaald`,
-        }
-      }
-      return null
-    default:
-      return null
-  }
-}
+export type { VacancyStatus } from "@/lib/vacancy-utils"
 
 interface VacancyCardProps {
   id: string
@@ -173,8 +42,10 @@ export function VacancyCard({
   onAction,
 }: VacancyCardProps) {
   const config = statusConfig[status]
-  const actions = actionsPerStatus[status]
-  const publicationInfo = getPublicationInfo(status, publishedAt, closingDate)
+  const actions = cardActionsPerStatus[status]
+  const publicationInfo = getPublicationInfoForCard(status, publishedAt, closingDate)
+
+  const PublicationIcon = publicationInfo?.iconType === "calendar" ? Calendar : Clock
 
   // Compact variant (for dashboard)
   if (variant === "compact") {
@@ -326,7 +197,7 @@ export function VacancyCard({
           {/* Publication info */}
           {publicationInfo && (
             <div className="flex items-center gap-1.5">
-              <publicationInfo.icon className="h-4 w-4" />
+              <PublicationIcon className="h-4 w-4" />
               <span>{publicationInfo.text}</span>
             </div>
           )}

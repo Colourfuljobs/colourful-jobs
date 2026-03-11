@@ -14,7 +14,6 @@ import {
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
 import { getPackageBaseDuration } from "@/lib/vacancy-duration";
-import { triggerWebflowSync } from "@/lib/webflow-sync";
 
 // Invoice details type matching frontend
 interface InvoiceDetails {
@@ -360,9 +359,6 @@ export async function POST(
 
     // Update vacancy
     const updatedVacancy = await updateVacancy(id, vacancyUpdate);
-
-    // Trigger Webflow sync webhook
-    await triggerWebflowSync(id);
 
     // Log event
     await logEvent({

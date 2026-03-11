@@ -8,11 +8,6 @@ import {
   AlertTriangle,
   Briefcase,
   ChevronDown,
-  Pencil,
-  Eye,
-  EyeOff,
-  Rocket,
-  ArrowUpFromLine,
   Loader2,
 } from "lucide-react"
 
@@ -28,7 +23,15 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "@/components/ui/empty"
-import { VacancyStatus } from "@/components/dashboard/VacancyCard"
+import {
+  type VacancyStatus,
+  statusConfig,
+  tableActionsPerStatus,
+  getFurthestStep,
+  getVacancyDisplayTitle,
+  getPublicationInfoText,
+  formatDate,
+} from "@/lib/vacancy-utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,131 +68,11 @@ import { BoostModal } from "@/components/vacatures/BoostModal"
 // Filter status options (excluding gepubliceerd and wacht_op_goedkeuring which are in "Actieve vacatures" section)
 const filterStatuses: { value: VacancyStatus; label: string }[] = [
   { value: "concept", label: "Concept" },
+  { value: "needs_adjustment", label: "Aanpassing nodig" },
   { value: "verlopen", label: "Verlopen" },
   { value: "gedepubliceerd", label: "Gedepubliceerd" },
 ]
 
-// Status configuration
-const statusConfig: Record<VacancyStatus, {
-  label: string
-  variant: "muted" | "info" | "success" | "warning" | "error"
-  showCredits: boolean
-  creditMessage?: string
-}> = {
-  concept: {
-    label: "Concept",
-    variant: "muted",
-    showCredits: false,
-  },
-  incompleet: {
-    label: "Incompleet",
-    variant: "muted",
-    showCredits: true,
-  },
-  wacht_op_goedkeuring: {
-    label: "Wacht op goedkeuring",
-    variant: "info",
-    showCredits: true,
-  },
-  gepubliceerd: {
-    label: "Gepubliceerd",
-    variant: "success",
-    showCredits: true,
-  },
-  verlopen: {
-    label: "Verlopen",
-    variant: "warning",
-    showCredits: true,
-    creditMessage: "Deze vacature is verlopen. Boost om de vacature weer actief te maken.",
-  },
-  gedepubliceerd: {
-    label: "Gedepubliceerd",
-    variant: "error",
-    showCredits: true,
-  },
-}
-
-// Actions per status
-const actionsPerStatus: Record<VacancyStatus, Array<{
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "depubliceren"
-  iconOnly?: boolean
-}>> = {
-  concept: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-  ],
-  incompleet: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-  ],
-  wacht_op_goedkeuring: [
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
-  gepubliceerd: [
-    { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijk live vacature", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-  ],
-  verlopen: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-  ],
-  gedepubliceerd: [
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Publiceren", icon: ArrowUpFromLine, action: "publiceren", iconOnly: false },
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-  ],
-}
-
-// Helper function to calculate days remaining
-function getDaysRemaining(closingDate: Date): number {
-  const now = new Date()
-  const diffTime = closingDate.getTime() - now.getTime()
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-}
-
-// Helper function to format date
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("nl-NL", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })
-}
-
-// Get publication info text based on status
-function getPublicationInfo(
-  status: VacancyStatus,
-  publishedAt?: string,
-  closingDate?: string
-): string | null {
-  switch (status) {
-    case "concept":
-      return "Nog niet online"
-    case "wacht_op_goedkeuring":
-      return null
-    case "gepubliceerd":
-      if (publishedAt) {
-        return `Laatst gepubliceerd op ${formatDate(new Date(publishedAt))} · Online`
-      }
-      return "Online"
-    case "verlopen":
-      if (publishedAt) {
-        return `${formatDate(new Date(publishedAt))} · Verlopen`
-      }
-      return null
-    case "gedepubliceerd":
-      if (publishedAt) {
-        return `${formatDate(new Date(publishedAt))} · Offline`
-      }
-      return null
-    default:
-      return null
-  }
-}
-
-// Vacancy type from API
 interface Vacancy {
   id: string
   title?: string
@@ -354,24 +237,6 @@ export default function VacaturesPage() {
     fetchVacancies()
   }, [])
 
-  // Determine the furthest step for a vacancy based on its data
-  const getFurthestStep = (vacancy: Vacancy): 1 | 2 | 3 | 4 => {
-    // If no package selected yet, start at step 1
-    if (!vacancy.package_id) return 1
-    
-    // If package selected but no basic content, start at step 2
-    if (!vacancy.title || !vacancy.description) return 2
-    
-    // For submitted/published vacancies, go to step 2 (edit mode) instead of step 4
-    // This allows them to edit without going through the payment flow again
-    const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
-    if (submittedStatuses.includes(vacancy.status)) return 2
-    
-    // If content is filled, go to step 2 to make edits
-    // For concepts with content, let them continue from step 2 to make edits
-    return 2
-  }
-
   const handleDepublishConfirm = async () => {
     if (!depublishConfirmId) return
     const vacancyId = depublishConfirmId
@@ -388,7 +253,7 @@ export default function VacaturesPage() {
         return
       }
 
-      toast.success("Vacature offline gehaald", { description: "De vacature is gedepubliceerd." })
+      toast.success("Vacature offline gehaald", { description: "De vacature wordt binnen enkele minuten offline gehaald." })
       fetchVacancies()
     } catch {
       toast.error("Depubliceren mislukt", { description: "Er ging iets mis bij het offline halen" })
@@ -408,7 +273,7 @@ export default function VacaturesPage() {
         return
       }
 
-      toast.success("Vacature gepubliceerd", { description: "De vacature is weer online." })
+      toast.success("Vacature gepubliceerd", { description: "De vacature staat binnen enkele minuten weer online." })
       fetchVacancies()
     } catch {
       toast.error("Publiceren mislukt", { description: "Er ging iets mis bij het publiceren" })
@@ -437,7 +302,7 @@ export default function VacaturesPage() {
         break
       }
       case "boosten":
-        setBoostVacancy({ id: vacancyId, title: vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature") })
+        setBoostVacancy({ id: vacancyId, title: getVacancyDisplayTitle(vacancy.title, vacancy.input_type) })
         setBoostModalOpen(true)
         break
       case "publiceren":
@@ -557,8 +422,8 @@ export default function VacaturesPage() {
               <TableBody>
                 {activeVacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
-                  const actions = actionsPerStatus[vacancy.status]
-                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
+                  const actions = tableActionsPerStatus[vacancy.status]
+                  const publicationInfo = getPublicationInfoText(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
@@ -567,7 +432,7 @@ export default function VacaturesPage() {
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}&returnTo=/dashboard/vacatures`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
-                          {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
+                          {getVacancyDisplayTitle(vacancy.title, vacancy.input_type)}
                         </Link>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
@@ -759,8 +624,8 @@ export default function VacaturesPage() {
               <TableBody>
                 {filteredOtherVacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
-                  const actions = actionsPerStatus[vacancy.status]
-                  const publicationInfo = getPublicationInfo(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
+                  const actions = tableActionsPerStatus[vacancy.status]
+                  const publicationInfo = getPublicationInfoText(vacancy.status, vacancy["last-published-at"], vacancy.closing_date)
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
@@ -769,7 +634,7 @@ export default function VacaturesPage() {
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}&returnTo=/dashboard/vacatures`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
-                          {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
+                          {getVacancyDisplayTitle(vacancy.title, vacancy.input_type)}
                         </Link>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">

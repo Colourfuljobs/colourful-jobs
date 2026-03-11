@@ -7,8 +7,30 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 
-// Email validation schema - must have a domain with at least one dot and a TLD of 2+ chars
-const emailSchema = z.string().email("Ongeldig e-mailadres. Controleer of je e-mailadres correct is geschreven.");
+const onboardingPostSchema = z.object({
+  email: z.string().email().max(200),
+  first_name: z.string().max(100).optional(),
+  last_name: z.string().max(100).optional(),
+  role: z.string().max(100).optional(),
+  joinMode: z.boolean().optional(),
+  target_employer_id: z.string().optional(),
+});
+
+const onboardingPatchSchema = z.object({
+  first_name: z.string().max(100).optional(),
+  last_name: z.string().max(100).optional(),
+  role: z.string().max(100).optional(),
+  status: z.enum(["pending_onboarding", "active", "invited", "deleted", "draft"]).optional(),
+  company_name: z.string().max(200).optional(),
+  kvk: z.string().max(20).optional(),
+  phone: z.string().max(30).optional(),
+  website_url: z.string().max(500).optional(),
+  invoice_contact_name: z.string().max(200).optional(),
+  invoice_email: z.string().max(200).optional(),
+  invoice_street: z.string().max(200).optional(),
+  "invoice_postal-code": z.string().max(20).optional(),
+  invoice_city: z.string().max(200).optional(),
+}).strict();
 
 export async function POST(request: Request) {
   try {
@@ -31,21 +53,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { email, first_name, last_name, role, joinMode, target_employer_id } = body;
-    const clientIP = getClientIP(request);
+    const parsed = onboardingPostSchema.safeParse(body);
 
-    if (!email) {
-      return NextResponse.json({ error: "E-mailadres is verplicht." }, { status: 400 });
-    }
-
-    // Validate email format early to provide user-friendly error message
-    const emailValidation = emailSchema.safeParse(email);
-    if (!emailValidation.success) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Ongeldig e-mailadres. Controleer of je e-mailadres correct is geschreven (bijv. naam@bedrijf.nl)." },
+        { error: "Ongeldige invoer. Controleer je gegevens." },
         { status: 400 }
       );
     }
+
+    const { email, first_name, last_name, role, joinMode, target_employer_id } = parsed.data;
+    const clientIP = getClientIP(request);
 
     // Check if user already exists
     const existingUser = await getUserByEmail(email);
@@ -197,7 +215,17 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const rawBody = await request.json();
+    const parsed = onboardingPatchSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Ongeldige invoer. Controleer je gegevens." },
+        { status: 400 }
+      );
+    }
+
+    const body = parsed.data;
     const clientIP = getClientIP(request);
 
     // Get user from database by email (more reliable than session.user.id)
@@ -222,7 +250,7 @@ export async function PATCH(request: Request) {
       const updatedUser = await updateUser(user.id, {
         first_name: body.first_name,
         last_name: body.last_name,
-        status: body.status,
+        status: body.status as "pending_onboarding" | "active" | "invited" | "deleted" | undefined,
       });
 
       // Log user_updated event
@@ -233,7 +261,7 @@ export async function PATCH(request: Request) {
         source: "web",
         ip_address: clientIP,
         payload: {
-          updated_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+          updated_fields: Object.keys(body).filter((key) => (body as Record<string, unknown>)[key] !== undefined),
         },
       });
 
@@ -282,7 +310,8 @@ export async function PATCH(request: Request) {
     // If user doesn't have an employer yet, create one (this happens in step 2)
     if (!employerId) {
       try {
-        const employer = await createEmployer(body);
+        const { first_name: _fn, last_name: _ln, role: _r, status: _s, ...employerFields } = body;
+        const employer = await createEmployer(employerFields);
         employerId = employer.id;
         
         // Link user to the new employer
@@ -296,7 +325,7 @@ export async function PATCH(request: Request) {
           source: "web",
           ip_address: clientIP,
           payload: {
-            created_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+            created_fields: Object.keys(body).filter((key) => (body as Record<string, unknown>)[key] !== undefined),
           },
         });
         
@@ -313,7 +342,7 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: {
             error: errorMessage,
-            attempted_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+            attempted_fields: Object.keys(body).filter((key) => (body as Record<string, unknown>)[key] !== undefined),
             company_name: body.company_name,
             kvk: body.kvk,
           },
@@ -326,7 +355,8 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const updated = await updateEmployer(employerId, body);
+    const { first_name: _fn2, last_name: _ln2, role: _r2, status: _s2, ...employerUpdateFields } = body;
+    const updated = await updateEmployer(employerId, employerUpdateFields);
 
     // Log employer_updated event
     await logEvent({
@@ -336,7 +366,7 @@ export async function PATCH(request: Request) {
       source: "web",
       ip_address: clientIP,
       payload: {
-        updated_fields: Object.keys(body).filter((key) => body[key] !== undefined),
+        updated_fields: Object.keys(body).filter((key) => (body as Record<string, unknown>)[key] !== undefined),
       },
     });
 

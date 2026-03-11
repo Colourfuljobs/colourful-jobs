@@ -551,20 +551,9 @@ export default function OnboardingPage() {
       if (response.ok) {
         await signOut({ redirect: false });
         clearOnboardingState();
-        setContact({ firstName: "", lastName: "", email: "", role: "" });
-        setEmailVerified(false);
-        setStep1Complete(false);
-        setStep2Complete(false);
-        setEmailSent(false);
-        setShowKVKSearch(true);
-        setKvkSelected(false);
-        setFormErrors({});
-        setStep(1);
-        setRestartDialogOpen(false);
-        toast.success("Account verwijderd", {
-          description: "Je kunt nu opnieuw beginnen met een nieuw e-mailadres.",
-        });
-        router.refresh();
+        // Hard redirect to login to fully reset session state
+        window.location.href = "/login";
+        return;
       } else {
         toast.error("Fout bij verwijderen", {
           description: "Er ging iets mis. Probeer het later opnieuw.",

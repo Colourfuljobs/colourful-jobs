@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSession, getUserById } from "@/lib/airtable";
 import { logEvent } from "@/lib/events";
+import { checkRateLimit, apiRateLimiter, getIdentifier } from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
 
 /**
@@ -8,17 +9,33 @@ import { randomUUID } from "crypto";
  * 
  * Allows admins to login as any user directly from Airtable.
  * 
- * Usage in Airtable:
- * Create a Button field in the Users table with URL formula:
- * "https://colourful-jobs.vercel.app/api/admin/impersonate?userId=" & RECORD_ID() & "&secret=YOUR_SECRET"
+ * Accepts the secret via either:
+ * 1. Authorization header: "Bearer YOUR_SECRET" (preferred)
+ * 2. Query parameter: ?secret=YOUR_SECRET (legacy, for Airtable button URLs)
  * 
  * Required env var:
- * ADMIN_IMPERSONATE_SECRET - A secret key that must match the secret in the URL
+ * ADMIN_IMPERSONATE_SECRET - A secret key that must match
  */
 export async function GET(request: NextRequest) {
+  // Rate limiting: 10 attempts per minute per IP
+  const identifier = getIdentifier(request);
+  const rateLimitResult = await checkRateLimit(identifier, apiRateLimiter, 10, 60000);
+  
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: "Te veel pogingen. Probeer het later opnieuw." },
+      { status: 429 }
+    );
+  }
+
   const searchParams = request.nextUrl.searchParams;
   const userId = searchParams.get("userId");
-  const secret = searchParams.get("secret");
+  
+  // Accept secret from Authorization header (preferred) or query param (legacy)
+  const authHeader = request.headers.get("authorization");
+  const secret = authHeader?.startsWith("Bearer ") 
+    ? authHeader.slice(7) 
+    : searchParams.get("secret");
 
   // Validate required parameters
   if (!userId || !secret) {

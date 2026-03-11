@@ -6,10 +6,17 @@ import {
   getVacanciesByEmployerId,
   createVacancy,
   VacancyStatus,
-  VacancyInputType,
+  vacancyInputTypeEnum,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent } from "@/lib/events";
+import { z } from "zod";
+
+const vacancyCreateSchema = z.object({
+  title: z.string().max(200).optional(),
+  input_type: vacancyInputTypeEnum.optional(),
+  package_id: z.string().optional(),
+});
 
 /**
  * GET /api/vacancies
@@ -115,13 +122,18 @@ export async function POST(request: Request) {
       employerId = user.employer_id;
     }
 
-    // Parse request body
+    // Parse and validate request body
     const body = await request.json();
-    const { title, input_type, package_id } = body as {
-      title?: string;
-      input_type?: VacancyInputType;
-      package_id?: string;
-    };
+    const parsed = vacancyCreateSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Ongeldige invoer", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const { title, input_type, package_id } = parsed.data;
 
     // Create vacancy
     const vacancy = await createVacancy({

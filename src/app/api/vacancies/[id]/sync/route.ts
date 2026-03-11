@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserByEmail, getVacancyById, updateVacancy } from "@/lib/airtable";
-import { triggerWebflowSync } from "@/lib/webflow-sync";
 import { logEvent } from "@/lib/events";
 
 export async function POST(
@@ -48,13 +47,10 @@ export async function POST(
       return NextResponse.json({ error: "Vacature is nog niet ingediend" }, { status: 400 });
     }
 
-    // 1. Zet het vangnet-veld
+    // 1. Mark for sync (Airtable Automation picks this up)
     await updateVacancy(id, { needs_webflow_sync: true });
 
-    // 2. Trigger directe sync via webhook
-    await triggerWebflowSync(id);
-
-    // 3. Log event
+    // 2. Log event
     await logEvent({
       event_type: "vacancy_updated",
       actor_user_id: user.id,

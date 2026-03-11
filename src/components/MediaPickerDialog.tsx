@@ -452,7 +452,9 @@ export function MediaPickerDialog({
                       </>
                     ) : (
                       <>
-                        <Plus className="h-4 w-4 text-[#1F2D58]/60" />
+                        <div className="w-6 h-6 rounded-full bg-[#193DAB]/12 flex items-center justify-center">
+                          <Plus className="h-3 w-3 text-[#1F2D58]" />
+                        </div>
                         <span className="text-[10px] text-[#1F2D58]/40">{images.length}/10</span>
                       </>
                     )}

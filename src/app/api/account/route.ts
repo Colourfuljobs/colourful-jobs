@@ -4,6 +4,7 @@ import {
   getEmployerById,
   getMediaAssetsByIds,
   getFAQByEmployerId,
+  getFAQById,
   getWalletByEmployerId,
   getWalletForUser,
   getManagedEmployers,
@@ -20,6 +21,86 @@ import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage, isProfileComplete } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
+
+const personalSchema = z.object({
+  section: z.literal("personal"),
+  data: z.object({
+    first_name: z.string().max(100).optional(),
+    last_name: z.string().max(100).optional(),
+  }),
+});
+
+const companySchema = z.object({
+  section: z.literal("company"),
+  data: z.object({
+    company_name: z.string().max(200).optional(),
+    phone: z.string().max(30).optional(),
+    kvk: z.string().max(20).optional(),
+  }),
+});
+
+const billingSchema = z.object({
+  section: z.literal("billing"),
+  data: z.object({
+    "reference-nr": z.string().max(100).optional(),
+    invoice_contact_name: z.string().max(200).optional(),
+    invoice_email: z.string().max(200).optional(),
+    invoice_street: z.string().max(200).optional(),
+    "invoice_postal-code": z.string().max(20).optional(),
+    invoice_city: z.string().max(200).optional(),
+  }),
+});
+
+const websiteSchema = z.object({
+  section: z.literal("website"),
+  data: z.object({
+    display_name: z.string().max(200).optional(),
+    website_url: z.string().max(500).optional(),
+    short_description: z.string().max(5000).optional(),
+    video_url: z.string().max(500).optional(),
+    sector: z.array(z.string()).optional(),
+    logo: z.array(z.string()).optional(),
+    header_image: z.array(z.string()).optional(),
+    gallery: z.array(z.string()).optional(),
+  }),
+});
+
+const onboardingSchema = z.object({
+  section: z.literal("onboarding"),
+  data: z.object({
+    onboarding_dismissed: z.boolean(),
+  }),
+});
+
+const faqItemSchema = z.object({
+  id: z.string().optional(),
+  question: z.string().max(500).optional(),
+  answer: z.string().max(5000).optional(),
+  order: z.number().int().optional(),
+});
+
+const faqSchema = z.object({
+  section: z.literal("faq"),
+  action: z.enum(["create", "update", "delete", "reorder", "sync"]),
+  data: z.object({
+    id: z.string().optional(),
+    question: z.string().max(500).optional(),
+    answer: z.string().max(5000).optional(),
+    order: z.number().int().optional(),
+    faqIds: z.array(z.string()).optional(),
+    items: z.array(faqItemSchema).optional(),
+  }),
+});
+
+const accountPatchSchema = z.discriminatedUnion("section", [
+  personalSchema,
+  companySchema,
+  billingSchema,
+  websiteSchema,
+  onboardingSchema,
+  faqSchema,
+]);
 
 /**
  * GET /api/account
@@ -188,14 +269,14 @@ export async function GET() {
         const sectorName = sectorResult?.name || "";
         const sectorId = sectorResult?.id || null;
 
-        // Process logo
+        // Process logo - use cloudinary_url (permanent) if available, fallback to file.url (temporary)
         const logo = logoAssets[0];
-        const logoUrl = logo?.file?.[0]?.url || null;
+        const logoUrl = logo?.cloudinary_url || logo?.file?.[0]?.url || null;
         const logoId = logo?.id || null;
 
-        // Process header image
+        // Process header image - use cloudinary_url (permanent) if available, fallback to file.url (temporary)
         const headerImage = headerAssets[0];
-        const headerImageUrl = headerImage?.file?.[0]?.url || null;
+        const headerImageUrl = headerImage?.cloudinary_url || headerImage?.file?.[0]?.url || null;
         const headerImageId = headerImage?.id || null;
 
         // Build website response
@@ -212,7 +293,7 @@ export async function GET() {
           header_image_id: headerImageId,
           gallery_images: galleryAssets.map((asset) => ({
             id: asset.id,
-            url: asset.file?.[0]?.url || "",
+            url: asset.cloudinary_url || asset.file?.[0]?.url || "",
           })),
           faq: faqItems.map((item) => ({
             id: item.id,
@@ -304,12 +385,18 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { section, data, action } = body;
-    const clientIP = getClientIP(request);
+    const parsed = accountPatchSchema.safeParse(body);
 
-    if (!section) {
-      return NextResponse.json({ error: "Section is required" }, { status: 400 });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Ongeldige invoer", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
     }
+
+    const { section, data } = parsed.data;
+    const action = "action" in parsed.data ? parsed.data.action : undefined;
+    const clientIP = getClientIP(request);
 
     // Get user from database
     const user = await getUserByEmail(session.user.email);
@@ -334,7 +421,7 @@ export async function PATCH(request: Request) {
         ip_address: clientIP,
         payload: {
           section: "personal",
-          updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+          updated_fields: Object.keys(data).filter((key) => (data as Record<string, unknown>)[key] !== undefined),
         },
       });
 
@@ -380,7 +467,7 @@ export async function PATCH(request: Request) {
         ip_address: clientIP,
         payload: {
           section: "company",
-          updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+          updated_fields: Object.keys(data).filter((key) => (data as Record<string, unknown>)[key] !== undefined),
         },
       });
 
@@ -415,7 +502,7 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: {
             section: "billing",
-            updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+            updated_fields: Object.keys(data).filter((key) => (data as Record<string, unknown>)[key] !== undefined),
           },
         });
 
@@ -449,7 +536,7 @@ export async function PATCH(request: Request) {
           ip_address: clientIP,
           payload: {
             section: "billing",
-            updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+            updated_fields: Object.keys(data).filter((key) => (data as Record<string, unknown>)[key] !== undefined),
           },
         });
 
@@ -497,7 +584,7 @@ export async function PATCH(request: Request) {
         ip_address: clientIP,
         payload: {
           section: "website",
-          updated_fields: Object.keys(data).filter((key) => data[key] !== undefined),
+          updated_fields: Object.keys(data).filter((key) => (data as Record<string, unknown>)[key] !== undefined),
         },
       });
 
@@ -553,8 +640,8 @@ export async function PATCH(request: Request) {
       if (action === "create") {
         const newFaq = await createFAQ({
           employer_id: effectiveEmployerId,
-          question: data.question,
-          answer: data.answer,
+          question: data.question || "",
+          answer: data.answer || "",
           order: data.order,
         });
 
@@ -583,6 +670,11 @@ export async function PATCH(request: Request) {
       if (action === "update") {
         if (!data.id) {
           return NextResponse.json({ error: "FAQ id is required for update" }, { status: 400 });
+        }
+
+        const existingFaq = await getFAQById(data.id);
+        if (!existingFaq || existingFaq.employer_id !== effectiveEmployerId) {
+          return NextResponse.json({ error: "FAQ niet gevonden of geen toegang" }, { status: 403 });
         }
 
         const updatedFaq = await updateFAQ(data.id, {
@@ -616,6 +708,11 @@ export async function PATCH(request: Request) {
       if (action === "delete") {
         if (!data.id) {
           return NextResponse.json({ error: "FAQ id is required for delete" }, { status: 400 });
+        }
+
+        const existingFaq = await getFAQById(data.id);
+        if (!existingFaq || existingFaq.employer_id !== effectiveEmployerId) {
+          return NextResponse.json({ error: "FAQ niet gevonden of geen toegang" }, { status: 403 });
         }
 
         await deleteFAQ(data.id);
@@ -669,11 +766,11 @@ export async function PATCH(request: Request) {
         const currentIds = new Set(currentFaqs.map(f => f.id));
         const incomingIds = new Set(
           data.items
-            .filter((item: any) => item.id && !item.id.startsWith("temp-"))
-            .map((item: any) => item.id)
+            .filter((item) => item.id && !item.id.startsWith("temp-"))
+            .map((item) => item.id)
         );
 
-        const results: any[] = [];
+        const results: { id: string; question?: string; answer?: string; order: number }[] = [];
 
         // Process each item
         for (let i = 0; i < data.items.length; i++) {
@@ -706,8 +803,8 @@ export async function PATCH(request: Request) {
             // New item - create
             const created = await createFAQ({
               employer_id: effectiveEmployerId,
-              question: item.question,
-              answer: item.answer,
+              question: item.question || "",
+              answer: item.answer || "",
               order: i,
             });
             results.push({ 

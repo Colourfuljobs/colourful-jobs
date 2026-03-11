@@ -1,5 +1,6 @@
 import Airtable from "airtable";
 import { getErrorMessage } from "./utils";
+import { escapeAirtableString } from "./airtable";
 
 const baseId = process.env.AIRTABLE_BASE_ID;
 const apiKey = process.env.AIRTABLE_API_KEY;
@@ -81,7 +82,7 @@ export async function getTargetEmployerFromPendingEvent(userId: string): Promise
   try {
     const records = await base(EVENTS_TABLE)
       .select({
-        filterByFormula: `AND({actor_user} = '${userId}', {event_type} = 'user_email_pending')`,
+        filterByFormula: `AND({actor_user} = '${escapeAirtableString(userId)}', {event_type} = 'user_email_pending')`,
         sort: [{ field: "created-at", direction: "desc" }],
         maxRecords: 1,
       })

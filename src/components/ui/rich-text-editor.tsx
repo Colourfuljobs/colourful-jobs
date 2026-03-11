@@ -22,6 +22,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  height?: string;
 }
 
 export function RichTextEditor({
@@ -30,6 +31,7 @@ export function RichTextEditor({
   placeholder = "Begin met typen...",
   className,
   disabled = false,
+  height = "600px",
 }: RichTextEditorProps) {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
@@ -44,6 +46,7 @@ export function RichTextEditor({
         heading: {
           levels: [2, 3],
         },
+        horizontalRule: false,
       }),
       Placeholder.configure({
         placeholder,
@@ -61,10 +64,8 @@ export function RichTextEditor({
     immediatelyRender: false,
     editorProps: {
       transformPastedHTML(html) {
-        // Convert <br> tags to proper paragraph breaks so each line becomes
-        // its own block node — this prevents heading toggles from affecting
-        // surrounding lines that share the same paragraph block.
         return html
+          .replace(/<hr\s*\/?>/gi, "")
           .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, "</p><p>")
           .replace(/<br\s*\/?>/gi, "</p><p>");
       },
@@ -179,10 +180,13 @@ export function RichTextEditor({
 
   if (!editor) {
     return (
-      <div className={cn(
-        "h-[600px] rounded-lg border border-[#1F2D58]/20 bg-[#E8EEF2] p-4",
-        className
-      )}>
+      <div 
+        className={cn(
+          "rounded-lg border border-[#1F2D58]/20 bg-[#E8EEF2] p-4",
+          className
+        )}
+        style={{ height }}
+      >
         <span className="text-[#1F2D58]/50">Editor laden...</span>
       </div>
     );
@@ -401,11 +405,12 @@ export function RichTextEditor({
       {/* Editor content - scrollable */}
       <EditorContent
         editor={editor}
+        style={{ height }}
         className={cn(
-          "h-[600px] overflow-y-auto bg-[#E8EEF2] p-4 flex-1 rounded-b-lg",
+          "overflow-y-auto bg-[#E8EEF2] p-4 flex-1 rounded-b-lg",
           "prose prose-sm max-w-none",
           "focus-within:outline-none",
-          "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[568px]",
+          "[&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-full",
           // Placeholder styling
           "[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
           "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-[#1F2D58]/40",

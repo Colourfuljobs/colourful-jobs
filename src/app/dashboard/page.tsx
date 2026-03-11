@@ -9,11 +9,6 @@ import {
   Plus,
   AlertTriangle,
   Clock,
-  Pencil,
-  Eye,
-  EyeOff,
-  Rocket,
-  ArrowUpFromLine,
   Building2,
   CheckCircle2,
   Circle,
@@ -21,7 +16,6 @@ import {
   PartyPopper,
   ChevronRight,
   Globe,
-  Wallet,
   Loader2,
 } from "lucide-react"
 
@@ -63,14 +57,19 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "@/components/ui/empty"
-import { VacancyStatus } from "@/components/dashboard/VacancyCard"
+import {
+  type VacancyStatus,
+  statusConfig,
+  tableActionsPerStatus,
+  getFurthestStep,
+  getVacancyDisplayTitle,
+} from "@/lib/vacancy-utils"
 import { CreditsCheckoutModal } from "@/components/checkout/CreditsCheckoutModal"
 import { BoostModal } from "@/components/vacatures/BoostModal"
 import { useCredits } from "@/lib/credits-context"
 import { useAccount } from "@/lib/account-context"
 import { toast } from "sonner"
 
-// Types for vacancy data from API
 interface Vacancy {
   id: string
   title?: string
@@ -82,77 +81,6 @@ interface Vacancy {
   description?: string
   public_url?: string
   input_type?: "self_service" | "we_do_it_for_you"
-}
-
-// Status configuration
-const statusConfig: Record<VacancyStatus, {
-  label: string
-  variant: "muted" | "info" | "success" | "warning" | "error"
-  showCredits: boolean
-}> = {
-  concept: {
-    label: "Concept",
-    variant: "muted",
-    showCredits: false,
-  },
-  incompleet: {
-    label: "Incompleet",
-    variant: "muted",
-    showCredits: true,
-  },
-  wacht_op_goedkeuring: {
-    label: "Wacht op goedkeuring",
-    variant: "info",
-    showCredits: true,
-  },
-  gepubliceerd: {
-    label: "Gepubliceerd",
-    variant: "success",
-    showCredits: true,
-  },
-  verlopen: {
-    label: "Verlopen",
-    variant: "warning",
-    showCredits: true,
-  },
-  gedepubliceerd: {
-    label: "Gedepubliceerd",
-    variant: "error",
-    showCredits: true,
-  },
-}
-
-// Actions per status
-const actionsPerStatus: Record<VacancyStatus, Array<{
-  label: string
-  icon: React.ComponentType<{ className?: string }>
-  action: "wijzigen" | "bekijken" | "boosten" | "publiceren" | "depubliceren"
-  iconOnly?: boolean
-}>> = {
-  concept: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-  ],
-  incompleet: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-  ],
-  wacht_op_goedkeuring: [
-    { label: "Bekijken", icon: Eye, action: "bekijken", iconOnly: true },
-  ],
-  gepubliceerd: [
-    { label: "Depubliceren", icon: EyeOff, action: "depubliceren", iconOnly: true },
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Bekijk live vacature", icon: Eye, action: "bekijken", iconOnly: true },
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-  ],
-  verlopen: [
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-  ],
-  gedepubliceerd: [
-    { label: "Boosten", icon: Rocket, action: "boosten", iconOnly: false },
-    { label: "Publiceren", icon: ArrowUpFromLine, action: "publiceren", iconOnly: false },
-    { label: "Wijzigen", icon: Pencil, action: "wijzigen", iconOnly: true },
-  ],
 }
 
 // Types for team data
@@ -290,23 +218,6 @@ export default function DashboardPage() {
     fetchData()
   }, [])
 
-  // Determine the furthest step for a vacancy based on its data
-  const getFurthestStep = (vacancy: Vacancy): 1 | 2 | 3 | 4 => {
-    // If no package selected yet, start at step 1
-    if (!vacancy.package_id) return 1
-    
-    // If package selected but no basic content, start at step 2
-    if (!vacancy.title || !vacancy.description) return 2
-    
-    // For submitted/published vacancies, go to step 2 (edit mode) instead of step 4
-    // This allows them to edit without going through the payment flow again
-    const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
-    if (submittedStatuses.includes(vacancy.status)) return 2
-    
-    // If content is filled, go to step 2 to make edits
-    return 2
-  }
-
   const handleDepublishConfirm = async () => {
     if (!depublishConfirmId) return
     const vacancyId = depublishConfirmId
@@ -323,7 +234,7 @@ export default function DashboardPage() {
         return
       }
 
-      toast.success("Vacature offline gehaald", { description: "De vacature is gedepubliceerd." })
+      toast.success("Vacature offline gehaald", { description: "De vacature wordt binnen enkele minuten offline gehaald." })
       // Update local state to reflect the status change
       setVacancies((prev) =>
         prev.map((v) =>
@@ -349,7 +260,7 @@ export default function DashboardPage() {
         return
       }
 
-      toast.success("Vacature gepubliceerd", { description: "De vacature is weer online." })
+      toast.success("Vacature gepubliceerd", { description: "De vacature staat binnen enkele minuten weer online." })
       // Update local state to reflect the status change
       setVacancies((prev) =>
         prev.map((v) =>
@@ -384,7 +295,7 @@ export default function DashboardPage() {
         break
       }
       case "boosten":
-        setBoostVacancy({ id: vacancyId, title: vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature") })
+        setBoostVacancy({ id: vacancyId, title: getVacancyDisplayTitle(vacancy.title, vacancy.input_type) })
         setBoostModalOpen(true)
         break
       case "publiceren":
@@ -836,7 +747,7 @@ export default function DashboardPage() {
               <TableBody>
                 {vacancies.map((vacancy) => {
                   const config = statusConfig[vacancy.status]
-                  const actions = actionsPerStatus[vacancy.status]
+                  const actions = tableActionsPerStatus[vacancy.status]
                   
                   return (
                     <TableRow key={vacancy.id} className="border-b border-[#E8EEF2] hover:bg-[#193DAB]/[0.04]">
@@ -845,7 +756,7 @@ export default function DashboardPage() {
                           href={`/dashboard/vacatures/nieuw?id=${vacancy.id}&step=${getFurthestStep(vacancy)}&returnTo=/dashboard`}
                           className="font-bold text-[#1F2D58] hover:text-[#39ADE5] hover:underline cursor-pointer block truncate"
                         >
-                          {vacancy.title || (vacancy.input_type === "we_do_it_for_you" ? "We Do It For You" : "Naamloze vacature")}
+                          {getVacancyDisplayTitle(vacancy.title, vacancy.input_type)}
                         </Link>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">

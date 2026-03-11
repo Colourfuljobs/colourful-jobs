@@ -10,12 +10,12 @@ import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
 
 /**
- * POST /api/vacancies/[id]/depublish
- * Takes a published vacancy offline (depublish).
+ * POST /api/vacancies/[id]/resubmit
+ * Re-submits a needs_adjustment vacancy for approval (no credits needed).
  * - Validates vacancy ownership
- * - Checks vacancy is in "gepubliceerd" status
- * - Updates status to "gedepubliceerd"
- * - Sets depublished-at to current timestamp
+ * - Checks vacancy is in "needs_adjustment" status
+ * - Saves vacancy data, clears rejection_reason
+ * - Updates status to "wacht_op_goedkeuring"
  */
 export async function POST(
   request: Request,
@@ -24,84 +24,57 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Verify user is authenticated
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    // Get user and employer
     const user = await getUserByEmail(session.user.email);
     if (!user) {
-      return NextResponse.json(
-        { error: "Gebruiker niet gevonden" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Gebruiker niet gevonden" }, { status: 404 });
     }
 
-    // Get allowed employer IDs based on role
     const allowedEmployers: string[] = [];
     if (user.role_id === "intermediary") {
-      // Intermediaries can access vacancies from all managed employers
       allowedEmployers.push(...(user.managed_employers || []));
     } else {
-      // Regular users can only access their employer's vacancies
       if (!user.employer_id) {
-        return NextResponse.json(
-          { error: "Geen werkgever gekoppeld" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Geen werkgever gekoppeld" }, { status: 400 });
       }
       allowedEmployers.push(user.employer_id);
     }
 
-    // Fetch vacancy
     const vacancy = await getVacancyById(id);
     if (!vacancy) {
-      return NextResponse.json(
-        { error: "Vacature niet gevonden" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Vacature niet gevonden" }, { status: 404 });
     }
 
-    // Verify vacancy belongs to user's employer or managed employers
     if (!vacancy.employer_id || !allowedEmployers.includes(vacancy.employer_id)) {
-      return NextResponse.json(
-        { error: "Geen toegang tot deze vacature" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
-    // Only gepubliceerd vacancies can be depublished
-    if (vacancy.status !== "gepubliceerd") {
+    if (vacancy.status !== "needs_adjustment") {
       return NextResponse.json(
-        {
-          error:
-            "Alleen gepubliceerde vacatures kunnen offline worden gehaald",
-        },
+        { error: "Alleen vacatures met status 'aanpassing nodig' kunnen opnieuw worden ingestuurd" },
         { status: 400 }
       );
     }
 
-    // Depublish the vacancy
     const updatedVacancy = await updateVacancy(id, {
-      status: "gedepubliceerd",
-      "depublished-at": new Date().toISOString(),
-      needs_webflow_archive: true,
+      status: "wacht_op_goedkeuring",
     });
 
-    // Log event
     await logEvent({
-      event_type: "vacancy_depublish",
+      event_type: "vacancy_updated",
       actor_user_id: user.id,
       employer_id: vacancy.employer_id || null,
       vacancy_id: vacancy.id,
       source: "web",
       ip_address: getClientIP(request),
       payload: {
-        action: "depublish",
-        previous_status: "gepubliceerd",
-        new_status: "gedepubliceerd",
+        action: "resubmit",
+        previous_status: "needs_adjustment",
+        new_status: "wacht_op_goedkeuring",
       },
     });
 
@@ -110,9 +83,9 @@ export async function POST(
       vacancy: updatedVacancy,
     });
   } catch (error: unknown) {
-    console.error("Error depublishing vacancy:", getErrorMessage(error));
+    console.error("Error resubmitting vacancy:", getErrorMessage(error));
     return NextResponse.json(
-      { error: "Er ging iets mis bij het offline halen van de vacature" },
+      { error: "Er ging iets mis bij het opnieuw insturen van de vacature" },
       { status: 500 }
     );
   }

@@ -422,7 +422,7 @@ export function CreditsCheckoutModal({
                           isSelected ? "bg-[#1F2D58]/[0.07]" : "bg-white/50"
                         )}>
                           <span className="text-sm leading-5 text-[#1F2D58]">
-                            Plaats {vacancyEstimate} vacatures
+                            Plaats <span className="font-bold">{vacancyEstimate}</span> vacatures
                           </span>
                           <InfoTooltip content={`Op basis van ${vacancyEstimate} 'Compleet vacatures'. Credits zijn ook anders in te zetten en hebben een geldigheid van 365 dagen.`} />
                         </div>

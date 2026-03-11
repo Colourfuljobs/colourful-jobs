@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { unstable_cache } from "next/cache";
 import {
   getAllLookups,
   getEducationLevels,
@@ -10,6 +11,42 @@ import {
   getSectors,
 } from "@/lib/airtable";
 import { getErrorMessage, sortLookupWithOverigeLast } from "@/lib/utils";
+
+const getCachedAllLookups = unstable_cache(
+  async () => getAllLookups(),
+  ["all-lookups"],
+  { revalidate: 600 }
+);
+
+const getCachedEducationLevels = unstable_cache(
+  async () => sortLookupWithOverigeLast(await getEducationLevels()),
+  ["lookups-education-levels"],
+  { revalidate: 600 }
+);
+
+const getCachedFields = unstable_cache(
+  async () => sortLookupWithOverigeLast(await getFields()),
+  ["lookups-fields"],
+  { revalidate: 600 }
+);
+
+const getCachedFunctionTypes = unstable_cache(
+  async () => sortLookupWithOverigeLast(await getFunctionTypes()),
+  ["lookups-function-types"],
+  { revalidate: 600 }
+);
+
+const getCachedRegions = unstable_cache(
+  async () => sortLookupWithOverigeLast(await getRegions()),
+  ["lookups-regions"],
+  { revalidate: 600 }
+);
+
+const getCachedSectors = unstable_cache(
+  async () => sortLookupWithOverigeLast(await getSectors()),
+  ["lookups-sectors"],
+  { revalidate: 600 }
+);
 
 /**
  * GET /api/lookups
@@ -30,13 +67,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type") || "all";
 
-    // If "all", fetch everything at once
+    // If "all", fetch everything at once (cached for 10 min)
     if (type === "all") {
-      const lookups = await getAllLookups();
+      const lookups = await getCachedAllLookups();
       return NextResponse.json(lookups);
     }
 
-    // Otherwise, parse comma-separated types and fetch only requested
+    // Otherwise, parse comma-separated types and fetch only requested (all cached)
     const types = type.split(",").map((t) => t.trim());
     const result: Record<string, unknown> = {};
 
@@ -44,36 +81,36 @@ export async function GET(request: Request) {
 
     if (types.includes("education_levels")) {
       fetchPromises.push(
-        getEducationLevels().then((data) => {
-          result.educationLevels = sortLookupWithOverigeLast(data);
+        getCachedEducationLevels().then((data) => {
+          result.educationLevels = data;
         })
       );
     }
     if (types.includes("fields")) {
       fetchPromises.push(
-        getFields().then((data) => {
-          result.fields = sortLookupWithOverigeLast(data);
+        getCachedFields().then((data) => {
+          result.fields = data;
         })
       );
     }
     if (types.includes("function_types")) {
       fetchPromises.push(
-        getFunctionTypes().then((data) => {
-          result.functionTypes = sortLookupWithOverigeLast(data);
+        getCachedFunctionTypes().then((data) => {
+          result.functionTypes = data;
         })
       );
     }
     if (types.includes("regions")) {
       fetchPromises.push(
-        getRegions().then((data) => {
-          result.regions = sortLookupWithOverigeLast(data);
+        getCachedRegions().then((data) => {
+          result.regions = data;
         })
       );
     }
     if (types.includes("sectors")) {
       fetchPromises.push(
-        getSectors().then((data) => {
-          result.sectors = sortLookupWithOverigeLast(data);
+        getCachedSectors().then((data) => {
+          result.sectors = data;
         })
       );
     }

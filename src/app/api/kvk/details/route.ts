@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import { getKVKDetails } from "@/lib/kvk";
+import { checkRateLimit, apiRateLimiter, getIdentifier } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const identifier = getIdentifier(request);
+    const rateLimitResult = await checkRateLimit(identifier, apiRateLimiter, 30, 60000);
+    
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: "Te veel verzoeken. Probeer het later opnieuw.", code: "RATE_LIMITED" },
+        { status: 429 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const kvkNumber = searchParams.get("kvk");
 

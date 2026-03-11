@@ -8,7 +8,6 @@ import {
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent, getClientIP } from "@/lib/events";
-import { triggerWebflowSync } from "@/lib/webflow-sync";
 
 /**
  * POST /api/vacancies/[id]/publish
@@ -108,9 +107,6 @@ export async function POST(
       "last-published-at": new Date().toISOString(),
       needs_webflow_sync: true,
     });
-
-    // Trigger Webflow sync
-    await triggerWebflowSync(id);
 
     // Log event
     await logEvent({

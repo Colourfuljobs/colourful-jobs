@@ -8,6 +8,13 @@ import { logEvent, getClientIP } from "@/lib/events";
 import { getErrorMessage } from "@/lib/utils";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
+import { z } from "zod";
+
+const acceptPostSchema = z.object({
+  token: z.string().min(1),
+  first_name: z.string().min(1).max(100),
+  last_name: z.string().min(1).max(100),
+});
 
 /**
  * GET /api/team/accept?token=xxx
@@ -80,22 +87,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { token, first_name, last_name } = body;
-    const clientIP = getClientIP(request);
+    const parsed = acceptPostSchema.safeParse(body);
 
-    if (!token) {
-      return NextResponse.json(
-        { error: "Token is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!first_name || !last_name) {
+    if (!parsed.success) {
       return NextResponse.json(
         { error: "Voornaam en achternaam zijn verplicht" },
         { status: 400 }
       );
     }
+
+    const { token, first_name, last_name } = parsed.data;
+    const clientIP = getClientIP(request);
 
     // Get user by invite token
     const invitedUser = await getUserByInviteToken(token);

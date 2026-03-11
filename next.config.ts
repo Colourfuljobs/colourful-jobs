@@ -82,4 +82,6 @@ const sentryWebpackPluginOptions = {
   disableLogger: true,
 };
 
-export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);
+export default process.env.NODE_ENV === "production"
+  ? withSentryConfig(nextConfig, sentryWebpackPluginOptions)
+  : nextConfig;

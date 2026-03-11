@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { Pencil, Image as ImageIcon, RefreshCw, Plus, Trash2, GripVertical, X, Check } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -26,8 +26,8 @@ import { CSS } from "@dnd-kit/utilities"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
@@ -36,8 +36,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { MediaPickerDialog } from "@/components/MediaPickerDialog"
 import { SortableGallery } from "@/components/SortableGallery"
 import { DesktopHeader } from "@/components/dashboard"
+import { RichTextEditor } from "@/components/ui/rich-text-editor"
 import { uploadMedia, validateFile } from "@/lib/cloudinary-upload"
-import { sortLookupWithOverigeLast } from "@/lib/utils"
+import { sortLookupWithOverigeLast, normalizeUrl } from "@/lib/utils"
 
 // Types for form data
 interface GalleryImage {
@@ -90,8 +91,6 @@ const emptyProfileData: ProfileData = {
 
 export default function WerkgeversprofielPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const returnToVacancy = searchParams.get("returnTo")
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true)
@@ -397,6 +396,23 @@ export default function WerkgeversprofielPage() {
     setPendingNavigation(null)
   }
 
+  // Helper function to validate URL format
+  const isValidUrl = (url: string): boolean => {
+    if (!url.trim()) return true // Empty is valid (not required)
+    try {
+      const normalized = normalizeUrl(url)
+      const urlObj = new URL(normalized)
+      const hostname = urlObj.hostname.replace(/^www\./, '')
+      if (!hostname.includes('.')) return false
+      const parts = hostname.split('.')
+      const tld = parts[parts.length - 1]
+      if (tld.length < 2) return false
+      return true
+    } catch {
+      return false
+    }
+  }
+
   // Validate required fields (only display_name, sector, and logo are required)
   const validateProfile = (): boolean => {
     const newErrors: Record<string, string> = {}
@@ -409,6 +425,11 @@ export default function WerkgeversprofielPage() {
     }
     if (!editData.logo) {
       newErrors.logo = "Logo is verplicht"
+    }
+    
+    // Validate website URL format if provided
+    if (editData.website_url.trim() && !isValidUrl(editData.website_url)) {
+      newErrors.website_url = "Voer een geldige URL in (bijv. www.voorbeeld.nl)"
     }
     
     // Check for unsaved FAQ content
@@ -511,20 +532,10 @@ export default function WerkgeversprofielPage() {
       setJustSaved(true)
       setTimeout(() => setJustSaved(false), 3000)
 
-      // Show success toast with optional return link
-      if (returnToVacancy) {
-        toast.success("Werkgeversprofiel opgeslagen", {
-          description: "Je kunt nu verder met je vacature. Wijzigingen zijn binnen enkele minuten zichtbaar op de website.",
-          action: {
-            label: "Terug naar vacature",
-            onClick: () => router.push(returnToVacancy),
-          },
-        })
-      } else {
-        toast.success("Werkgeversprofiel opgeslagen", {
-          description: "Wijzigingen zijn binnen enkele minuten zichtbaar op de website.",
-        })
-      }
+      // Show success toast
+      toast.success("Werkgeversprofiel opgeslagen", {
+        description: "Wijzigingen zijn binnen enkele minuten zichtbaar op de website.",
+      })
     } catch (error) {
       console.error("Error saving profile:", error)
       toast.error(error instanceof Error ? error.message : "Er is een fout opgetreden bij het opslaan")
@@ -1157,16 +1168,32 @@ function ProfileForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="website_url">
-            Website-URL <span className="text-slate-400 text-sm">*</span>
+            Website-URL
           </Label>
           <Input
             id="website_url"
             type="url"
             placeholder="www.voorbeeld.nl"
             value={data.website_url}
-            onChange={(e) => onChange({ ...data, website_url: e.target.value })}
+            onChange={(e) => {
+              onChange({ ...data, website_url: e.target.value })
+              if (errors.website_url) {
+                onClearError("website_url")
+              }
+            }}
+            onBlur={(e) => {
+              const value = e.target.value.trim()
+              if (value) {
+                const normalized = normalizeUrl(value)
+                onChange({ ...data, website_url: normalized })
+              }
+            }}
             disabled={isSaving}
+            className={errors.website_url ? "border-red-500" : ""}
           />
+          {errors.website_url && (
+            <p className="text-sm text-red-500">{errors.website_url}</p>
+          )}
         </div>
       </div>
 
@@ -1178,11 +1205,11 @@ function ProfileForm({
           </Label>
           <InfoTooltip content="Een korte introductie van je organisatie in 2-4 zinnen. Denk aan: wat jullie doen, waar jullie voor staan, of wat jullie uniek maakt." />
         </div>
-        <Textarea
-          id="short_description"
-          rows={4}
+        <RichTextEditor
           value={data.short_description}
-          onChange={(e) => onChange({ ...data, short_description: e.target.value })}
+          onChange={(value) => onChange({ ...data, short_description: value })}
+          placeholder="Beschrijf je organisatie..."
+          height="200px"
           disabled={isSaving}
         />
       </div>

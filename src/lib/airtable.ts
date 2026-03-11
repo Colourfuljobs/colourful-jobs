@@ -61,6 +61,7 @@ export const employerRecordSchema = z.object({
   "invoice_postal-code": z.string().optional(),
   invoice_city: z.string().optional(),
   sector: z.array(z.string()).optional(), // Linked record to Sectors table
+  sector_name: z.array(z.string()).optional(), // Lookup field for sector display name
   location: z.string().optional(),
   short_description: z.string().optional(),
   logo: z.array(z.string()).optional(), // Linked record to Media Assets
@@ -78,7 +79,8 @@ export const mediaAssetRecordSchema = z.object({
   id: z.string(),
   employer_id: z.string().nullable().optional(), // Linked record to Employers
   type: z.enum(["logo", "sfeerbeeld"]),
-  file: z.array(z.any()).optional(), // Airtable attachment
+  file: z.array(z.any()).optional(), // Airtable attachment (temporary URLs)
+  cloudinary_url: z.string().nullable().optional(), // Permanent Cloudinary URL
   alt_text: z.union([z.string(), z.any()]).optional(), // Can be string or lookup field
   file_size: z.number().optional(),
   is_deleted: z.boolean().default(false),
@@ -190,6 +192,7 @@ export const featureRecordSchema = z.object({
 export const vacancyStatusEnum = z.enum([
   "concept",
   "incompleet",
+  "needs_adjustment",
   "wacht_op_goedkeuring",
   "gepubliceerd",
   "verlopen",
@@ -206,13 +209,14 @@ const airtableToAppStatusMap: Record<string, string> = {
   "published": "gepubliceerd",
   "expired": "verlopen",
   "unpublished": "gedepubliceerd",
-  "needs_adjustment": "incompleet",
+  "needs_adjustment": "needs_adjustment",
 };
 
 // Reverse map: application status (Dutch) to Airtable status (English)
 const appToAirtableStatusMap: Record<string, string> = {
   "concept": "concept",
   "incompleet": "needs_adjustment",
+  "needs_adjustment": "needs_adjustment",
   "wacht_op_goedkeuring": "awaiting_approval",
   "gepubliceerd": "published",
   "verlopen": "expired",
@@ -322,6 +326,7 @@ export const vacancyRecordSchema = z.object({
   "depublished-at": z.string().optional(),
   "last-status_changed-at": z.string().optional(),
   closing_date: z.string().nullable().optional(),
+  rejection_reason: z.string().nullable().optional(),
 });
 
 // ============================================
@@ -1256,6 +1261,7 @@ export async function getMediaAssetById(id: string): Promise<MediaAssetRecord | 
       employer_id,
       type: fields.type,
       file: fields.file || [],
+      cloudinary_url: fields.cloudinary_url || null,
       alt_text,
       file_size: fields.file_size || 0,
       is_deleted: fields.is_deleted || false,
@@ -1348,6 +1354,7 @@ export async function getMediaAssetsByEmployerId(
         employer_id,
         type: fields.type,
         file: fields.file || [],
+        cloudinary_url: fields.cloudinary_url || null,
         alt_text,
         file_size: fields.file_size || 0,
         is_deleted: fields.is_deleted || false,
@@ -1367,6 +1374,7 @@ export async function createMediaAsset(fields: {
   employer_id: string;
   type: MediaAssetRecord["type"];
   file?: any[];
+  cloudinary_url?: string;
   alt_text?: string;
   file_size?: number;
 }): Promise<MediaAssetRecord> {
@@ -1382,6 +1390,7 @@ export async function createMediaAsset(fields: {
   };
 
   if (fields.file) airtableFields.file = fields.file;
+  if (fields.cloudinary_url) airtableFields.cloudinary_url = fields.cloudinary_url;
   // Only send alt_text if it's a non-empty string
   if (fields.alt_text && typeof fields.alt_text === "string" && fields.alt_text.trim().length > 0) {
     airtableFields.alt_text = fields.alt_text.trim();
@@ -1401,6 +1410,7 @@ export async function createMediaAsset(fields: {
       employer_id,
       type: recordFields.type,
       file: recordFields.file || [],
+      cloudinary_url: recordFields.cloudinary_url || null,
       alt_text: recordFields.alt_text || "",
       file_size: recordFields.file_size || 0,
       is_deleted: recordFields.is_deleted || false,
@@ -1427,6 +1437,7 @@ export async function updateMediaAsset(
 
   if (fields.type !== undefined) airtableFields.type = fields.type;
   if (fields.file !== undefined) airtableFields.file = fields.file;
+  if (fields.cloudinary_url !== undefined) airtableFields.cloudinary_url = fields.cloudinary_url;
   if (fields.alt_text !== undefined) airtableFields.alt_text = fields.alt_text;
   if (fields.file_size !== undefined) airtableFields.file_size = fields.file_size;
   if (fields.is_deleted !== undefined) airtableFields.is_deleted = fields.is_deleted;
@@ -1442,12 +1453,13 @@ export async function updateMediaAsset(
     id: record.id,
     employer_id,
     type: recordFields.type,
-      file: recordFields.file || [],
-      alt_text: recordFields.alt_text || "",
-      file_size: recordFields.file_size || 0,
-      is_deleted: recordFields.is_deleted || false,
-      "created-at": recordFields["created-at"] as string | undefined,
-    });
+    file: recordFields.file || [],
+    cloudinary_url: recordFields.cloudinary_url || null,
+    alt_text: recordFields.alt_text || "",
+    file_size: recordFields.file_size || 0,
+    is_deleted: recordFields.is_deleted || false,
+    "created-at": recordFields["created-at"] as string | undefined,
+  });
 }
 
 /**
@@ -1595,6 +1607,33 @@ export async function deleteFAQ(id: string): Promise<void> {
   } catch (error: unknown) {
     console.error("Error deleting FAQ:", getErrorMessage(error));
     throw new Error(`Failed to delete FAQ: ${getErrorMessage(error)}`);
+  }
+}
+
+/**
+ * Get a single FAQ item by ID (for ownership verification)
+ */
+export async function getFAQById(id: string): Promise<FAQRecord | null> {
+  if (!baseId || !apiKey) {
+    throw new Error("Airtable not configured");
+  }
+
+  try {
+    const record = await base(FAQ_TABLE).find(id);
+    const employer_id = Array.isArray(record.fields.employer)
+      ? record.fields.employer[0] || null
+      : record.fields.employer || null;
+
+    return faqRecordSchema.parse({
+      id: record.id,
+      employer_id,
+      question: record.fields.question || "",
+      answer: record.fields.answer || "",
+      order: record.fields.order || 0,
+      created_at: record.fields.created_at as string | undefined,
+    });
+  } catch {
+    return null;
   }
 }
 
@@ -2222,6 +2261,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     "depublished-at": fields["depublished-at"] as string | undefined,
     "last-status_changed-at": fields["last-status_changed-at"] as string | undefined,
     closing_date: fields.closing_date as string | undefined,
+    rejection_reason: fields.rejection_reason as string | undefined,
   });
 }
 
@@ -2412,6 +2452,9 @@ export async function updateVacancy(
   // Webflow sync
   if (fields.needs_webflow_sync !== undefined) airtableFields.needs_webflow_sync = fields.needs_webflow_sync;
   if (fields.needs_webflow_archive !== undefined) airtableFields.needs_webflow_archive = fields.needs_webflow_archive;
+
+  // Rejection reason
+  if (fields.rejection_reason !== undefined) airtableFields.rejection_reason = fields.rejection_reason;
 
   // Special timestamps
   if (fields["submitted-at"] !== undefined) airtableFields["submitted-at"] = fields["submitted-at"];

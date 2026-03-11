@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { unstable_cache } from "next/cache";
 import { 
   getActiveProductsByType,
   getActiveProductsByTypeAndRole,
@@ -15,6 +16,19 @@ import { getErrorMessage } from "@/lib/utils";
 export interface ProductWithFeatures extends ProductRecord {
   populatedFeatures: FeatureRecord[];
 }
+
+const getCachedProductsByTypeAndRole = unstable_cache(
+  async (type: string, roleId: string) =>
+    getActiveProductsByTypeAndRole(type as ProductRecord["type"], roleId),
+  ["products-by-type-role"],
+  { revalidate: 300 }
+);
+
+const getCachedFeatures = unstable_cache(
+  async () => getAllActiveFeatures(),
+  ["all-active-features"],
+  { revalidate: 300 }
+);
 
 /**
  * GET /api/products
@@ -52,8 +66,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch products with role filtering
-    let products = await getActiveProductsByTypeAndRole(type, roleId);
+    // Fetch products with role filtering (cached for 5 min)
+    let products = await getCachedProductsByTypeAndRole(type, roleId);
 
     // Filter by availability if specified
     if (availability) {
@@ -65,7 +79,7 @@ export async function GET(request: Request) {
     // If features are requested, fetch and populate them
     if (includeFeatures && (type === "vacancy_package" || type === "upsell")) {
       // Get all features at once (more efficient than per-product)
-      const allFeatures = await getAllActiveFeatures();
+      const allFeatures = await getCachedFeatures();
       
       // Create a map of feature ID to feature
       const featureMap = new Map<string, FeatureRecord>();

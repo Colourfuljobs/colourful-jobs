@@ -34,7 +34,7 @@ import { getPriceDisplayMode } from "@/lib/credits";
 import { getVisibleUpsells } from "@/lib/upsell-filters";
 import { getPackageBaseDuration, calculateDateRange } from "@/lib/vacancy-duration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Building2, Rocket, Users, Pencil, Clock } from "lucide-react";
+import { Building2, Rocket, Users, Pencil, Clock, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 interface VacancyWizardProps {
@@ -312,14 +312,24 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
     async function fetchData() {
       try {
-        // Fetch packages, upsells, lookups and account data in parallel
-        // Credits are handled by CreditsContext, no need to fetch here
-        const [packagesRes, upsellsRes, lookupsRes, accountRes] = await Promise.all([
+        // Fetch all data in parallel — vacancy and media are included when editing
+        const fetches: Promise<Response>[] = [
           fetch("/api/products?type=vacancy_package&includeFeatures=true"),
           fetch("/api/products?type=upsell&includeFeatures=true"),
           fetch("/api/lookups?type=all"),
           fetch("/api/account"),
-        ]);
+        ];
+        if (initialVacancyId) {
+          fetches.push(
+            fetch(`/api/vacancies/${initialVacancyId}?includeTransactions=true`),
+            fetch("/api/media"),
+          );
+        }
+
+        const responses = await Promise.all(fetches);
+        const [packagesRes, upsellsRes, lookupsRes, accountRes] = responses;
+        const vacancyRes = initialVacancyId ? responses[4] : null;
+        const mediaRes = initialVacancyId ? responses[5] : null;
 
         // Check profile completeness from account data
         if (accountRes.ok) {
@@ -340,9 +350,12 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           }
         }
 
+        // Process packages — keep local ref for package lookup when restoring vacancy
+        let fetchedPackages: ProductWithFeatures[] = [];
         if (packagesRes.ok) {
           const data = await packagesRes.json();
-          setPackages(data.products || []);
+          fetchedPackages = data.products || [];
+          setPackages(fetchedPackages);
         }
 
         // Track wdify product at function scope so we can use it when restoring vacancy
@@ -374,125 +387,109 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
           setLookups(data);
         }
 
-        // If editing existing vacancy, fetch it (with transactions for repeat_mode filtering)
-        if (initialVacancyId) {
-          const vacancyRes = await fetch(`/api/vacancies/${initialVacancyId}?includeTransactions=true`);
-          if (vacancyRes.ok) {
-            const data = await vacancyRes.json();
-            const vacancy = data.vacancy as VacancyRecord;
-            const transactions: TransactionRecord[] = data.transactions || [];
-            setVacancyTransactions(transactions);
-            
-            // Detect if this is an existing (already submitted) vacancy
-            const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd"];
-            const isExisting = submittedStatuses.includes(vacancy.status);
-            setIsExistingVacancy(isExisting);
-            
-            // Determine step: use initialStep from URL if valid, otherwise determine from vacancy state
-            let stepToUse = initialStep;
-            if (!stepToUse || stepToUse < 1 || stepToUse > 4) {
-              // Default: if vacancy has a package, go to step 2, otherwise step 1
-              stepToUse = vacancy.package_id ? 2 : 1;
-            }
-            
-            // For existing vacancies, always start at step 2 (skip package selection)
-            if (isExisting && stepToUse === 1) {
-              stepToUse = 2;
-            }
-            
-            // Restore "We do it for you" upsell in selectedUpsells if applicable
-            const restoredUpsells: ProductRecord[] = [];
-            if (vacancy.input_type === "we_do_it_for_you" && wdifyProduct) {
-              restoredUpsells.push(wdifyProduct);
-            }
+        // Process vacancy + media (already fetched in parallel above)
+        if (initialVacancyId && vacancyRes?.ok) {
+          const data = await vacancyRes.json();
+          const vacancy = data.vacancy as VacancyRecord;
+          const transactions: TransactionRecord[] = data.transactions || [];
+          setVacancyTransactions(transactions);
+          
+          // Detect if this is an existing (already submitted) vacancy
+          const submittedStatuses = ["wacht_op_goedkeuring", "gepubliceerd", "verlopen", "gedepubliceerd", "needs_adjustment"];
+          const isExisting = submittedStatuses.includes(vacancy.status);
+          setIsExistingVacancy(isExisting);
+          
+          // Determine step: use initialStep from URL if valid, otherwise determine from vacancy state
+          let stepToUse = initialStep;
+          if (!stepToUse || stepToUse < 1 || stepToUse > 4) {
+            stepToUse = vacancy.package_id ? 2 : 1;
+          }
+          
+          // For existing vacancies, always start at step 2 (skip package selection)
+          if (isExisting && stepToUse === 1) {
+            stepToUse = 2;
+          }
+          
+          // Restore "We do it for you" upsell in selectedUpsells if applicable
+          const restoredUpsells: ProductRecord[] = [];
+          if (vacancy.input_type === "we_do_it_for_you" && wdifyProduct) {
+            restoredUpsells.push(wdifyProduct);
+          }
 
-            setState((prev) => ({
-              ...prev,
-              vacancyData: vacancy,
-              inputType: vacancy.input_type || "self_service",
-              currentStep: stepToUse as WizardStep,
-              selectedUpsells: restoredUpsells,
-            }));
-            // For existing vacancies all steps are already filled, so unlock full navigation
-            setMaxStepReached(isExisting ? 3 : stepToUse as WizardStep);
-            
-            // Initialize recommendations from vacancy data
-            if (vacancy.recommendations) {
-              try {
-                setRecommendations(JSON.parse(vacancy.recommendations));
-              } catch { /* ignore parse errors */ }
-            }
+          setState((prev) => ({
+            ...prev,
+            vacancyData: vacancy,
+            inputType: vacancy.input_type || "self_service",
+            currentStep: stepToUse as WizardStep,
+            selectedUpsells: restoredUpsells,
+          }));
+          setMaxStepReached(isExisting ? 3 : stepToUse as WizardStep);
+          
+          // Initialize recommendations from vacancy data
+          if (vacancy.recommendations) {
+            try {
+              setRecommendations(JSON.parse(vacancy.recommendations));
+            } catch { /* ignore parse errors */ }
+          }
 
-            // Set selected package if exists
-            if (vacancy.package_id) {
-              const pkgRes = await fetch(`/api/products?type=vacancy_package&includeFeatures=true`);
-              if (pkgRes.ok) {
-                const pkgData = await pkgRes.json();
-                const pkg = pkgData.products?.find((p: ProductWithFeatures) => p.id === vacancy.package_id);
-                if (pkg) {
-                  setState((prev) => ({ ...prev, selectedPackage: pkg }));
+          // Resolve selected package from already-fetched packages (no duplicate fetch)
+          if (vacancy.package_id && fetchedPackages.length > 0) {
+            const pkg = fetchedPackages.find((p) => p.id === vacancy.package_id);
+            if (pkg) {
+              setState((prev) => ({ ...prev, selectedPackage: pkg }));
+            }
+          }
+
+          // Process media (already fetched in parallel above)
+          if (mediaRes?.ok) {
+            try {
+              const mediaData = await mediaRes.json();
+              
+              if (mediaData.logo) {
+                setLogoUrl(mediaData.logo.url);
+              }
+              
+              if (mediaData.images && mediaData.images.length > 0) {
+                let headerUrl: string | null = null;
+                
+                if (vacancy.header_image) {
+                  const vacancyHeader = mediaData.images.find((img: { id: string; url: string }) => 
+                    img.id === vacancy.header_image
+                  );
+                  if (vacancyHeader) {
+                    headerUrl = vacancyHeader.url;
+                  }
+                }
+                
+                if (!headerUrl && mediaData.headerImageId) {
+                  const defaultHeader = mediaData.images.find((img: { id: string; url: string }) => 
+                    img.id === mediaData.headerImageId
+                  );
+                  if (defaultHeader) {
+                    headerUrl = defaultHeader.url;
+                  }
+                }
+                
+                if (!headerUrl) {
+                  const markedHeader = mediaData.images.find((img: { id: string; url: string; isHeader?: boolean }) => 
+                    img.isHeader === true
+                  );
+                  if (markedHeader) {
+                    headerUrl = markedHeader.url;
+                  }
+                }
+                
+                if (headerUrl) {
+                  setHeaderImageUrl(headerUrl);
                 }
               }
-            }
-
-            // Load media URLs for preview (logo, header image, contact photo)
-            try {
-              const mediaRes = await fetch("/api/media");
-              if (mediaRes.ok) {
-                const mediaData = await mediaRes.json();
-                
-                // Set employer logo
-                if (mediaData.logo) {
-                  setLogoUrl(mediaData.logo.url);
-                }
-                
-                // Set header image - priority: vacancy's header_image > employer's default header
-                if (mediaData.images && mediaData.images.length > 0) {
-                  let headerUrl: string | null = null;
-                  
-                  // First, check if vacancy has header_image set
-                  if (vacancy.header_image) {
-                    const vacancyHeader = mediaData.images.find((img: { id: string; url: string }) => 
-                      img.id === vacancy.header_image
-                    );
-                    if (vacancyHeader) {
-                      headerUrl = vacancyHeader.url;
-                    }
-                  }
-                  
-                  // If no vacancy header, use employer's default header image
-                  if (!headerUrl && mediaData.headerImageId) {
-                    const defaultHeader = mediaData.images.find((img: { id: string; url: string }) => 
-                      img.id === mediaData.headerImageId
-                    );
-                    if (defaultHeader) {
-                      headerUrl = defaultHeader.url;
-                    }
-                  }
-                  
-                  // If still no header found, use the first image marked as header (isHeader)
-                  if (!headerUrl) {
-                    const markedHeader = mediaData.images.find((img: { id: string; url: string; isHeader?: boolean }) => 
-                      img.isHeader === true
-                    );
-                    if (markedHeader) {
-                      headerUrl = markedHeader.url;
-                    }
-                  }
-                  
-                  if (headerUrl) {
-                    setHeaderImageUrl(headerUrl);
-                  }
-                }
-                
-                // Set contact photo if vacancy has one
-                if (vacancy.contact_photo_id && mediaData.images) {
-                  const contactPhoto = mediaData.images.find((img: { id: string; url: string }) => 
-                    img.id === vacancy.contact_photo_id
-                  );
-                  if (contactPhoto) {
-                    setContactPhotoUrl(contactPhoto.url);
-                  }
+              
+              if (vacancy.contact_photo_id && mediaData.images) {
+                const contactPhoto = mediaData.images.find((img: { id: string; url: string }) => 
+                  img.id === vacancy.contact_photo_id
+                );
+                if (contactPhoto) {
+                  setContactPhotoUrl(contactPhoto.url);
                 }
               }
             } catch (error) {
@@ -621,15 +618,20 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
         if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
           return false;
         }
-        // Check that hostname has at least one dot (e.g., example.com, not just "example")
         const hostname = parsedUrl.hostname;
         if (!hostname.includes(".")) {
           return false;
         }
-        // Check that there's something after the last dot (TLD)
-        const parts = hostname.split(".");
+        // Strip leading "www." and verify the remaining part still has a dot
+        // e.g. "www.cutthe" → "cutthe" (no dot → invalid)
+        // e.g. "www.example.com" → "example.com" (has dot → valid)
+        const domainWithoutWww = hostname.replace(/^www\./, "");
+        if (!domainWithoutWww.includes(".")) {
+          return false;
+        }
+        const parts = domainWithoutWww.split(".");
         const tld = parts[parts.length - 1];
-        if (tld.length < 2) {
+        if (tld.length < 2 || !/^[a-z]+$/i.test(tld)) {
           return false;
         }
         return true;
@@ -1098,6 +1100,35 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
     }
   }, [state.vacancyId, saveVacancy]);
 
+  // Handle re-submitting a needs_adjustment vacancy
+  const handleResubmit = useCallback(async () => {
+    if (!state.vacancyId) return;
+
+    setIsSaving(true);
+    try {
+      await saveVacancy();
+
+      const res = await fetch(`/api/vacancies/${state.vacancyId}/resubmit`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to resubmit vacancy");
+      }
+
+      isSubmittedRef.current = true;
+      setState((prev) => ({ ...prev, isDirty: false }));
+      window.location.href = "/dashboard/vacatures?success=submitted";
+    } catch (error) {
+      toast.error("Er ging iets mis bij het opnieuw insturen", {
+        description: error instanceof Error ? error.message : "Probeer het opnieuw",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [state.vacancyId, saveVacancy]);
+
   // Handle vacancy submission
   const handleSubmit = useCallback(async () => {
     // Block submission if profile is not complete
@@ -1272,7 +1303,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                       <p className="text-sm mb-3">
                         Om een vacature aan te maken heb je een compleet werkgeversprofiel nodig. Vul deze eerst aan.
                       </p>
-                      <Link href={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}` : '') + (returnTo !== "/dashboard" ? `&returnTo=${encodeURIComponent(returnTo)}` : ''))}`}>
+                      <Link href="/dashboard/werkgeversprofiel">
                         <Button>
                           Werkgeversprofiel invullen
                         </Button>
@@ -1398,7 +1429,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
             onChangePackage={() => handleStepClick(1)}
             showInvoiceError={showInvoiceError}
             profileComplete={profileComplete}
-            profileEditUrl={`/dashboard/werkgeversprofiel?returnTo=${encodeURIComponent(pathname + (state.vacancyId ? `?id=${state.vacancyId}&step=4` : '') + (returnTo !== "/dashboard" ? `&returnTo=${encodeURIComponent(returnTo)}` : ''))}`}
+            profileEditUrl="/dashboard/werkgeversprofiel"
             extensionDateRange={extensionDateRange}
             selectedClosingDate={selectedClosingDate}
             onClosingDateChange={setSelectedClosingDate}
@@ -1527,7 +1558,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
       {/* Main content with sidebar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content area - full width on step 1, 2/3 width on step 2-4 with sidebar (but step 4 is skipped for existing vacancies, and step 2/3 sidebar hidden for existing) */}
-        <div className={state.currentStep === 4 && !isExistingVacancy || (state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature && !isReadOnly && !isExistingVacancy) ? "lg:col-span-2" : "lg:col-span-3"}>
+        <div className={state.currentStep === 4 && !isExistingVacancy || (state.currentStep === 2 && !isExistingVacancy && (hasSocialPostFeature || weDoItForYouProduct)) || (state.currentStep === 3 && hasSocialPostFeature && !isReadOnly && !isExistingVacancy) || (state.currentStep === 2 && state.vacancyData?.status === "needs_adjustment" && state.vacancyData?.rejection_reason) ? "lg:col-span-2" : "lg:col-span-3"}>
           {renderStepContent()}
         </div>
 
@@ -1565,6 +1596,27 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 </Button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Step 2 sidebar: Rejection reason - alleen voor needs_adjustment vacatures */}
+        {state.currentStep === 2 && state.vacancyData?.status === "needs_adjustment" && state.vacancyData?.rejection_reason && (
+          <div className="lg:col-span-1 lg:sticky lg:top-6 lg:self-start">
+            <div className="rounded-t-[0.75rem] rounded-b-[2rem] overflow-hidden">
+              <div className="bg-white/50 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0">
+                    <Pencil className="h-5 w-5 text-[#1F2D58]" />
+                  </div>
+                  <h4 className="font-bold text-[#1F2D58]">Aanpassing nodig</h4>
+                </div>
+              </div>
+              <div className="p-5 bg-white">
+                <p className="text-sm text-[#1F2D58]/80 whitespace-pre-wrap">
+                  {state.vacancyData.rejection_reason}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1662,7 +1714,7 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
 
       {/* Sticky navigation bar */}
       {!isReadOnly && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#E8EEF2] border-t border-[#193DAB]/[0.12]">
         <div className="max-w-[62.5rem] mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex-shrink-0 order-1">
@@ -1725,21 +1777,39 @@ export function VacancyWizard({ initialVacancyId, initialStep }: VacancyWizardPr
                 {state.currentStep < 4 ? (
                   <>
                     {/* For existing vacancies at step 3 (preview), show "Wijzigingen opslaan" instead of "Verder" */}
+                    {/* For needs_adjustment vacancies at step 3, show "Vacature opnieuw insturen" */}
                     {isExistingVacancy && state.currentStep === 3 ? (
-                      <Button
-                        onClick={handleSaveChanges}
-                        disabled={isSaving}
-                        showArrow={false}
-                      >
-                        {isSaving ? (
-                          <>
-                            <Spinner className="w-4 h-4 mr-2" />
-                            Opslaan...
-                          </>
-                        ) : (
-                          "Wijzigingen opslaan"
-                        )}
-                      </Button>
+                      state.vacancyData?.status === "needs_adjustment" ? (
+                        <Button
+                          onClick={handleResubmit}
+                          disabled={isSaving}
+                          showArrow={false}
+                        >
+                          {isSaving ? (
+                            <>
+                              <Spinner className="w-4 h-4 mr-2" />
+                              Insturen...
+                            </>
+                          ) : (
+                            "Vacature opnieuw insturen"
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleSaveChanges}
+                          disabled={isSaving}
+                          showArrow={false}
+                        >
+                          {isSaving ? (
+                            <>
+                              <Spinner className="w-4 h-4 mr-2" />
+                              Opslaan...
+                            </>
+                          ) : (
+                            "Wijzigingen opslaan"
+                          )}
+                        </Button>
+                      )
                     ) : (
                       <Button
                         onClick={handleNext}

@@ -38,27 +38,6 @@ export function formatCredits(amount: number): string {
 }
 
 /**
- * Calculate the credits needed for a vacancy package
- * Based on the Products table pricing
- */
-export const VACANCY_PACKAGE_CREDITS = {
-  basic: 16,
-  complete: 20,
-  premium: 23,
-} as const;
-
-/**
- * Calculate the credits needed for upsells
- * Based on the Products table pricing
- */
-export const UPSELL_CREDITS = {
-  featured: 3,
-  extra_social: 3,
-  same_day: 3,
-  extend_duration: 3,
-} as const;
-
-/**
  * Price display mode - determines whether to show euros or credits prominently
  */
 export type PriceDisplayMode = "euros" | "credits";

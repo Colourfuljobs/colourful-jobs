@@ -6,11 +6,60 @@ import {
   getVacancyById,
   updateVacancy,
   getTransactionsByVacancyId,
-  VacancyRecord,
   vacancyStatusEnum,
+  vacancyInputTypeEnum,
 } from "@/lib/airtable";
 import { getErrorMessage } from "@/lib/utils";
 import { logEvent } from "@/lib/events";
+import { z } from "zod";
+
+const optionalString = z.string().max(5000).optional().nullable();
+const optionalShortString = z.string().max(500).optional().nullable();
+
+const vacancyPatchSchema = z.object({
+  title: z.string().max(200).optional().nullable(),
+  status: vacancyStatusEnum.optional(),
+  input_type: vacancyInputTypeEnum.optional(),
+
+  intro_txt: optionalString,
+  description: z.string().max(50000).optional().nullable(),
+
+  location: optionalShortString,
+  hrs_per_week: optionalShortString,
+  salary: optionalShortString,
+
+  education_level_id: optionalShortString,
+  field_id: optionalShortString,
+  function_type_id: optionalShortString,
+  region_id: optionalShortString,
+  sector_id: optionalShortString,
+
+  package_id: optionalShortString,
+  selected_upsells: z.array(z.string()).optional(),
+
+  apply_url: z.string().max(1000).optional().nullable(),
+  application_email: optionalShortString,
+  show_apply_form: z.boolean().optional(),
+
+  contact_name: optionalShortString,
+  contact_role: optionalShortString,
+  contact_email: optionalShortString,
+  contact_phone: optionalShortString,
+  contact_photo_id: optionalShortString,
+
+  recommendations: z.string().max(10000).optional().nullable(),
+  note: optionalString,
+
+  header_image: optionalShortString,
+  gallery: z.array(z.string()).optional(),
+
+  closing_date: z.string().max(20).optional().nullable().or(z.literal("")),
+
+  needs_webflow_sync: z.boolean().optional(),
+  needs_webflow_archive: z.boolean().optional(),
+  high_priority: z.boolean().optional(),
+  is_featured: z.boolean().optional(),
+}).strip();
 
 /**
  * GET /api/vacancies/[id]
@@ -128,19 +177,25 @@ export async function PATCH(
       return NextResponse.json({ error: "Geen toegang tot deze vacature" }, { status: 403 });
     }
 
-    // Parse request body
-    const body = await request.json();
-    const updates = body as Partial<VacancyRecord>;
+    // Parse and validate request body
+    const rawBody = await request.json();
+    const parsed = vacancyPatchSchema.safeParse(rawBody);
 
-    // Remove fields that shouldn't be updated directly
-    delete updates.id;
-    delete updates.employer_id;
-    delete updates.credits_spent;
-    delete updates.credit_transactions;
-    delete updates.events;
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Ongeldige invoer", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const updates: Record<string, unknown> = { ...parsed.data };
+
+    // Remove empty date fields (Airtable doesn't accept empty strings for date fields)
+    if (updates.closing_date === "" || updates.closing_date === null) {
+      delete updates.closing_date;
+    }
     
-    // Remove linked record fields if they're not valid arrays with record IDs
-    // Airtable linked record fields must be arrays of valid record IDs
+    // Remove linked record fields if they're null, empty string, or empty array
     const linkedRecordFields = [
       'header_image',
       'gallery',
@@ -152,37 +207,13 @@ export async function PATCH(
       'sector_id',
       'contact_photo_id',
       'selected_upsells',
-      'users',
     ];
     
     for (const field of linkedRecordFields) {
-      const value = updates[field as keyof typeof updates];
-      // Remove if null, undefined, empty string, or empty array
+      const value = updates[field];
       if (value === null || value === undefined || value === '' || 
           (Array.isArray(value) && value.length === 0)) {
-        delete updates[field as keyof typeof updates];
-      }
-    }
-    
-    // Also remove timestamp fields that are read-only or managed by the system
-    delete updates["created-at"];
-    delete updates["updated-at"];
-    delete updates["last-status_changed-at"];
-    
-    // Remove empty date fields (Airtable doesn't accept empty strings for date fields)
-    if (updates.closing_date === '' || updates.closing_date === null) {
-      delete updates.closing_date;
-    }
-
-    // Validate status against allowed values if provided
-    if (updates.status !== undefined) {
-      const parseResult = vacancyStatusEnum.safeParse(updates.status);
-      if (!parseResult.success) {
-        console.error(`[PATCH /api/vacancies/${id}] Invalid status rejected: "${updates.status}"`);
-        return NextResponse.json(
-          { error: `Ongeldige status: ${updates.status}` },
-          { status: 400 }
-        );
+        delete updates[field];
       }
     }
 
