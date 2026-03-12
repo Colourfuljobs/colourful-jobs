@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: blob: https://res.cloudinary.com https://*.cloudinary.com https://p.typekit.net",
               "font-src 'self' https://use.typekit.net",
               "connect-src 'self' https://*.sentry.io https://api.cloudinary.com https://*.ingest.sentry.io https://*.marker.io",
+              "frame-src 'self' https://*.marker.io",
+              "worker-src 'self' blob: https://*.marker.io",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
