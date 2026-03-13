@@ -53,7 +53,7 @@ const vacancyPatchSchema = z.object({
   header_image: optionalShortString,
   gallery: z.array(z.string()).optional(),
 
-  closing_date: z.string().max(20).optional().nullable().or(z.literal("")),
+  closing_date: z.string().max(30).optional().nullable().or(z.literal("")),
 
   needs_webflow_sync: z.boolean().optional(),
   needs_webflow_archive: z.boolean().optional(),

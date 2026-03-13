@@ -1,6 +1,7 @@
 import Airtable from "airtable";
 import { z } from "zod";
 import { getErrorMessage, hasStatusCode, sortLookupWithOverigeLast } from "./utils";
+import { htmlToMarkdown, markdownToHtml } from "./html-markdown";
 
 const baseId = process.env.AIRTABLE_BASE_ID;
 const apiKey = process.env.AIRTABLE_API_KEY;
@@ -561,7 +562,7 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
   if (fields["invoice_postal-code"] !== undefined) airtableFields["invoice_postal-code"] = fields["invoice_postal-code"];
   if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
-  if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
+  if (fields.short_description !== undefined) airtableFields.short_description = htmlToMarkdown(fields.short_description);
   // Linked records to Media Assets (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
   if (fields.header_image !== undefined) airtableFields.header_image = fields.header_image;
@@ -574,6 +575,7 @@ export async function createEmployer(fields: Partial<EmployerRecord>): Promise<E
     return employerRecordSchema.parse({
       id: record.id,
       ...record.fields,
+      short_description: markdownToHtml(record.fields.short_description as string),
     });
   } catch (error: unknown) {
     console.error("Error creating employer in Airtable:", {
@@ -612,7 +614,7 @@ export async function updateEmployer(
   if (fields["invoice_postal-code"] !== undefined) airtableFields["invoice_postal-code"] = fields["invoice_postal-code"];
   if (fields.invoice_city !== undefined) airtableFields.invoice_city = fields.invoice_city;
   if (fields.sector !== undefined) airtableFields.sector = fields.sector;
-  if (fields.short_description !== undefined) airtableFields.short_description = fields.short_description;
+  if (fields.short_description !== undefined) airtableFields.short_description = htmlToMarkdown(fields.short_description);
   // Linked records (require arrays of record IDs)
   if (fields.logo !== undefined) airtableFields.logo = fields.logo;
   if (fields.header_image !== undefined) airtableFields.header_image = fields.header_image;
@@ -628,6 +630,7 @@ export async function updateEmployer(
   return employerRecordSchema.parse({
     id: record.id,
     ...record.fields,
+    short_description: markdownToHtml(record.fields.short_description as string),
   });
 }
 
@@ -705,6 +708,7 @@ export async function getEmployerByKVK(kvkNumber: string): Promise<EmployerRecor
     return employerRecordSchema.parse({
       id: records[0].id,
       ...records[0].fields,
+      short_description: markdownToHtml(records[0].fields.short_description as string),
     });
   } catch (error: unknown) {
     console.error("Error getting employer by KVK:", getErrorMessage(error));
@@ -741,6 +745,7 @@ export async function getEmployerById(id: string): Promise<EmployerRecord | null
       header_image,
       gallery,
       sector,
+      short_description: markdownToHtml(fields.short_description as string),
     });
   } catch (error: unknown) {
     console.error("Error getting employer by ID:", getErrorMessage(error));
@@ -828,7 +833,7 @@ export async function getWalletByEmployerId(employerId: string): Promise<WalletR
   try {
     const records = await base(WALLETS_TABLE)
       .select({
-        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({owner_employer}))`,
+        filterByFormula: `{owner_employer_record_id} = '${escapeAirtableString(employerId)}'`,
         maxRecords: 1,
       })
       .firstPage();
@@ -892,7 +897,7 @@ export async function getWalletByUserId(userId: string): Promise<WalletRecord | 
   try {
     const records = await base(WALLETS_TABLE)
       .select({
-        filterByFormula: `FIND('${escapeAirtableString(userId)}', ARRAYJOIN({owner_user}))`,
+        filterByFormula: `{owner_user_record_id} = '${escapeAirtableString(userId)}'`,
         maxRecords: 1,
       })
       .firstPage();
@@ -1092,7 +1097,7 @@ export async function getTransactionsByEmployerId(employerId: string): Promise<T
     
     const records = await base(TRANSACTIONS_TABLE)
       .select({
-        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`,
+        filterByFormula: `{employer_record_id} = '${escapeAirtableString(employerId)}'`,
         sort: [{ field: "created-at", direction: "desc" }],
       })
       .all();
@@ -1169,7 +1174,7 @@ export async function getTransactionsByVacancyId(vacancyId: string): Promise<Tra
   try {
     const records = await base(TRANSACTIONS_TABLE)
       .select({
-        filterByFormula: `AND(FIND('${escapeAirtableString(vacancyId)}', ARRAYJOIN({vacancy})), OR({context} = 'vacancy', {context} = 'boost', {context} = 'included'))`,
+        filterByFormula: `AND({vacancy_record_id} = '${escapeAirtableString(vacancyId)}', OR({context} = 'vacancy', {context} = 'boost', {context} = 'included'))`,
         sort: [{ field: "created-at", direction: "desc" }],
       })
       .all();
@@ -1314,7 +1319,7 @@ export async function getMediaAssetsByEmployerId(
   }
 
   try {
-    let filterFormula = `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`;
+    let filterFormula = `{employer_record_id} = '${escapeAirtableString(employerId)}'`;
     
     // Add type filter if specified
     if (options?.type) {
@@ -1489,7 +1494,7 @@ export async function getFAQByEmployerId(employerId: string): Promise<FAQRecord[
   try {
     const records = await base(FAQ_TABLE)
       .select({
-        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`,
+        filterByFormula: `{employer_record_id} = '${escapeAirtableString(employerId)}'`,
         sort: [{ field: "order", direction: "asc" }],
       })
       .all();
@@ -1680,7 +1685,7 @@ export async function getUsersByEmployerId(employerId: string): Promise<UserReco
   try {
     const records = await base(USERS_TABLE)
       .select({
-        filterByFormula: `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer_id}))`,
+        filterByFormula: `{employer_record_id} = '${escapeAirtableString(employerId)}'`,
         sort: [{ field: "created-at", direction: "desc" }],
       })
       .all();
@@ -2218,7 +2223,7 @@ function parseVacancyFields(record: any): VacancyRecord {
     status: mapVacancyStatusFromAirtable(fields.status as string),
     input_type: fields.input_type || "self_service",
     intro_txt: fields.intro_txt || "",
-    description: fields.description || "",
+    description: markdownToHtml(fields.description as string) || "",
     location: fields.location || "",
     hrs_per_week: fields.hrs_per_week || undefined,
     salary: fields.salary || "",
@@ -2296,7 +2301,7 @@ export async function getVacanciesByEmployerId(
   }
 
   try {
-    let filterFormula = `FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer}))`;
+    let filterFormula = `{employer_record_id} = '${escapeAirtableString(employerId)}'`;
     
     // Add status filter if specified
     if (options?.status) {
@@ -2381,7 +2386,7 @@ export async function updateVacancy(
   }
   if (fields.input_type !== undefined) airtableFields.input_type = fields.input_type;
   if (fields.intro_txt !== undefined) airtableFields.intro_txt = fields.intro_txt;
-  if (fields.description !== undefined) airtableFields.description = fields.description;
+  if (fields.description !== undefined) airtableFields.description = htmlToMarkdown(fields.description);
   if (fields.location !== undefined) airtableFields.location = fields.location;
   if (fields.hrs_per_week !== undefined) airtableFields.hrs_per_week = fields.hrs_per_week;
   if (fields.salary !== undefined) airtableFields.salary = fields.salary;
@@ -2918,7 +2923,7 @@ export async function getActiveCreditBatches(employerId: string): Promise<Credit
     const records = await base(TRANSACTIONS_TABLE)
       .select({
         filterByFormula: `AND(
-          FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer})),
+          {employer_record_id} = '${escapeAirtableString(employerId)}',
           {type} = 'purchase',
           {remaining_credits} > 0,
           IS_AFTER({expires_at}, '${now}')
@@ -2987,7 +2992,7 @@ export async function getExpiringCredits(
     const records = await base(TRANSACTIONS_TABLE)
       .select({
         filterByFormula: `AND(
-          FIND('${escapeAirtableString(employerId)}', ARRAYJOIN({employer})),
+          {employer_record_id} = '${escapeAirtableString(employerId)}',
           {type} = 'purchase',
           {remaining_credits} > 0,
           IS_AFTER({expires_at}, '${nowISO}'),
